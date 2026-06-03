@@ -72,7 +72,30 @@ for skill_dir in "$REPO"/skills/*/; do
   ln -s "${skill_dir%/}" "$link"
 done
 
-# 4. Record repo location so the skill can find it later --------------------
+# 4. Ensure the /claude-shared pointer in global ~/.claude/CLAUDE.md ---------
+# Idempotent managed block delimited by HTML-comment markers; never touches
+# any other content in the file.
+log "ensure /claude-shared pointer in ~/.claude/CLAUDE.md"
+GLOBAL_MD="$CLAUDE_DIR/CLAUDE.md"
+SNIPPET="$REPO/claude/CLAUDE.snippet.md"
+START='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
+END='<!-- <<< claude-shared <<< -->'
+if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD"; then
+  # Replace the existing managed block with the current snippet.
+  awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
+    function emit(   line){ while ((getline line < snip) > 0) print line; close(snip) }
+    $0==start { emit(); skip=1; next }
+    skip && $0==end { skip=0; next }
+    skip { next }
+    { print }
+  ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
+else
+  # Append (with a separating blank line if the file already has content).
+  [ -s "$GLOBAL_MD" ] && printf '\n' >> "$GLOBAL_MD"
+  cat "$SNIPPET" >> "$GLOBAL_MD"
+fi
+
+# 5. Record repo location so the skill can find it later --------------------
 printf '%s\n' "$REPO" > "$CLAUDE_DIR/claude-shared-repo"
 
 echo
