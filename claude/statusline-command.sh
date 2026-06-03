@@ -62,9 +62,9 @@ if [ -n "$five_reset" ]; then
     h=$(( rem / 3600 ))
     m=$(( (rem % 3600) / 60 ))
     if [ "$h" -gt 0 ]; then
-      five_left="${h}h$(printf '%02d' "$m")m"
+      five_left="-${h}h $(printf '%02d' "$m")m"
     else
-      five_left="${m}m"
+      five_left="-${m}m"
     fi
   fi
 fi

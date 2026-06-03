@@ -67,7 +67,7 @@ statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
   json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
     '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:10, resets_at:$r}}}')"
   out="$(STATUSLINE_NOW=$now statusline "$json")"
-  assert_contains "$out" "5h: 10% (2h03m)"
+  assert_contains "$out" "5h: 10% (-2h 03m)"
 }
 
 @test "shows minutes-only countdown when under an hour remains" {
@@ -75,7 +75,7 @@ statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
   json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
     '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:90, resets_at:$r}}}')"
   out="$(STATUSLINE_NOW=$now statusline "$json")"
-  assert_contains "$out" "5h: 90% (13m)"
+  assert_contains "$out" "5h: 90% (-13m)"
 }
 
 @test "omits the countdown when the window has already reset" {
