@@ -9,7 +9,29 @@ across machines via this git repo.
 |------|-----------|----------|
 | `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| ctx% \| 5h%` |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins`, `statusLine` |
-| `skills/sync-claude-env/` | symlinked into `~/.claude/skills/` | The `/sync-claude-env` re-sync skill |
+| `skills/*/` | symlinked into `~/.claude/skills/` | All shared skills (see below) |
+
+### Shared skills
+
+- **`/sync-claude-env`** — pull the latest shared config and apply it on this machine.
+- **`/add-handoff`** — install the reusable `/handoff` session-continuity skill
+  into another project, tailored to that repo. The template lives in
+  `templates/handoff/SKILL.md`.
+
+## Adding /handoff to another project
+
+Inside Claude Code, run the **`/add-handoff`** skill, e.g. _"add /handoff to repo
+~/projects/foo"_. It will:
+
+1. Inspect the target repo (submodules, a tasks/backlog file, the test command)
+   and fill the template at `templates/handoff/SKILL.md` accordingly.
+2. Write `<target>/.claude/skills/handoff/SKILL.md` (default handoff doc:
+   `docs/HANDOFF.md`).
+3. Add a `SessionStart` hook to `<target>/.claude/settings.json` so `/handoff`
+   **auto-resumes at the start of every session** in that repo (opt-out, and only
+   fires once `docs/HANDOFF.md` exists).
+
+Commit both files in the target repo so collaborators and other machines get them.
 
 Only the **shared keys** are touched in `settings.json`. Any machine-specific
 keys already present are preserved (deep, non-destructive merge), and the prior

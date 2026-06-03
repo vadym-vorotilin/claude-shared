@@ -62,11 +62,15 @@ else
   cp "$SHARED" "$TARGET"
 fi
 
-# 3. Install the re-sync skill ---------------------------------------------
-log "install sync-claude-env skill"
-SKILL_LINK="$CLAUDE_DIR/skills/sync-claude-env"
-rm -rf "$SKILL_LINK"
-ln -s "$REPO/skills/sync-claude-env" "$SKILL_LINK"
+# 3. Install all shared skills (symlinked) ----------------------------------
+for skill_dir in "$REPO"/skills/*/; do
+  [ -d "$skill_dir" ] || continue
+  name="$(basename "$skill_dir")"
+  log "install $name skill"
+  link="$CLAUDE_DIR/skills/$name"
+  rm -rf "$link"
+  ln -s "${skill_dir%/}" "$link"
+done
 
 # 4. Record repo location so the skill can find it later --------------------
 printf '%s\n' "$REPO" > "$CLAUDE_DIR/claude-shared-repo"
