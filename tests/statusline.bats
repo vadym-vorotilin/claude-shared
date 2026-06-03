@@ -37,6 +37,29 @@ statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
   assert_contains "$out" "5h: 10%"
 }
 
+# macOS /bin/bash is 3.2; its builtin printf has no %f support and errors on
+# floats. Rounding must happen in jq so fractional percentages render cleanly
+# under the actual interpreter the script runs with.
+@test "rounds a fractional 5-hour percentage instead of erroring" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:0.3}}}')"
+  out="$(/bin/bash "$REPO/claude/statusline-command.sh" <<<"$json")"
+  assert_contains "$out" "5h: 0%"
+  refute_contains "$out" "invalid number"
+}
+
+@test "rounds a fractional 5-hour percentage up at the .5 boundary" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:0.6}}}')"
+  out="$(/bin/bash "$REPO/claude/statusline-command.sh" <<<"$json")"
+  assert_contains "$out" "5h: 1%"
+}
+
+@test "rounds a fractional context percentage under /bin/bash 3.2" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}, context_window:{used_percentage:42.7}}')"
+  out="$(/bin/bash "$REPO/claude/statusline-command.sh" <<<"$json")"
+  assert_contains "$out" "ctx: 43%"
+  refute_contains "$out" "invalid number"
+}
+
 @test "omits ctx/5h segments when those fields are absent" {
   json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}}')"
   out="$(statusline "$json")"

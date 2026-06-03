@@ -43,11 +43,12 @@ if [ -n "$branch" ]; then
   [ "$untracked" -gt 0 ] 2>/dev/null && git_status="$git_status ?$untracked"
 fi
 
-# Context window
-used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+# Context window. Round in jq, not bash printf: macOS /bin/bash is 3.2, whose
+# builtin printf has no %f float support and errors on any non-integer value.
+used=$(echo "$input" | jq -r '(.context_window.used_percentage // empty) | round')
 
-# 5-hour quota
-five_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+# 5-hour quota (same float-rounding caveat as above)
+five_pct=$(echo "$input" | jq -r '(.rate_limits.five_hour.used_percentage // empty) | round')
 
 CYAN=$'\033[36m'
 GREEN=$'\033[32m'
@@ -64,9 +65,9 @@ if [ -n "$branch" ]; then
 fi
 printf "%s%s%s%s" "$SEP" "$MAGENTA" "$model" "$RESET"
 if [ -n "$used" ]; then
-  printf "%sctx: $(printf '%.0f' "$used")%%%s" "${SEP}${YELLOW}" "$RESET"
+  printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
 fi
 if [ -n "$five_pct" ]; then
-  printf "%s5h: $(printf '%.0f' "$five_pct")%%%s" "${SEP}${WHITE}" "$RESET"
+  printf "%s5h: %s%%%s" "${SEP}${WHITE}" "$five_pct" "$RESET"
 fi
 printf "%s" "$RESET"
