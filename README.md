@@ -13,6 +13,9 @@ across machines via this git repo.
 
 ### Shared skills
 
+- **`/claude-shared`** — the front door. Guided setup: detects what's already
+  configured, asks what you want (status line, settings sync, install `/handoff`
+  into a repo, pull/push), and delegates to the skills below. Start here.
 - **`/sync-claude-env`** — pull the latest shared config and apply it on this machine.
 - **`/add-handoff`** — install the reusable `/handoff` session-continuity skill
   into another project, tailored to that repo. The template lives in
@@ -48,9 +51,9 @@ cd ~/projects/claude-shared
 Requires [`jq`](https://jqlang.github.io/jq/) (used to merge `settings.json`).
 Restart Claude Code afterwards so the status line takes effect.
 
-`sync.sh` also symlinks the `sync-claude-env` skill into `~/.claude/skills/`, so
-from then on you can re-sync from inside Claude Code by running the
-`/sync-claude-env` skill.
+`sync.sh` also symlinks the shared skills into `~/.claude/skills/`, so from then
+on you can manage everything from inside Claude Code by running **`/claude-shared`**
+(guided), or `/sync-claude-env` to re-sync directly.
 
 ## Pull the latest
 
