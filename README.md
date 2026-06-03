@@ -3,13 +3,46 @@
 Shared [Claude Code](https://claude.com/claude-code) environment settings, synced
 across machines via this git repo.
 
+**What it's for.** Keeping a single source of truth for the parts of a Claude Code
+setup that should be identical on every machine — the colored status line, a few
+core `settings.json` keys, and a set of reusable skills — instead of hand-copying
+dotfiles around.
+
+**What it does.** `./sync.sh` deploys those pieces into `~/.claude` on whatever
+machine you run it from: it's idempotent, merges rather than overwrites (so
+machine-specific config is preserved), and backs up `settings.json` first. Clone
+the repo on a new machine, run `sync.sh` once, and that machine's Claude
+environment matches the others — after which you can manage everything from inside
+Claude Code via the `/claude-shared` skill. See **What `sync.sh` writes** below for
+the exact set of changes it makes.
+
 ## What's shared
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
 | `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| ctx% \| 5h%` |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins`, `statusLine` |
-| `skills/*/` | symlinked into `~/.claude/skills/` | All shared skills (see below) |
+| `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see below) |
+| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
+| — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
+
+### What `sync.sh` writes
+
+Running `./sync.sh` touches your `~/.claude` in five ways. It is idempotent and
+backs up `settings.json` before merging:
+
+1. Copies the status line script to `~/.claude/statusline-command.sh`.
+2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
+   preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
+3. Symlinks **every** `skills/*/` directory into `~/.claude/skills/` — that's
+   `/claude-shared`, `/sync-claude-env`, and `/add-handoff`, not just one. A real
+   (non-symlink) directory already at that name is left untouched.
+4. Inserts/updates a small **managed block** in `~/.claude/CLAUDE.md` pointing at
+   `/claude-shared`. The block is delimited by `<!-- >>> claude-shared … -->` /
+   `<!-- <<< claude-shared <<< -->` markers; **only the text between those markers
+   is ever changed** — the rest of your `CLAUDE.md` is left alone. If you don't
+   have a `CLAUDE.md`, one is created with just that block.
+5. Writes `~/.claude/claude-shared-repo` recording this checkout's path.
 
 ### Shared skills
 
@@ -88,3 +121,15 @@ claude/settings.shared.json
 
 The status line script is portable on its own — it reads `$HOME` at runtime, so
 no paths are hardcoded.
+
+## Tests
+
+`tests/` holds a containerized [bats](https://github.com/bats-core/bats-core)
+suite covering `sync.sh`, the status line, and the `/add-handoff` hook-merge.
+
+```bash
+./tests/run.sh
+```
+
+Requires Docker. The repo is mounted read-only and every test runs against a
+throwaway `$HOME`, so the suite never touches your real `~/.claude`.

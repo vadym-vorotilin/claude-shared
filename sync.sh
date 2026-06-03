@@ -6,7 +6,11 @@
 #   - claude/statusline-command.sh  -> ~/.claude/statusline-command.sh
 #   - claude/settings.shared.json   -> merged into ~/.claude/settings.json
 #                                      (shared keys win; local-only keys preserved)
-#   - skills/sync-claude-env        -> symlinked into ~/.claude/skills/
+#   - skills/*/                      -> symlinked into ~/.claude/skills/
+#                                      (ALL shared skills; real dirs left untouched)
+#   - claude/CLAUDE.snippet.md       -> a managed block in ~/.claude/CLAUDE.md
+#                                      (only the text between the markers is touched)
+#   - this checkout's path           -> ~/.claude/claude-shared-repo
 #
 # Idempotent: safe to re-run. Existing settings.json is backed up before merge.
 #
@@ -66,9 +70,15 @@ fi
 for skill_dir in "$REPO"/skills/*/; do
   [ -d "$skill_dir" ] || continue
   name="$(basename "$skill_dir")"
-  log "install $name skill"
   link="$CLAUDE_DIR/skills/$name"
-  rm -rf "$link"
+  # Only ever replace our own symlink (or a missing path). If a real file or
+  # directory lives here, it's the user's — leave it untouched.
+  if [ -e "$link" ] && [ ! -L "$link" ]; then
+    log "skip $name: $link is a real path, not a symlink — leaving it untouched"
+    continue
+  fi
+  log "install $name skill"
+  rm -f "$link"
   ln -s "${skill_dir%/}" "$link"
 done
 
@@ -80,7 +90,9 @@ GLOBAL_MD="$CLAUDE_DIR/CLAUDE.md"
 SNIPPET="$REPO/claude/CLAUDE.snippet.md"
 START='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
 END='<!-- <<< claude-shared <<< -->'
-if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD"; then
+# Replace only when BOTH markers are present — otherwise the awk skip-region
+# would run to EOF and silently delete everything after START.
+if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD" && grep -qF "$END" "$GLOBAL_MD"; then
   # Replace the existing managed block with the current snippet.
   awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
     function emit(   line){ while ((getline line < snip) > 0) print line; close(snip) }
@@ -90,6 +102,9 @@ if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD"; then
     { print }
   ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
 else
+  if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD"; then
+    log "warning: managed block in $GLOBAL_MD has a START marker but no END — appending a fresh block and leaving existing content untouched"
+  fi
   # Append (with a separating blank line if the file already has content).
   [ -s "$GLOBAL_MD" ] && printf '\n' >> "$GLOBAL_MD"
   cat "$SNIPPET" >> "$GLOBAL_MD"

@@ -56,14 +56,22 @@ Read `$SHARED/templates/handoff/SKILL.md` and substitute every `{{TOKEN}}`:
 
 ### Submodule tokens
 
+**Convention for the fills below.** Each of these tokens sits at the *start* of a
+template line, directly in front of existing text. So:
+
+- **empty string** = delete only the token; the text after it stays on the line.
+- **`…text…` followed by a newline** = emit that text, then a real line break, so
+  the text that follows the token drops onto its own line. (Write an actual
+  newline — do **not** write a literal `\n`.)
+
 **If the repo has NO submodules,** replace these tokens as follows:
 
 | Token | Fill with |
 |-------|-----------|
-| `{{SUBMODULE_RESUME}}` | empty string (delete the placeholder line entirely) |
+| `{{SUBMODULE_RESUME}}` | empty string (remove just the token; keep the rest of the line) |
 | `{{SUBMODULE_AND}}` | `:` |
-| `{{SUBMODULE_WRAP}}` | empty string (delete the line) |
-| `{{SUBMODULE_WARN}}` | `   - Unpushed commits that the next clone wouldn't see.\n` |
+| `{{SUBMODULE_WRAP}}` | empty string (remove just the token; keep the rest of the line) |
+| `{{SUBMODULE_WARN}}` | `   - Unpushed commits that the next clone wouldn't see.` followed by a newline |
 | `{{NOTES_SUBMODULE}}` | empty string |
 | `{{COMMIT_DOC_LOCATION}}` | empty string |
 
@@ -76,16 +84,16 @@ Read `$SHARED/templates/handoff/SKILL.md` and substitute every `{{TOKEN}}`:
   ```
   (keep the trailing newline so the next `   - If the doc's...` line aligns)
 - `{{SUBMODULE_AND}}` → ` + each submodule:`
-- `{{SUBMODULE_WRAP}}` → `   - \`git submodule status\` for pointer cleanliness.\n`
+- `{{SUBMODULE_WRAP}}` → `   - \`git submodule status\` for pointer cleanliness.` followed by a newline
 - `{{SUBMODULE_WARN}}` →
   ```
      - Unpushed submodule commits, or a parent pointer referencing an unpushed
        submodule commit (a fresh `--recurse-submodules` clone would fail).
   ```
-- `{{NOTES_SUBMODULE}}` → `- \`docs/HANDOFF.md\` is **parent-repo** content, not a submodule.\n`
+- `{{NOTES_SUBMODULE}}` → `- \`docs/HANDOFF.md\` is **parent-repo** content, not a submodule.` followed by a newline
 - `{{COMMIT_DOC_LOCATION}}` → ` (it lives in the **parent** repo)`
 
-After substituting, **scan the result for any leftover `{{` — there must be none.**
+After substituting, **scan the result for any leftover `{{...}}` or `<...>` placeholder — there must be none.**
 
 ## 4. Write it
 
@@ -101,10 +109,11 @@ add a `SessionStart` hook to `<target>/.claude/settings.json`. The hook injects 
 directive (only when the handoff doc exists) telling the agent to begin in RESUME
 mode. Skip this step only if the user opted out.
 
-The hook command (single line — adjust the doc path if the user changed it):
+The hook command (single line — `$HANDOFF_DOC` stands in for the chosen doc
+path, default `docs/HANDOFF.md`):
 
 ```sh
-test -f docs/HANDOFF.md && printf '%s\n' 'A docs/HANDOFF.md exists for this project. Before doing anything else this session, invoke the handoff skill in RESUME mode: read docs/HANDOFF.md, reconcile it against current git state, and report where things stand and the single next task.' || true
+test -f "$HANDOFF_DOC" && printf '%s\n' "A $HANDOFF_DOC exists for this project. Before doing anything else this session, invoke the handoff skill in RESUME mode: read $HANDOFF_DOC, reconcile it against current git state, and report where things stand and the single next task." || true
 ```
 
 Merge this into the target's `.claude/settings.json` **without clobbering** any
@@ -130,15 +139,17 @@ cd "<target>"
 mkdir -p .claude
 [ -f .claude/settings.json ] || echo '{}' > .claude/settings.json
 cp .claude/settings.json .claude/settings.json.bak.$(date +%Y%m%d%H%M%S)
-HOOK_CMD='test -f docs/HANDOFF.md && printf '"'"'%s\n'"'"' '"'"'A docs/HANDOFF.md exists for this project. Before doing anything else this session, invoke the handoff skill in RESUME mode: read docs/HANDOFF.md, reconcile it against current git state, and report where things stand and the single next task.'"'"' || true'
+# The handoff doc path (default docs/HANDOFF.md). Set this to whatever the user chose.
+HANDOFF_DOC="${HANDOFF_DOC:-docs/HANDOFF.md}"
+HOOK_CMD="test -f '$HANDOFF_DOC' && printf '%s\n' 'A $HANDOFF_DOC exists for this project. Before doing anything else this session, invoke the handoff skill in RESUME mode: read $HANDOFF_DOC, reconcile it against current git state, and report where things stand and the single next task.' || true"
 tmp=$(mktemp)
+# Drop any prior handoff hook (identified by the stable marker), then append the
+# current one. This is idempotent AND updates the path on re-install, instead of
+# leaving a stale hook behind.
 jq --arg cmd "$HOOK_CMD" '
   .hooks.SessionStart |= (
-    (. // [])
-    | if any(.[]?; (.hooks[]?.command // "") | contains("handoff skill in RESUME"))
-      then .
-      else . + [ { "hooks": [ { "type": "command", "command": $cmd } ] } ]
-      end
+    [ .[]? | select( any(.hooks[]?; (.command // "") | contains("handoff skill in RESUME")) | not ) ]
+    + [ { "hooks": [ { "type": "command", "command": $cmd } ] } ]
   )
 ' .claude/settings.json > "$tmp" && mv "$tmp" .claude/settings.json
 ```

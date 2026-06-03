@@ -7,9 +7,16 @@ cwd=$(echo "$input" | jq -r '.cwd // .workspace.current_dir // ""')
 model=$(echo "$input" | jq -r '.model.display_name // ""')
 
 # Shorten home directory to ~
+# (Note: ${cwd/#$home/~} can't be used — bash tilde-expands the replacement
+# back to $HOME, so the prefix gets rewritten to itself instead of "~".)
 home="$HOME"
 short_cwd="$cwd"
-[ -n "$home" ] && short_cwd="${cwd/#$home/~}"
+if [ -n "$home" ]; then
+  case "$cwd" in
+    "$home")    short_cwd="~" ;;
+    "$home"/*)  short_cwd="~${cwd#"$home"}" ;;
+  esac
+fi
 
 # Git branch and status
 branch=""
