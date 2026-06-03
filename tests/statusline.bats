@@ -60,6 +60,41 @@ statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
   refute_contains "$out" "invalid number"
 }
 
+# The countdown to the 5-hour window reset uses resets_at (Unix epoch seconds)
+# minus "now". STATUSLINE_NOW overrides now so the elapsed math is deterministic.
+@test "shows hours and zero-padded minutes until the 5-hour window recycles" {
+  now=1000000000; reset=$(( now + 2*3600 + 3*60 ))   # 2h03m out
+  json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:10, resets_at:$r}}}')"
+  out="$(STATUSLINE_NOW=$now statusline "$json")"
+  assert_contains "$out" "5h: 10% (2h03m)"
+}
+
+@test "shows minutes-only countdown when under an hour remains" {
+  now=1000000000; reset=$(( now + 13*60 ))           # 13m out
+  json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:90, resets_at:$r}}}')"
+  out="$(STATUSLINE_NOW=$now statusline "$json")"
+  assert_contains "$out" "5h: 90% (13m)"
+}
+
+@test "omits the countdown when the window has already reset" {
+  now=1000000000; reset=$(( now - 60 ))              # already past
+  json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:5, resets_at:$r}}}')"
+  out="$(STATUSLINE_NOW=$now statusline "$json")"
+  assert_contains "$out" "5h: 5%"
+  refute_contains "$out" "("
+}
+
+@test "shows the 5h percentage with no countdown when resets_at is absent" {
+  json="$(jq -n --arg c /tmp --arg m M \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:10}}}')"
+  out="$(statusline "$json")"
+  assert_contains "$out" "5h: 10%"
+  refute_contains "$out" "("
+}
+
 @test "omits ctx/5h segments when those fields are absent" {
   json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}}')"
   out="$(statusline "$json")"

@@ -50,6 +50,25 @@ used=$(echo "$input" | jq -r '(.context_window.used_percentage // empty) | round
 # 5-hour quota (same float-rounding caveat as above)
 five_pct=$(echo "$input" | jq -r '(.rate_limits.five_hour.used_percentage // empty) | round')
 
+# Time left until the 5-hour window recycles. resets_at is Unix epoch seconds;
+# "now" is overridable via STATUSLINE_NOW so the countdown is deterministically
+# testable. Integer printf (%02d) is safe under bash 3.2 — only %f floats fail.
+five_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+five_left=""
+if [ -n "$five_reset" ]; then
+  now=${STATUSLINE_NOW:-$(date +%s)}
+  rem=$(( five_reset - now ))
+  if [ "$rem" -gt 0 ]; then
+    h=$(( rem / 3600 ))
+    m=$(( (rem % 3600) / 60 ))
+    if [ "$h" -gt 0 ]; then
+      five_left="${h}h$(printf '%02d' "$m")m"
+    else
+      five_left="${m}m"
+    fi
+  fi
+fi
+
 CYAN=$'\033[36m'
 GREEN=$'\033[32m'
 MAGENTA=$'\033[35m'
@@ -68,6 +87,8 @@ if [ -n "$used" ]; then
   printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
 fi
 if [ -n "$five_pct" ]; then
-  printf "%s5h: %s%%%s" "${SEP}${WHITE}" "$five_pct" "$RESET"
+  five_seg="5h: ${five_pct}%"
+  [ -n "$five_left" ] && five_seg="${five_seg} (${five_left})"
+  printf "%s%s%s" "${SEP}${WHITE}" "$five_seg" "$RESET"
 fi
 printf "%s" "$RESET"
