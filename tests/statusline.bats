@@ -115,7 +115,7 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
     '{cwd:$c, model:{display_name:$m}, context_window:{used_percentage:42},
       rate_limits:{five_hour:{used_percentage:31}, seven_day:{used_percentage:58}}}')"
   out="$(statusline "$json")"
-  assert_equal "$(count_lines "$out")" 3
+  assert_equal "$(count_lines "$out")" 4   # 3 content lines + spacer
   assert_contains "$(line_n "$out" 1)" "/tmp/proj"
   refute_contains "$(line_n "$out" 1)" "Opus 4.8"
   assert_contains "$(line_n "$out" 2)" "Opus 4.8"
@@ -123,6 +123,19 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   refute_contains "$(line_n "$out" 2)" "5h:"
   assert_contains "$(line_n "$out" 3)" "5h: 31%"
   assert_contains "$(line_n "$out" 3)" "1w: 58%"
+}
+
+# A trailing blank line keeps the status visually separated from the CLI
+# chrome below it. Claude Code trims trailing whitespace-only lines, so the
+# spacer must be a non-whitespace blank: U+2800 BRAILLE PATTERN BLANK.
+@test "ends with a braille-blank spacer line" {
+  json="$(jq -n --arg c /tmp --arg m M \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:10}}}')"
+  raw="$(statusline "$json"; printf x)"; raw="${raw%x}"
+  case "$raw" in
+    *$'\n'"⠀") : ;;
+    *) fail "expected output to end with a newline + U+2800 spacer" ;;
+  esac
 }
 
 @test "git branch renders on the first line, next to the dir" {
@@ -136,7 +149,7 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   json="$(jq -n --arg c /tmp --arg m M \
     '{cwd:$c, model:{display_name:$m}, context_window:{used_percentage:42}}')"
   out="$(statusline "$json")"
-  assert_equal "$(count_lines "$out")" 2
+  assert_equal "$(count_lines "$out")" 3   # 2 content lines + spacer
   refute_contains "$out" "5h:"
   refute_contains "$out" "1w:"
 }
@@ -147,6 +160,16 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   out="$(statusline "$json")"
   assert_contains "$(line_n "$out" 3)" "1w: 58%"
   refute_contains "$out" "5h:"
+}
+
+# 5h is the quota you actively burn through; 1w moves slowly, so it renders
+# in dark gray (ANSI 90) to recede next to the white 5h segment.
+@test "colors the weekly quota darker than the 5h quota" {
+  json="$(jq -n --arg c /tmp --arg m M \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{five_hour:{used_percentage:31}, seven_day:{used_percentage:58}}}')"
+  out="$(statusline "$json")"
+  assert_contains "$out" $'\033[37m'"5h: 31%"
+  assert_contains "$out" $'\033[90m'"1w: 58%"
 }
 
 @test "rounds a fractional weekly percentage under /bin/bash 3.2" {

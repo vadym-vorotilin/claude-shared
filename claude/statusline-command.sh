@@ -82,6 +82,7 @@ GREEN=$'\033[32m'
 MAGENTA=$'\033[35m'
 YELLOW=$'\033[33m'
 WHITE=$'\033[37m'
+GRAY=$'\033[90m'
 RESET=$'\033[0m'
 SEP="${RESET} | "
 
@@ -99,19 +100,26 @@ if [ -n "$used" ]; then
   printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
 fi
 
-# Line 3: quotas — only when the harness sent rate-limit data
+# Line 3: quotas — only when the harness sent rate-limit data. The 5h window
+# is the one you actively burn through, so it stays white; the slow-moving
+# weekly window renders in dark gray to recede next to it.
 quota_line=""
 if [ -n "$five_pct" ]; then
-  quota_line="5h: ${five_pct}%"
+  quota_line="${WHITE}5h: ${five_pct}%"
   [ -n "$five_left" ] && quota_line="${quota_line} (${five_left})"
+  quota_line="${quota_line}${RESET}"
 fi
 if [ -n "$week_pct" ]; then
-  week_seg="1w: ${week_pct}%"
+  week_seg="${GRAY}1w: ${week_pct}%"
   [ -n "$week_left" ] && week_seg="${week_seg} (${week_left})"
   [ -n "$quota_line" ] && quota_line="${quota_line} | "
-  quota_line="${quota_line}${week_seg}"
+  quota_line="${quota_line}${week_seg}${RESET}"
 fi
 if [ -n "$quota_line" ]; then
-  printf "\n%s%s%s" "$WHITE" "$quota_line" "$RESET"
+  printf "\n%s" "$quota_line"
 fi
-printf "%s" "$RESET"
+
+# Trailing spacer line so the status doesn't visually glue to the CLI chrome
+# below. Claude Code trims trailing whitespace-only lines, so the spacer is
+# U+2800 BRAILLE PATTERN BLANK — renders as a blank cell but isn't whitespace.
+printf "%s\n⠀" "$RESET"
