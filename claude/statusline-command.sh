@@ -47,27 +47,35 @@ fi
 # builtin printf has no %f float support and errors on any non-integer value.
 used=$(echo "$input" | jq -r '(.context_window.used_percentage // empty) | round')
 
-# 5-hour quota (same float-rounding caveat as above)
+# Quota windows: 5-hour and 7-day share a shape (same float-rounding caveat).
 five_pct=$(echo "$input" | jq -r '(.rate_limits.five_hour.used_percentage // empty) | round')
-
-# Time left until the 5-hour window recycles. resets_at is Unix epoch seconds;
-# "now" is overridable via STATUSLINE_NOW so the countdown is deterministically
-# testable. Integer printf (%02d) is safe under bash 3.2 — only %f floats fail.
+week_pct=$(echo "$input" | jq -r '(.rate_limits.seven_day.used_percentage // empty) | round')
 five_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
-five_left=""
-if [ -n "$five_reset" ]; then
+week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
+
+# Time left until a quota window recycles: "-Xd Yh", "-Xh YYm", or "-Xm".
+# resets_at is Unix epoch seconds; "now" is overridable via STATUSLINE_NOW so
+# the countdown is deterministically testable. Integer printf (%02d) is safe
+# under bash 3.2 — only %f floats fail.
+time_left() { # resets_at-epoch -> countdown string (empty if past or unset)
+  local reset="$1" now rem d h m
+  [ -n "$reset" ] || return 0
   now=${STATUSLINE_NOW:-$(date +%s)}
-  rem=$(( five_reset - now ))
-  if [ "$rem" -gt 0 ]; then
-    h=$(( rem / 3600 ))
-    m=$(( (rem % 3600) / 60 ))
-    if [ "$h" -gt 0 ]; then
-      five_left="-${h}h $(printf '%02d' "$m")m"
-    else
-      five_left="-${m}m"
-    fi
+  rem=$(( reset - now ))
+  [ "$rem" -gt 0 ] || return 0
+  d=$(( rem / 86400 ))
+  h=$(( (rem % 86400) / 3600 ))
+  m=$(( (rem % 3600) / 60 ))
+  if [ "$d" -gt 0 ]; then
+    echo "-${d}d ${h}h"
+  elif [ "$h" -gt 0 ]; then
+    echo "-${h}h $(printf '%02d' "$m")m"
+  else
+    echo "-${m}m"
   fi
-fi
+}
+five_left=$(time_left "$five_reset")
+week_left=$(time_left "$week_reset")
 
 CYAN=$'\033[36m'
 GREEN=$'\033[32m'
@@ -77,18 +85,33 @@ WHITE=$'\033[37m'
 RESET=$'\033[0m'
 SEP="${RESET} | "
 
+# Line 1: location — dir + git
 printf "%s%s%s" "$CYAN" "$short_cwd" "$RESET"
 if [ -n "$branch" ]; then
   branch_part="${git_status# | }"
   printf "%s%s%s%s" "$SEP" "$GREEN" "$branch_part" "$RESET"
 fi
-printf "%s%s%s%s" "$SEP" "$MAGENTA" "$model" "$RESET"
+printf "\n"
+
+# Line 2: session — model + context window
+printf "%s%s%s" "$MAGENTA" "$model" "$RESET"
 if [ -n "$used" ]; then
   printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
 fi
+
+# Line 3: quotas — only when the harness sent rate-limit data
+quota_line=""
 if [ -n "$five_pct" ]; then
-  five_seg="5h: ${five_pct}%"
-  [ -n "$five_left" ] && five_seg="${five_seg} (${five_left})"
-  printf "%s%s%s" "${SEP}${WHITE}" "$five_seg" "$RESET"
+  quota_line="5h: ${five_pct}%"
+  [ -n "$five_left" ] && quota_line="${quota_line} (${five_left})"
+fi
+if [ -n "$week_pct" ]; then
+  week_seg="1w: ${week_pct}%"
+  [ -n "$week_left" ] && week_seg="${week_seg} (${week_left})"
+  [ -n "$quota_line" ] && quota_line="${quota_line} | "
+  quota_line="${quota_line}${week_seg}"
+fi
+if [ -n "$quota_line" ]; then
+  printf "\n%s%s%s" "$WHITE" "$quota_line" "$RESET"
 fi
 printf "%s" "$RESET"

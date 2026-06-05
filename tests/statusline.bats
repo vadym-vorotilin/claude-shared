@@ -9,6 +9,11 @@ teardown() { common_teardown; }
 
 statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
 
+# Nth line of the output (1-based), for layout assertions.
+line_n() { printf '%s\n' "$1" | sed -n "$2p"; }
+# Lines in the output, counting a final unterminated line.
+count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
+
 @test "renders model display name and cwd" {
   json="$(jq -n --arg c /tmp/proj --arg m 'Opus 4.8' '{cwd:$c, model:{display_name:$m}}')"
   out="$(statusline "$json")"
@@ -100,6 +105,72 @@ statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
   out="$(statusline "$json")"
   refute_contains "$out" "ctx:"
   refute_contains "$out" "5h:"
+}
+
+# ---- multiline layout -----------------------------------------------------
+# Line 1: dir + git | line 2: model + ctx | line 3: 5h + 1w quotas.
+
+@test "renders three lines: location, session, quotas" {
+  json="$(jq -n --arg c /tmp/proj --arg m 'Opus 4.8' \
+    '{cwd:$c, model:{display_name:$m}, context_window:{used_percentage:42},
+      rate_limits:{five_hour:{used_percentage:31}, seven_day:{used_percentage:58}}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(count_lines "$out")" 3
+  assert_contains "$(line_n "$out" 1)" "/tmp/proj"
+  refute_contains "$(line_n "$out" 1)" "Opus 4.8"
+  assert_contains "$(line_n "$out" 2)" "Opus 4.8"
+  assert_contains "$(line_n "$out" 2)" "ctx: 42%"
+  refute_contains "$(line_n "$out" 2)" "5h:"
+  assert_contains "$(line_n "$out" 3)" "5h: 31%"
+  assert_contains "$(line_n "$out" 3)" "1w: 58%"
+}
+
+@test "git branch renders on the first line, next to the dir" {
+  make_git_repo "$TEST_TMP/r"
+  json="$(jq -n --arg c "$TEST_TMP/r" --arg m M '{cwd:$c, model:{display_name:$m}}')"
+  out="$(statusline "$json")"
+  assert_contains "$(line_n "$out" 1)" "main"
+}
+
+@test "omits the quota line entirely when rate_limits is absent" {
+  json="$(jq -n --arg c /tmp --arg m M \
+    '{cwd:$c, model:{display_name:$m}, context_window:{used_percentage:42}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(count_lines "$out")" 2
+  refute_contains "$out" "5h:"
+  refute_contains "$out" "1w:"
+}
+
+@test "renders the quota line with only the weekly segment when 5h is absent" {
+  json="$(jq -n --arg c /tmp --arg m M \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{seven_day:{used_percentage:58}}}')"
+  out="$(statusline "$json")"
+  assert_contains "$(line_n "$out" 3)" "1w: 58%"
+  refute_contains "$out" "5h:"
+}
+
+@test "rounds a fractional weekly percentage under /bin/bash 3.2" {
+  json="$(jq -n --arg c /tmp --arg m M \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{seven_day:{used_percentage:0.6}}}')"
+  out="$(/bin/bash "$REPO/claude/statusline-command.sh" <<<"$json")"
+  assert_contains "$out" "1w: 1%"
+  refute_contains "$out" "invalid number"
+}
+
+@test "shows a day-scale countdown until the weekly window recycles" {
+  now=1000000000; reset=$(( now + 3*86400 + 14*3600 ))   # 3d 14h out
+  json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{seven_day:{used_percentage:58, resets_at:$r}}}')"
+  out="$(STATUSLINE_NOW=$now statusline "$json")"
+  assert_contains "$out" "1w: 58% (-3d 14h)"
+}
+
+@test "weekly countdown falls back to hours and minutes under a day" {
+  now=1000000000; reset=$(( now + 2*3600 + 3*60 ))       # 2h03m out
+  json="$(jq -n --arg c /tmp --arg m M --argjson r "$reset" \
+    '{cwd:$c, model:{display_name:$m}, rate_limits:{seven_day:{used_percentage:90, resets_at:$r}}}')"
+  out="$(STATUSLINE_NOW=$now statusline "$json")"
+  assert_contains "$out" "1w: 90% (-2h 03m)"
 }
 
 @test "shows the git branch for a repo cwd" {
