@@ -202,6 +202,26 @@ placeholder** — there must be none (same guard as `add-handoff`).
 - Branch protection on `main` recommended before unattended use (the forbidden-list
   is guidance, not a hard boundary).
 
+## Upstream reconciliation (2026-06-10)
+
+Folded in from the source project's latest Fixer revision (the behavior is now
+battle-tested there):
+
+- **PR label timing & best-effort:** add `in-auto-review` *immediately after* the PR
+  is created; swap to `ready-for-human` on Copilot-loop exit — including on **poll
+  timeout** and on a **hard stop that occurs after the PR is already open** (don't
+  leave it stuck in `in-auto-review`). All PR-label edits tolerate a missing label.
+- **Active in-session Copilot polling:** the loop must block-and-poll
+  (`sleep 30` × ~20, ~10-min timeout) and must **never end the turn to "wait for a
+  notification"** — doing so abandons the loop and leaves the PR unfinished.
+- **Interactive guard (optional):** an optional configured label marks issues too
+  complex for the focused TDD flow (they need brainstorm→plan). When present, the
+  skill routes to brainstorming instead of reproducing/fixing, leaving the issue
+  eligible. Off by default.
+
+The new upstream `integrate.sh` / re-review stages are post-merge integration and
+remain out of scope (below).
+
 ## Out of scope
 
 Only the per-issue fixer is ported. The originating QA pipeline's other parts —
