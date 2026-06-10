@@ -53,6 +53,11 @@ backs up `settings.json` before merging:
 - **`/add-handoff`** — install the reusable `/handoff` session-continuity skill
   into another project, tailored to that repo. The template lives in
   `templates/handoff/SKILL.md`.
+- **`/add-work-on-gh-issue`** — install the reusable `/work-on-gh-issue` skill into
+  another project. That skill implements one approved GitHub issue end-to-end via
+  strict TDD (reproduce → fix → full suite → PR → review), and supports either
+  label-based or GitHub-Projects-status-based issue tracking. The template lives in
+  `templates/work-on-gh-issue/SKILL.md`.
 
 ## Adding /handoff to another project
 
@@ -72,6 +77,17 @@ Commit both files in the target repo so collaborators and other machines get the
 Only the **shared keys** are touched in `settings.json`. Any machine-specific
 keys already present are preserved (deep, non-destructive merge), and the prior
 file is backed up first.
+
+## Adding /work-on-gh-issue to another project
+
+Inside Claude Code, run the **`/add-work-on-gh-issue`** skill, e.g. _"add
+/work-on-gh-issue to repo ~/projects/foo"_. It asks whether the repo tracks issue
+state with **labels** or a **GitHub Projects v2 Status field**, inspects the repo
+(submodules, test command, Copilot reviewer), fills
+`templates/work-on-gh-issue/SKILL.md`, and writes
+`<target>/.claude/skills/work-on-gh-issue/SKILL.md`. No `SessionStart` hook is added
+— the skill is on-demand (`/work-on-gh-issue <number>`, or bare to pick the next
+eligible issue). Commit the written file in the target repo.
 
 ## Set up on a new machine
 
