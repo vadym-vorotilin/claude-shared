@@ -670,7 +670,9 @@ template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
 
 @test "placeholder scan targets {{ }} install tokens, not <runtime> placeholders" {
   pat="$(grep -nE "grep -RnE" "$(ADDER)" | head -1)"
-  assert_contains "$pat" '{{'
+  # The scan matches {{UPPER_SNAKE}} tokens (braces are backslash-escaped for grep -E,
+  # so check for the uppercase-token character class, which is unambiguous).
+  assert_contains "$pat" '[A-Z_]'
   # It must NOT scan for lowercase <...>, which legitimately survive in the worker.
   refute_contains "$pat" '<[a-z]'
 }

@@ -98,3 +98,28 @@ scan_cmd() { extract_code_block "$(ADDER)" "FAIL if any placeholder survived" ba
   run bash -c "DEST='$d'; $(scan_cmd)"
   assert_equal "$status" 0
 }
+
+# ----------------------------------------------------------------- LINT ----
+
+template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
+
+@test "every {{TOKEN}} in the template has a fill rule in the installer" {
+  for tok in $(template_tokens); do
+    grep -qF "$tok" "$(ADDER)" || fail "template token $tok has no rule in installer"
+  done
+}
+
+@test "placeholder scan targets {{ }} install tokens, not <runtime> placeholders" {
+  pat="$(grep -nE "grep -RnE" "$(ADDER)" | head -1)"
+  # The scan matches {{UPPER_SNAKE}} tokens (braces are backslash-escaped for grep -E,
+  # so check for the uppercase-token character class, which is unambiguous).
+  assert_contains "$pat" '[A-Z_]'
+  # It must NOT scan for lowercase <...>, which legitimately survive in the worker.
+  refute_contains "$pat" '<[a-z]'
+}
+
+@test "worker forbids merging and main-pushing" {
+  body="$(cat "$(TEMPLATE)")"
+  assert_contains "$body" "## Forbidden"
+  assert_contains "$body" "gh pr merge"
+}
