@@ -71,3 +71,30 @@ rank_cmd() { # priority_json
   out="$(printf '%s' "$fixture" | bash -c "$(rank_cmd '[]')")"
   assert_equal "$(printf '%s' "$out" | cut -f1 | tr '\n' ' ')" "3 5 "
 }
+
+# ------------------------------------------------------- PLACEHOLDER SCAN ----
+
+scan_cmd() { extract_code_block "$(ADDER)" "FAIL if any placeholder survived" bash; }
+
+@test "placeholder scan flags a leftover {{TOKEN}}" {
+  d="$TEST_TMP/out"; mkdir -p "$d"
+  printf 'ok line\n{{LEFTOVER}}\n' > "$d/SKILL.md"
+  run bash -c "DEST='$d'; $(scan_cmd)"
+  assert_equal "$status" 1
+  assert_contains "$output" "leftover placeholder"
+}
+
+@test "placeholder scan leaves legitimate <runtime> placeholders alone" {
+  d="$TEST_TMP/out"; mkdir -p "$d"
+  # The installed worker keeps lowercase <n>, <short-slug>, <pr-repo> etc.
+  printf 'gh issue edit <n> --add-label foo; branch fix/<short-slug>\n' > "$d/SKILL.md"
+  run bash -c "DEST='$d'; $(scan_cmd)"
+  assert_equal "$status" 0
+}
+
+@test "placeholder scan passes a fully-filled file" {
+  d="$TEST_TMP/out"; mkdir -p "$d"
+  printf 'fully filled, no tokens here\n' > "$d/SKILL.md"
+  run bash -c "DEST='$d'; $(scan_cmd)"
+  assert_equal "$status" 0
+}
