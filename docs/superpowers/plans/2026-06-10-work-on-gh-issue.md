@@ -565,10 +565,13 @@ review loop` section. Key discipline (a real bug came from getting this wrong):
   exit the loop (treat as "done"). NEVER end your turn to "wait for a notification" —
   if you stop, the loop is abandoned and the PR is left unfinished.
 - ADDRESS every comment with the SAME red→green TDD → reply signed per Attribution and
-  resolve the thread (GraphQL `resolveReviewThread`).
+  resolve the thread. REST cannot resolve threads; use GraphQL — get the thread id
+  from `gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<n>){reviewThreads(first:50){nodes{id isResolved comments(first:1){nodes{body}}}}}}}'`
+  then `gh api graphql -f query='mutation($t:ID!){resolveReviewThread(input:{threadId:$t}){thread{id}}}' -f t=<thread-id>`.
 - RE-REQUEST review (a push does NOT auto-trigger it): `gh api --method POST
   repos/<owner>/<repo>/pulls/<n>/requested_reviewers -f
   'reviewers[]=copilot-pull-request-reviewer[bot]'` (the `[bot]` suffix is required).
+  Throughout this loop, `<owner>`/`<repo>` are the two halves of `<pr-repo>`.
 - Repeat, ≤3 rounds. STOP on no actionable comments, after 3 rounds, OR on the poll
   timeout; note any still-open point for the human. On exit, do the
   `{{PR_LABELS_BLOCK}}` "loop exit" swap.

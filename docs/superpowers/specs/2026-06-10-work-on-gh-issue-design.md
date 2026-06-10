@@ -37,7 +37,7 @@ The fixer splits into two parts; only one cares about labels-vs-statuses:
 |---|---|
 | `templates/work-on-gh-issue/SKILL.md` | Tokenized worker template (the `{{TOKEN}}` source), mirroring `templates/handoff/`. |
 | `skills/add-work-on-gh-issue/SKILL.md` | Installer skill; auto-symlinked into `~/.claude/skills/` by `sync.sh`, so `/add-work-on-gh-issue` is available everywhere. |
-| `tests/add-work-on-gh-issue.bats` | Bats coverage for the installer, mirroring `tests/add-handoff.bats`. |
+| `tests/work-on-gh-issue.bats` | Bats coverage for the template + installer, mirroring `tests/add-handoff.bats`. |
 | README + `/claude-shared` pointer updates | Discoverability. |
 
 **Public-repo constraint:** `claude-shared` is public. None of these artifacts may
