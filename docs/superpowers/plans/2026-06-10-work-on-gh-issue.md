@@ -283,9 +283,11 @@ Append to `tests/work-on-gh-issue.bats`:
 
 # Extract the canonical ranking jq from the installer's labels adapter and fill its
 # two tokens to concrete values, the way the installer would (sed-on-extract, like
-# add-handoff.bats does with <target>). The block reads the issue JSON on stdin.
+# add-handoff.bats does with <target>). extract_code_block keys on a substring that
+# must appear BEFORE the ```bash fence, so we key on the prose phrase that introduces
+# it. The block reads the issue JSON on stdin.
 rank_cmd() { # priority_json
-  extract_code_block "$(ADDER)" "ranked by priority then age" bash \
+  extract_code_block "$(ADDER)" "into this ranking jq" bash \
     | sed -e "s/{{PRIORITY_ORDER}}/$1/g" -e "s/{{BLOCKED_STATE}}/blocked/g"
 }
 
@@ -317,9 +319,11 @@ Expected: FAIL — no "ranked by priority then age" block in the installer yet, 
 - [ ] **Step 3: Add the labels-mode adapter section to the installer**
 
 Append to `skills/add-work-on-gh-issue/SKILL.md`. Present the canonical ranking jq as
-a **standalone top-level** `bash` block (the test keys on the comment phrase "ranked
-by priority then age"; keep it intact). Note the deliberate non-nesting: the `gh
-issue list` fetch is described in prose, NOT in the same fence as the jq.
+a **standalone top-level** `bash` block. The test extracts it by keying on the prose
+phrase "into this ranking jq" that appears (in the selection sentence) BEFORE the
+```bash fence, with no other ```bash between them — keep that phrase intact. Note the
+deliberate non-nesting: the `gh issue list` fetch is described in prose, NOT in the
+same fence as the jq.
 
 ````markdown
 ### State adapter — labels mode
@@ -343,7 +347,7 @@ priority then age):
 jq -r --argjson prio '{{PRIORITY_ORDER}}' '
   map(select(([.labels[].name] | index("{{BLOCKED_STATE}}")) | not))
   | map(.prank = (([.labels[].name]) as $l
-      | ([range(0; ($prio|length)) | select($l | index($prio[.]))][0]) // ($prio|length)))
+      | ([range(0; ($prio|length)) | . as $i | select($l | index($prio[$i]) != null)][0]) // ($prio|length)))
   | sort_by(.prank, .number)[]
   | "\(.number)\t\(.title)"'
 ```
