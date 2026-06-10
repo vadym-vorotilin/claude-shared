@@ -604,12 +604,15 @@ mkdir -p "<target>/.claude/skills/work-on-gh-issue"
 ```
 Write the filled template to `<target>/.claude/skills/work-on-gh-issue/SKILL.md`.
 
-After substituting, run the placeholder scan and fix anything it flags:
+After substituting, run the placeholder scan below — it must **FAIL if any
+placeholder survived** — and fix anything it flags. (The `scan_cmd` test keys
+`extract_code_block` on the phrase "FAIL if any placeholder survived", so that phrase
+must sit in this prose line BEFORE the ```bash fence, not inside it.)
 
 ```bash
-# FAIL if any placeholder survived. Only install-time tokens use the {{UPPER_SNAKE}}
-# form, so that is all we scan for. Lowercase <runtime> placeholders (e.g. <n>,
-# <short-slug>, <pr-repo>) are INTENTIONAL in the installed worker — do NOT flag them.
+# Only install-time tokens use the {{UPPER_SNAKE}} form, so that is all we scan for.
+# Lowercase <runtime> placeholders (e.g. <n>, <short-slug>, <pr-repo>) are INTENTIONAL
+# in the installed worker — do NOT flag them.
 if grep -RnE '\{\{[A-Z_]+\}\}' "$DEST"; then
   echo "leftover placeholder(s) above — fix before finishing"; exit 1
 fi
