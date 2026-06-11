@@ -31,7 +31,9 @@ you use and which config you gather in §3.
 ## 3. Inspect the target (the "adapt" step)
 
 Run against the target and show what you find; let the user correct it:
-- **Repo root / default branch:** `git -C "<target>" rev-parse --show-toplevel`; `git -C "<target>" symbolic-ref --short HEAD`.
+- **Repo root:** `git -C "<target>" rev-parse --show-toplevel`.
+- **Default branch** (NOT the currently checked-out branch — the user may be on a
+  feature branch during install): `git -C "<target>" symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@'`, falling back to `gh repo view <owner/repo> --json defaultBranchRef --jq .defaultBranchRef.name`, else `main`. Fills `{{DEFAULT_BRANCH}}`.
 - **Submodules:** `git -C "<target>" submodule status` (capture paths, if any).
 - **Test command:** how the project self-checks — `run-*-tests.sh`, `package.json` `scripts.test`, a `Makefile` `test` target, a project test skill, etc. Record it, or conclude there's none (and warn: the mandatory TDD gate needs a test runner).
 - **Copilot reviewer:** is `copilot-pull-request-reviewer` configured? (Ask; default the loop OFF if unknown.)
@@ -54,7 +56,10 @@ Run against the target and show what you find; let the user correct it:
 - `{{WORKSPACE}}` = `the current checkout (the repo you run this skill in)` by
   default; or, if the user wants isolation, a configured path with a refresh note.
 - `{{TEST_CMD}}` = the detected command; `{{TEST_ID_CONVENTION}}` = a sentence about
-  the repo's test-ID scheme, or empty.
+  the repo's test-ID scheme **ending with a trailing space** (it is concatenated
+  directly before "The test(s) MUST…", so the trailing space keeps the spacing
+  clean), or the empty string.
+- `{{DEFAULT_BRANCH}}` = the repo's default branch from §3 (e.g. `main`).
 - `{{BRANCH_PREFIX}}` = default `fix/`.
 - `{{ATTRIBUTION}}` = a role label, default
   `an automated fixer acting on behalf of @<owner-login>`.

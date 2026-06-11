@@ -181,8 +181,9 @@ in-progress").
 
 ## 3. Branch
 
-In {{WORKSPACE}}, ensure you are on an up-to-date `main` with a clean tree, then
-create `{{BRANCH_PREFIX}}<issue#>-<short-slug>`. Never commit to `main`.
+In {{WORKSPACE}}, ensure you are on an up-to-date `{{DEFAULT_BRANCH}}` with a clean
+tree, then create `{{BRANCH_PREFIX}}<issue#>-<short-slug>`. Never commit to
+`{{DEFAULT_BRANCH}}`.
 {{SUBMODULE_BRANCH}}
 
 ## 4. Implement via strict TDD (non-negotiable)
@@ -237,8 +238,8 @@ comment explaining why (for non-reproduction, begin with "could not reproduce: "
 
 ## Forbidden
 
-Merging PRs (`gh pr merge`), pushing to `main`, force-pushing, editing files outside
-{{WORKSPACE}}, unrelated refactoring, committing secrets.
+Merging PRs (`gh pr merge`), pushing to `{{DEFAULT_BRANCH}}`, force-pushing, editing
+files outside {{WORKSPACE}}, unrelated refactoring, committing secrets.
 
 ## Attribution
 
@@ -499,7 +500,8 @@ you use and which config you gather in §3.
 ## 3. Inspect the target (the "adapt" step)
 
 Run against the target and show what you find; let the user correct it:
-- **Repo root / default branch:** `git -C "<target>" rev-parse --show-toplevel`; `git -C "<target>" symbolic-ref --short HEAD`.
+- **Repo root:** `git -C "<target>" rev-parse --show-toplevel`.
+- **Default branch** (NOT the currently checked-out branch): `git -C "<target>" symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@'`, falling back to `gh repo view <owner/repo> --json defaultBranchRef --jq .defaultBranchRef.name`, else `main`. Fills `{{DEFAULT_BRANCH}}`.
 - **Submodules:** `git -C "<target>" submodule status` (capture paths, if any).
 - **Test command:** how the project self-checks — `run-*-tests.sh`, `package.json` `scripts.test`, a `Makefile` `test` target, a project test skill, etc. Record it, or conclude there's none (and warn: the mandatory TDD gate needs a test runner).
 - **Copilot reviewer:** is `copilot-pull-request-reviewer` configured? (Ask; default the loop OFF if unknown.)
@@ -522,7 +524,9 @@ Run against the target and show what you find; let the user correct it:
 - `{{WORKSPACE}}` = `the current checkout (the repo you run this skill in)` by
   default; or, if the user wants isolation, a configured path with a refresh note.
 - `{{TEST_CMD}}` = the detected command; `{{TEST_ID_CONVENTION}}` = a sentence about
-  the repo's test-ID scheme, or empty.
+  the repo's test-ID scheme **ending with a trailing space** (concatenated directly
+  before "The test(s) MUST…"), or the empty string.
+- `{{DEFAULT_BRANCH}}` = the repo's default branch from §3 (e.g. `main`).
 - `{{BRANCH_PREFIX}}` = default `fix/`.
 - `{{ATTRIBUTION}}` = a role label, default
   `an automated fixer acting on behalf of @<owner-login>`.

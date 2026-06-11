@@ -33,8 +33,9 @@ in-progress").
 
 ## 3. Branch
 
-In {{WORKSPACE}}, ensure you are on an up-to-date `main` with a clean tree, then
-create `{{BRANCH_PREFIX}}<issue#>-<short-slug>`. Never commit to `main`.
+In {{WORKSPACE}}, ensure you are on an up-to-date `{{DEFAULT_BRANCH}}` with a clean
+tree, then create `{{BRANCH_PREFIX}}<issue#>-<short-slug>`. Never commit to
+`{{DEFAULT_BRANCH}}`.
 {{SUBMODULE_BRANCH}}
 
 ## 4. Implement via strict TDD (non-negotiable)
@@ -89,8 +90,8 @@ comment explaining why (for non-reproduction, begin with "could not reproduce: "
 
 ## Forbidden
 
-Merging PRs (`gh pr merge`), pushing to `main`, force-pushing, editing files outside
-{{WORKSPACE}}, unrelated refactoring, committing secrets.
+Merging PRs (`gh pr merge`), pushing to `{{DEFAULT_BRANCH}}`, force-pushing, editing
+files outside {{WORKSPACE}}, unrelated refactoring, committing secrets.
 
 ## Attribution
 

@@ -165,8 +165,10 @@ either way.
 
 **Mode block:** `{{STATE_ADAPTER}}` ← one of the two adapters above.
 
-After substitution the installer **scans for any leftover `{{…}}` or `<…>`
-placeholder** — there must be none (same guard as `add-handoff`).
+Placeholder convention: install-time fills use the `{{UPPER_SNAKE}}` form; lowercase
+`<runtime>` placeholders (e.g. `<n>`, `<short-slug>`, `<pr-repo>`) are intentional and
+REMAIN in the installed worker. After substitution the installer **scans for any
+leftover `{{…}}` install token** (and only those) — there must be none.
 
 ## Installer flow (`/add-work-on-gh-issue`)
 
