@@ -52,14 +52,52 @@ b. Implement the MINIMAL fix.
 c. Run the same test(s) again — green. CAPTURE the output.
 d. Run the FULL relevant suite via {{TEST_CMD}}. ALL green, or hard-stop (§6).
 
+## Pre-PR self-review (before opening the PR)
+
+After the suite is green and committed, review your branch diff with fresh,
+skeptical eyes BEFORE opening the PR — this front-loads the hygiene the PR reviewer
+would otherwise catch and usually collapses the review loop to a single round. For
+true independence, dispatch a SEPARATE read-only review subagent over the diff if you
+can; otherwise self-review. Run `git diff {{DEFAULT_BRANCH}}...HEAD` in the affected
+repo and check each hunk against this checklist:
+
+- **Tests** — async/UI tests await a real data-dependent element (not a static
+  header) before asserting; any mock used to capture output is CONFIGURED (stubbed
+  return / callback), not merely invoked; no positional/index selectors.
+- **Correctness** — async callbacks in effects check a cancellation/still-mounted
+  guard before writing state; `||` vs `??` is right where empty string must fall
+  through; fire-and-forget promises have a `.catch()`; the code honors the invariant
+  its own adjacent comment states.
+- **DRY** — grep for an existing constant/util/mapping before adding a new one.
+- **Docs** — comments/docstrings don't over-claim behavior this path doesn't
+  guarantee; if you added test IDs, the index/header doc is updated.
+- **Conventions** — new tests follow the suite's documented id/location convention.
+
+For each BLOCKING finding, fix it with the SAME red→green TDD discipline (§4), re-run
+the FULL suite green, then re-review. Stop once the diff is clean or after **2
+rounds**, whichever comes first; carry any leftover suggestions into the PR's
+`## Pre-review notes`.
+
 ## 5. Commit & open the PR
 
-Small conventional commits (`fix:`, `test:`). Push the branch and open a PR on the
-affected repo with this body:
-- `## Finding` — summary + link to the issue (`{{ISSUE_REPO}}#<n>`)
+Small conventional commits (`fix:`, `test:`); keep history readable.
+
+NEVER use a GitHub closing keyword for the issue — none of `close`/`closes`/`closed`,
+`fix`/`fixes`/`fixed`, `resolve`/`resolves`/`resolved` followed by `#<n>` or
+`{{ISSUE_REPO}}#<n>` — in ANY commit message OR the PR title/body. Merging to
+`{{DEFAULT_BRANCH}}` would auto-close the issue and bypass this skill's state
+transitions (the issue should land in **{{IN_REVIEW_STATE}}** and let the
+merge/deploy process decide its final state). To reference the issue without closing
+it, use a bare link or `Refs {{ISSUE_REPO}}#<n>` — no closing verb before it.
+
+Push the branch and open a PR on the affected repo with this body:
+- `## Finding` — summary + a BARE link to the issue (`{{ISSUE_REPO}}#<n>`; a bare link
+  does NOT close — never precede it with a closing verb)
 - `## Red tests` — each new test, what it asserts, the captured RED output
 - `## Green` — the change that made them pass + the captured full-suite green output
 - `## Risk` — blast radius
+- `## Pre-review notes` — only if the pre-PR self-review left suggestions or
+  unaddressed findings after 2 rounds
 - `## Deviation from approved approach` — only if you deviated
 
 Then move the issue **{{IN_PROGRESS_STATE}} → {{IN_REVIEW_STATE}}** (adapter "to

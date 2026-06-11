@@ -33,6 +33,8 @@ ADDER()    { echo "$REPO/skills/add-work-on-gh-issue/SKILL.md"; }
     "## 4. Implement via strict TDD" \
     "CANNOT REPRODUCE" \
     "{{TEST_CMD}}" \
+    "## Pre-PR self-review" \
+    "## Pre-review notes" \
     "## 6. Hard stops" \
     "## Forbidden" \
     "{{PR_LABELS_BLOCK}}" \

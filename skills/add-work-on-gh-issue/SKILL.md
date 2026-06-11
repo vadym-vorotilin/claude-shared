@@ -156,7 +156,10 @@ offer to switch to the brainstorming skill (then writing-plans) instead; leave t
 issue in **{{ELIGIBLE_STATE}}**.\n` — else empty string.
 
 **`{{COPILOT_LOOP}}`** — if the Copilot loop is enabled, fill with a `## Copilot
-review loop` section. Key discipline (a real bug came from getting this wrong):
+review loop` section. The pre-PR self-review (worker §"Pre-PR self-review")
+front-loads the hygiene Copilot used to catch, so wave 1 is usually clean and a 3rd
+wave reliably finds nothing — cap at 2. Key discipline (a real bug came from getting
+this wrong):
 - WAIT by ACTIVELY POLLING IN-SESSION — a blocking loop you run right now: repeat up
   to ~20 times: `sleep 30`, then `gh pr view <n> --repo <pr-repo> --json reviews`;
   break as soon as a Copilot review with `submittedAt` newer than the head commit
@@ -171,7 +174,7 @@ review loop` section. Key discipline (a real bug came from getting this wrong):
   repos/<owner>/<repo>/pulls/<n>/requested_reviewers -f
   'reviewers[]=copilot-pull-request-reviewer[bot]'` (the `[bot]` suffix is required).
   Throughout this loop, `<owner>`/`<repo>` are the two halves of `<pr-repo>`.
-- Repeat, ≤3 rounds. STOP on no actionable comments, after 3 rounds, OR on the poll
+- Repeat, ≤2 rounds. STOP on no actionable comments, after 2 rounds, OR on the poll
   timeout; note any still-open point for the human. On exit, do the
   `{{PR_LABELS_BLOCK}}` "loop exit" swap.
 — else empty string.
