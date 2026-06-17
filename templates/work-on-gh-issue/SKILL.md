@@ -31,6 +31,27 @@ comments — human comments OVERRIDE the body's proposed approach).
 Then transition it **{{ELIGIBLE_STATE}} → {{IN_PROGRESS_STATE}}** (adapter "to
 in-progress").
 
+## 2a. Existing PRs on this issue (rework — preserve approvals)
+
+Rework happens when an issue is made eligible again while PR(s) from a prior pass are
+still open. Before branching, check for them in each repo a fix could live in (the
+issue repo and any submodule remotes):
+`gh pr list --repo <pr-repo> --state open --search "{{ISSUE_REPO}}#<n> in:body" --json number,title,headRefName,reviewDecision,labels`
+(also look for branches matching `{{BRANCH_PREFIX}}<n>-*`).
+
+If any exist, you are ADDING the outstanding delta (per the issue body + human
+follow-up comments), NOT redoing the fix:
+- Do NOT touch, reword, or re-push an APPROVED PR or its branch.
+- Implement ONLY the outstanding work as a NEW sibling PR on a branch
+  `{{BRANCH_PREFIX}}<n>-<new-slug>` (a DISTINCT slug, same `<n>-` prefix so the
+  siblings group together).
+- ADDITIVE ONLY: if the outstanding work would require MODIFYING an already-approved
+  PR (rather than a new sibling), STOP — hard-stop (§6) with a reason beginning
+  "needs-human:" explaining why.
+- NOTHING-TO-DO: if nothing remains beyond what the existing PR(s) already cover, do
+  NOT open a PR — hard-stop (§6) with a reason beginning "needs-human: all work
+  already covered by existing PR(s) — please review/merge or clarify".
+
 ## 3. Branch
 
 In {{WORKSPACE}}, ensure you are on an up-to-date `{{DEFAULT_BRANCH}}` with a clean
@@ -90,7 +111,9 @@ transitions (the issue should land in **{{IN_REVIEW_STATE}}** and let the
 merge/deploy process decide its final state). To reference the issue without closing
 it, use a bare link or `Refs {{ISSUE_REPO}}#<n>` — no closing verb before it.
 
-Push the branch and open a PR on the affected repo with this body:
+Push the branch and open a PR on the affected repo, assigning it to the repo owner so
+they find it on their list — `gh pr create --assignee <owner>` (where `<owner>` is the
+gh login from Attribution, i.e. `gh api user --jq .login`). PR body:
 - `## Finding` — summary + a BARE link to the issue (`{{ISSUE_REPO}}#<n>`; a bare link
   does NOT close — never precede it with a closing verb)
 - `## Red tests` — each new test, what it asserts, the captured RED output
@@ -100,14 +123,21 @@ Push the branch and open a PR on the affected repo with this body:
   unaddressed findings after 2 rounds
 - `## Deviation from approved approach` — only if you deviated
 
-Then move the issue **{{IN_PROGRESS_STATE}} → {{IN_REVIEW_STATE}}** (adapter "to
-in-review") and comment the PR URL on the issue.
+If `gh pr create --assignee` didn't take, add it after:
+`gh pr edit <n> --repo <pr-repo> --add-assignee <owner>`.
+
+**A fix may span more than one PR** (e.g. a submodule change plus a parent-repo
+change). Open each as its own PR (each gets `--assignee <owner>` and the PR-phase
+labels below). Only once ALL the PRs for this fix are open do you move the issue
+**{{IN_PROGRESS_STATE}} → {{IN_REVIEW_STATE}}** (adapter "to in-review") and comment
+each PR URL on the issue.
 
 ## PR review-phase labels
 
 These live on the **PR**, in the affected code repo (`<pr-repo>` — may be a
-submodule's own remote), and are independent of the issue's state. All label edits
-are best-effort: tolerate a label not existing (log and continue).
+submodule's own remote), and are independent of the issue's state. Apply them to
+EVERY PR a fix opens (see the multi-PR note in §5). All label edits are best-effort:
+tolerate a label not existing (log and continue).
 
 {{PR_LABELS_BLOCK}}
 

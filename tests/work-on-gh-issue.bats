@@ -30,6 +30,7 @@ ADDER()    { echo "$REPO/skills/add-work-on-gh-issue/SKILL.md"; }
   for needle in \
     "## 1. Select the issue" \
     "{{STATE_ADAPTER}}" \
+    "## 2a. Existing PRs on this issue" \
     "## 4. Implement via strict TDD" \
     "CANNOT REPRODUCE" \
     "{{TEST_CMD}}" \
