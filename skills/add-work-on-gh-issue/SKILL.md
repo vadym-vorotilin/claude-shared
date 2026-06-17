@@ -60,6 +60,9 @@ Run against the target and show what you find; let the user correct it:
   directly before "The test(s) MUST…", so the trailing space keeps the spacing
   clean), or the empty string.
 - `{{DEFAULT_BRANCH}}` = the repo's default branch from §3 (e.g. `main`).
+- `{{DOMAIN_KNOWLEDGE}}` = a pointer to the repo's authoritative behavior docs,
+  default ``the repo's `CLAUDE.md` (and any docs/specs it points to)``. If the user
+  names a specific source (a design-docs dir, a product spec), use that instead.
 - `{{BRANCH_PREFIX}}` = default `fix/`.
 - `{{ATTRIBUTION}}` = a role label, default
   `an automated fixer acting on behalf of @<owner-login>`.

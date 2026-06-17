@@ -52,6 +52,15 @@ follow-up comments), NOT redoing the fix:
   NOT open a PR — hard-stop (§6) with a reason beginning "needs-human: all work
   already covered by existing PR(s) — please review/merge or clarify".
 
+## Ground truth — intended behavior
+
+Treat {{DOMAIN_KNOWLEDGE}} as the authoritative description of how this project is
+meant to behave; read the relevant parts before changing code. Never make a change
+that contradicts intended behavior. And if the ISSUE ITSELF contradicts it — it asks
+for something the project intentionally does the other way — do NOT implement it:
+hard-stop (§6) with a reason beginning "needs-human:" that explains the conflict, so a
+human can reconcile the issue with intended behavior.
+
 ## 3. Branch
 
 In {{WORKSPACE}}, ensure you are on an up-to-date `{{DEFAULT_BRANCH}}` with a clean
