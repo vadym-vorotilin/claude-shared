@@ -147,9 +147,11 @@ for the target state:
 
 **`{{SUBMODULE_BRANCH}}`** — if the repo has submodules, fill with: ` Identify the
 affected repo (a submodule or the parent). Submodules start in detached HEAD at the
-parent's pinned commit — run \`git checkout main && git pull\` INSIDE the submodule
-before branching, work and push ONLY in the submodule, and do NOT bump the parent
-pointer (the human does that at merge time). For a PARENT-repo fix, stage ONLY the
+parent's pinned commit — INSIDE the submodule, check out its OWN default branch and
+pull (\`git checkout <branch> && git pull\`; a submodule's default branch may not be
+\`main\` — derive it from the submodule's \`origin/HEAD\`) before branching, work and
+push ONLY in the submodule, and do NOT bump the parent pointer (the human does that at
+merge time). For a PARENT-repo fix, stage ONLY the
 files you changed by explicit path (never \`git add -A\` / \`git add .\`) — the
 submodules sit at moved commits, so a blanket add would sweep a submodule-pointer bump
 into your PR.` — else empty string.

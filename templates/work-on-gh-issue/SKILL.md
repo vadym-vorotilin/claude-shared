@@ -155,15 +155,20 @@ tolerate a label not existing (log and continue).
 ## 6. Hard stops
 
 If you cannot reproduce the finding (§4a), the full suite will not go green, the fix
-needs changes the issue did not approve, or anything is ambiguous: STOP. Push your
-branch as-is (work preserved) and move the issue to **{{BLOCKED_STATE}}** with a
-comment explaining why (for non-reproduction, begin with "could not reproduce: ").
+needs changes the issue did not approve, or anything is ambiguous: STOP, push your
+branch as-is (work preserved), and leave a comment explaining why (for
+non-reproduction, begin with "could not reproduce: "). What happens to the issue
+depends on whether a PR is already open:
 
-- **No PR yet** (the common case — stop happened before §5): do NOT open a PR.
+- **No PR yet** (the common case — stop happened before §5): do NOT open a PR, and
+  move the issue **{{IN_PROGRESS_STATE}} → {{BLOCKED_STATE}}** (adapter "to blocked").
 - **PR already open** (stop happened during the Copilot loop, so the PR carries
-  `{{PR_IN_AUTO_REVIEW_LABEL}}`): the automated loop has given up and a human should
-  look — swap the PR labels (best-effort): remove `{{PR_IN_AUTO_REVIEW_LABEL}}`, add
-  `{{PR_READY_FOR_HUMAN_LABEL}}` on `<pr-repo>`. Leave the PR open.
+  `{{PR_IN_AUTO_REVIEW_LABEL}}` and the issue is already in **{{IN_REVIEW_STATE}}**):
+  the automated loop has given up and a human should look. LEAVE the issue in
+  **{{IN_REVIEW_STATE}}** — it has an open PR, so do NOT move it to
+  **{{BLOCKED_STATE}}** (that would leave it double-labelled). Just swap the PR labels
+  (best-effort): remove `{{PR_IN_AUTO_REVIEW_LABEL}}`, add `{{PR_READY_FOR_HUMAN_LABEL}}`
+  on `<pr-repo>`, and leave the PR open.
 
 ## Forbidden
 

@@ -123,8 +123,9 @@ template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
   refute_contains "$pat" '<[a-z]'
 }
 
-@test "worker forbids merging and main-pushing" {
+@test "worker forbids merging and default-branch pushing" {
   body="$(cat "$(TEMPLATE)")"
   assert_contains "$body" "## Forbidden"
   assert_contains "$body" "gh pr merge"
+  assert_contains "$body" "pushing to"
 }
