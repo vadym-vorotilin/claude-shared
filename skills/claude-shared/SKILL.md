@@ -35,6 +35,8 @@ user can pick several at once. Offer the options that make sense given step 1
 - **Pull latest shared config** — `git pull` the shared repo, then re-apply.
 - **Install /handoff into a repo** — add the session-continuity skill to one of
   their projects.
+- **Install /work-on-gh-issue into a repo** — add the TDD issue-fixer skill (works
+  one approved GitHub issue → PR) to one of their projects.
 - **Push a local change** — they tweaked the status line / settings here and want
   the other machines to get it.
 
@@ -53,6 +55,9 @@ Run each selected action, then move to the next:
 - **Install /handoff** → ask which repo (path), then **invoke the `add-handoff`
   skill** for that path. Don't reimplement it here — it handles repo inspection,
   template tailoring, and the auto-resume hook. Offer to do more than one repo.
+- **Install /work-on-gh-issue** → ask which repo (path), then **invoke the
+  `add-work-on-gh-issue` skill** for that path. Don't reimplement it here — it handles
+  the labels-vs-project mode choice, repo inspection, and template tailoring.
 - **Push a local change** → follow the "push" flow in the `sync-claude-env` skill
   (copy live files back into `$SHARED`, update `settings.shared.json` by hand for
   changed keys, show the diff, then commit + push).
@@ -67,7 +72,7 @@ any time.
 ## Notes
 
 - This skill orchestrates; the real work lives in `sync.sh`, the
-  `sync-claude-env` skill, and the `add-handoff` skill. Prefer delegating to them
-  over duplicating their logic.
+  `sync-claude-env` skill, and the `add-handoff` / `add-work-on-gh-issue` skills.
+  Prefer delegating to them over duplicating their logic.
 - Never overwrite `~/.claude/settings.json` wholesale — `sync.sh` merges. Respect
   that here too.
