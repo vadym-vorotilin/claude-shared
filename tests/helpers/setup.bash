@@ -55,7 +55,7 @@ count_occurrences() { # file needle
 make_git_repo() { # dir
   local d="$1"
   mkdir -p "$d"
-  git -C "$d" init -q
+  git -C "$d" init -q -b main
   echo "seed" > "$d/seed.txt"
   git -C "$d" add seed.txt
   git -C "$d" commit -q -m "seed"
@@ -66,7 +66,7 @@ make_git_repo() { # dir
 make_git_repo_with_upstream() { # workdir
   local work="$1"
   local bare="$TEST_TMP/upstream.git"
-  git init -q --bare "$bare"
+  git init -q --bare -b main "$bare"
   git clone -q "$bare" "$work"
   echo "seed" > "$work/seed.txt"
   git -C "$work" add seed.txt
