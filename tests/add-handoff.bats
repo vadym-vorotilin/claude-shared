@@ -129,3 +129,12 @@ stop_hook_count() { # settings_file
   assert_contains "$cmds" "echo other"
   assert_equal "$(stop_hook_count "$target/.claude/settings.json")" 1
 }
+
+@test "the autosave install is documented as opt-out, matching auto-resume (4b)" {
+  doc="$REPO/skills/add-handoff/SKILL.md"
+  body="$(cat "$doc")"
+  # intro options list offers a per-turn autosave opt-out alongside auto-resume
+  assert_contains "$body" "Per-turn autosave"
+  # both 4b and 4c carry the same skip clause (auto-resume + autosave)
+  assert_equal "$(count_occurrences "$doc" "Skip this step only if the user opted out")" 2
+}

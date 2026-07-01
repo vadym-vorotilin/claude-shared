@@ -18,6 +18,9 @@ source template lives in this shared repo at `templates/handoff/SKILL.md`.
   asks for a different location.
 - **Auto-resume on session start** — default **ON** (see step 4b). Only skip it
   if the user says they don't want the handoff to run automatically.
+- **Per-turn autosave** — default **ON** (see step 4c). Only skip it if the user
+  doesn't want the last user/assistant messages written verbatim to a local
+  (gitignored) file after every turn.
 - **Shared repo** — `SHARED="$(cat ~/.claude/claude-shared-repo 2>/dev/null || echo ~/projects/claude-shared)"`.
   The template is at `$SHARED/templates/handoff/SKILL.md`.
 
@@ -162,6 +165,10 @@ them in that repo — mention this in the report.
 A `Stop` hook keeps a gitignored autosave fresh every turn so a session cut off
 before a manual wrap-up still resumes cleanly. Copy the shipped script, wire it
 into `.claude/settings.json`, and locally ignore the autosave file.
+
+This writes the last user/assistant messages verbatim to a local, gitignored
+file after every turn (see the **Per-turn autosave** option in step 1).
+Skip this step only if the user opted out.
 
 ```bash
 cd "<target>"
