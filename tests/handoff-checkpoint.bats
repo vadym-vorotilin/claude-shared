@@ -55,6 +55,22 @@ run_hook() { # cwd transcript
   assert_equal "$(count_occurrences "$excl" "docs/HANDOFF.autosave.md")" 1
 }
 
+@test "a malformed transcript line does not blank the extracted messages" {
+  repo="$TEST_TMP/proj"; make_git_repo "$repo"
+  tr="$TEST_TMP/t.jsonl"
+  {
+    jq -nc '{type:"user",message:{role:"user",content:"an earlier ask"}}'
+    printf '%s\n' 'this line is not valid json {'
+    jq -nc '{type:"assistant",message:{role:"assistant",content:[{type:"text",text:"real answer"}]}}'
+    jq -nc '{type:"user",message:{role:"user",content:"do the thing"}}'
+  } > "$tr"
+  run_hook "$repo" "$tr"
+  body="$(cat "$repo/docs/HANDOFF.autosave.md")"
+  # Per-line parsing: the bad line is skipped, not fatal to the whole extraction.
+  assert_contains "$body" "do the thing"
+  assert_contains "$body" "real answer"
+}
+
 @test "no-ops cleanly outside a git repo" {
   plain="$TEST_TMP/plain"; mkdir -p "$plain"
   tr="$TEST_TMP/t.jsonl"; make_transcript "$tr" "u" "a"
@@ -66,5 +82,9 @@ run_hook() { # cwd transcript
 @test "the handoff template's RESUME mode references the autosave" {
   body="$(cat "$REPO/templates/handoff/SKILL.md")"
   assert_contains "$body" ".autosave.md"
-  assert_contains "$body" "newer than"
+  # The cutoff signal must be content-based (uncommitted/unpushed), not mtime:
+  # the hook rewrites the autosave after the wrap-up turn too, so "newer than"
+  # would always be true.
+  assert_contains "$body" "uncommitted"
+  refute_contains "$body" "newer than"
 }

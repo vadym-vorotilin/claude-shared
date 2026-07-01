@@ -23,12 +23,17 @@ next. **Do not start coding until you've reconciled the doc against reality.**
 
 1. **Check the live autosave.** A Stop hook keeps an autosave beside the handoff
    doc (`{{HANDOFF_DOC}}` with `.md` replaced by `.autosave.md`), gitignored and
-   refreshed every turn. If that autosave exists and is **newer than**
-   `{{HANDOFF_DOC}}`, the last session was likely cut off before a manual
-   wrap-up — read it first for the freshest state (git facts, last user/assistant
-   messages, transcript path). It is raw truth about the cutoff moment;
-   `{{HANDOFF_DOC}}` still wins on the plan and locked decisions, and live git
-   wins over both. Only open the saved transcript path if you need more detail.
+   refreshed every turn. If it exists, read it for the freshest raw state of the
+   last turn (git facts, last user/assistant messages, transcript path). Judge
+   whether the last session was cut off mid-work by the autosave's **content**,
+   not its timestamp (the hook rewrites it after every turn, including the
+   wrap-up turn, so its mtime is always later than the handoff doc's): if it
+   records **uncommitted** changes (`Dirty files` > 0) or **unpushed** commits
+   (the `Tracking` line shows `ahead`) that `{{HANDOFF_DOC}}` doesn't already
+   account for, the previous session likely ended before a clean wrap-up —
+   reconcile that in. `{{HANDOFF_DOC}}` still wins on the plan and locked
+   decisions, and live git wins over both. Only open the saved transcript path
+   if you need more detail.
 2. **Read** `{{HANDOFF_DOC}}` end to end.
 3. **Verify the doc against the live repo** (the doc can be stale — trust the repo):
    - `git -C . log --oneline -3` and `git -C . status -sb` (parent).

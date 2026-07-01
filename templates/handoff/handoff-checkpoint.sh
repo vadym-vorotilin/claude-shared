@@ -26,17 +26,24 @@ branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 head="$(git -C "$root" rev-parse --short HEAD 2>/dev/null)"
 tracking="$(git -C "$root" status -sb 2>/dev/null | head -1)"
 dirty="$(git -C "$root" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
-diffstat="$(git -C "$root" diff --stat 2>/dev/null)"
+# Staged + unstaged, relative to HEAD (plain `diff --stat` omits staged changes,
+# so a fully-staged tree would show an empty diffstat next to "Dirty files: N").
+# Bounded so a large working tree can't bloat the autosave.
+diffstat="$(git -C "$root" diff --stat --stat-count=40 HEAD 2>/dev/null)"
 
 # Extract last user / assistant text from the transcript tail (fast on long logs).
+# Parse per line (jq -R + fromjson?) so a single malformed line degrades to being
+# skipped rather than failing the whole slurp and zeroing out both messages.
 extract_last() { # role
   tail -n 400 "$transcript" 2>/dev/null \
-    | jq -rs --arg role "$1" '
-        map(select(.message.role == $role))
-        | last
+    | jq -R --arg role "$1" '
+        fromjson?
+        | select(.message.role? == $role)
         | (.message.content
-            | if type == "array" then map(.text // empty) | join("")
-              else (. // "") end) // ""' 2>/dev/null
+            | if type == "array" then map(.text? // empty) | join("")
+              else (. // "") end) // ""' 2>/dev/null \
+    | tail -n 1 \
+    | jq -r . 2>/dev/null
 }
 last_user=""; last_assistant=""
 if [ -n "$transcript" ] && [ -f "$transcript" ]; then
@@ -53,7 +60,7 @@ fi
   printf -- '- **Repo root:** %s\n' "$root"
   printf -- '- **Branch:** %s  (HEAD %s)\n' "$branch" "$head"
   printf -- '- **Tracking:** %s\n' "$tracking"
-  printf -- '- **Dirty files:** %s\n' "$dirty"
+  printf -- '- **Dirty files:** %s (staged + unstaged + untracked)\n' "$dirty"
   printf -- '- **Transcript:** %s\n\n' "$transcript"
   printf '## git diff --stat\n\n```\n%s\n```\n\n' "$diffstat"
   printf '## Last user message\n\n%s\n\n' "$last_user"
