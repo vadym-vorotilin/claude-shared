@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Resume or wrap up a work session via the living handoff doc ({{HANDOFF_DOC}}). On resume, read the handoff + git state to orient before working. On wrap-up, rewrite the handoff with current progress so the next agent (or another machine) can pick up cleanly. Use when starting a session ("resume", "continue", "pick up", "where were we"), ending one ("wrap up", "hand off", "update the handoff", "I'm done for today"), or switching machines.
+description: Resume or wrap up a work session via the living handoff doc ({{HANDOFF_DOC}}). On resume, read the handoff + git state to orient before working. On wrap-up, rewrite the handoff with current progress so the next agent (or another machine) can pick up cleanly. Use when starting a session ("resume", "continue", "pick up", "where were we"), ending one ("wrap up", "hand off", "update the handoff", "I'm done for today"), or switching machines. Also reads a per-turn autosave so a session cut off before wrap-up still resumes.
 ---
 
 # Handoff — session continuity
@@ -21,14 +21,22 @@ All paths below are relative to the repo root (`{{REPO_ROOT}}`).
 Goal: orient yourself from the doc + real repo state, then tell the user what's
 next. **Do not start coding until you've reconciled the doc against reality.**
 
-1. **Read** `{{HANDOFF_DOC}}` end to end.
-2. **Verify the doc against the live repo** (the doc can be stale — trust the repo):
+1. **Check the live autosave.** A Stop hook keeps an autosave beside the handoff
+   doc (`{{HANDOFF_DOC}}` with `.md` replaced by `.autosave.md`), gitignored and
+   refreshed every turn. If that autosave exists and is **newer than**
+   `{{HANDOFF_DOC}}`, the last session was likely cut off before a manual
+   wrap-up — read it first for the freshest state (git facts, last user/assistant
+   messages, transcript path). It is raw truth about the cutoff moment;
+   `{{HANDOFF_DOC}}` still wins on the plan and locked decisions, and live git
+   wins over both. Only open the saved transcript path if you need more detail.
+2. **Read** `{{HANDOFF_DOC}}` end to end.
+3. **Verify the doc against the live repo** (the doc can be stale — trust the repo):
    - `git -C . log --oneline -3` and `git -C . status -sb` (parent).
 {{SUBMODULE_RESUME}}   - If the doc's HEAD/Remote table disagrees with the repo, **trust the repo**
      and note the discrepancy to the user.
-3. **Skim the next task**{{TASK_DOC_RESUME}} so the decisions/coupling notes are
+4. **Skim the next task**{{TASK_DOC_RESUME}} so the decisions/coupling notes are
    loaded before you touch code.
-4. **Report** to the user, briefly: where things stand, the single next task, any
+5. **Report** to the user, briefly: where things stand, the single next task, any
    reconciliation surprises, and any open gotcha (disk, unpushed work). Then ask
    whether to proceed or wait — don't auto-start a large coupled change.
 

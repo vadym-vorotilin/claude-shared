@@ -62,3 +62,9 @@ run_hook() { # cwd transcript
   assert_equal "$status" 0
   [ ! -e "$plain/docs/HANDOFF.autosave.md" ] || fail "should not write outside a repo"
 }
+
+@test "the handoff template's RESUME mode references the autosave" {
+  body="$(cat "$REPO/templates/handoff/SKILL.md")"
+  assert_contains "$body" ".autosave.md"
+  assert_contains "$body" "newer than"
+}
