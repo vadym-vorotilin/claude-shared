@@ -113,7 +113,7 @@ The hook command (single line — `$HANDOFF_DOC` stands in for the chosen doc
 path, default `docs/HANDOFF.md`):
 
 ```sh
-test -f "$HANDOFF_DOC" && printf '%s\n' "A $HANDOFF_DOC exists for this project. Before doing anything else this session, invoke the handoff skill in RESUME mode: read $HANDOFF_DOC, reconcile it against current git state, and report where things stand and the single next task." || true
+test -f "$HANDOFF_DOC" && printf '%s\n' "A $HANDOFF_DOC exists for this project. Before doing anything else this session, invoke the handoff skill in RESUME mode: read $HANDOFF_DOC, reconcile it against current git state, and report where things stand and the single next task. If an autosave (the handoff doc with .md replaced by .autosave.md) is newer, read it first." || true
 ```
 
 Merge this into the target's `.claude/settings.json` **without clobbering** any
@@ -157,6 +157,47 @@ jq --arg cmd "$HOOK_CMD" '
 Note: project `.claude/settings.json` hooks require the user to trust/approve
 them in that repo — mention this in the report.
 
+## 4c. Install the per-turn autosave Stop hook
+
+A `Stop` hook keeps a gitignored autosave fresh every turn so a session cut off
+before a manual wrap-up still resumes cleanly. Copy the shipped script, wire it
+into `.claude/settings.json`, and locally ignore the autosave file.
+
+```bash
+cd "<target>"
+SHARED="${SHARED:-$(cat ~/.claude/claude-shared-repo 2>/dev/null || echo ~/projects/claude-shared)}"
+HANDOFF_DOC="${HANDOFF_DOC:-docs/HANDOFF.md}"
+
+# 1. Copy the hook script into the repo (committed tooling).
+mkdir -p .claude/hooks
+cp "$SHARED/templates/handoff/handoff-checkpoint.sh" .claude/hooks/handoff-checkpoint.sh
+chmod +x .claude/hooks/handoff-checkpoint.sh
+
+# 2. Merge a Stop hook into settings.json (idempotent; marker = script name).
+[ -f .claude/settings.json ] || echo '{}' > .claude/settings.json
+cp .claude/settings.json ".claude/settings.json.bak.$(date +%Y%m%d%H%M%S)"
+HOOK_CMD="HANDOFF_DOC='$HANDOFF_DOC' \"\$CLAUDE_PROJECT_DIR/.claude/hooks/handoff-checkpoint.sh\""
+tmp=$(mktemp)
+jq --arg cmd "$HOOK_CMD" '
+  .hooks.Stop |= (
+    [ .[]? | select( any(.hooks[]?; (.command // "") | contains("handoff-checkpoint.sh")) | not ) ]
+    + [ { "hooks": [ { "type": "command", "command": $cmd } ] } ]
+  )
+' .claude/settings.json > "$tmp" && mv "$tmp" .claude/settings.json
+
+# 3. Locally ignore the autosave (per-clone; never touches tracked .gitignore).
+AUTOSAVE_REL="${HANDOFF_DOC%.md}.autosave.md"
+EXCLUDE="$(git rev-parse --git-path info/exclude 2>/dev/null)"
+if [ -n "$EXCLUDE" ]; then
+  mkdir -p "$(dirname "$EXCLUDE")"
+  grep -qxF "$AUTOSAVE_REL" "$EXCLUDE" 2>/dev/null || printf '%s\n' "$AUTOSAVE_REL" >> "$EXCLUDE"
+fi
+```
+
+Note: the Stop hook command sets `HANDOFF_DOC` inline and invokes the script via
+`$CLAUDE_PROJECT_DIR` so it resolves regardless of the session's cwd. Project
+hooks must be trusted/approved in the repo on first use.
+
 ## 5. Report
 
 Tell the user:
@@ -165,8 +206,12 @@ Tell the user:
 - the tailoring applied (submodules / task doc / test cmd, or "generic — none detected"),
 - whether the auto-resume `SessionStart` hook was added (and that project hooks
   need to be trusted/approved in that repo on first use),
-- to **commit** `.claude/skills/handoff/SKILL.md` and `.claude/settings.json` so
-  collaborators and other machines get it.
+- that the autosave `Stop` hook was installed: `.claude/hooks/handoff-checkpoint.sh`
+  runs after every turn to keep a gitignored autosave fresh, so sessions cut off
+  before a manual wrap-up still resume cleanly. The autosave path
+  (`docs/HANDOFF.autosave.md` by default) was added to `.git/info/exclude`.
+- to **commit** `.claude/skills/handoff/SKILL.md`, `.claude/settings.json`, and
+  `.claude/hooks/handoff-checkpoint.sh` so collaborators and other machines get it.
 
 Do **not** create `docs/HANDOFF.md` yourself — the handoff skill creates it on
 the first wrap-up.
