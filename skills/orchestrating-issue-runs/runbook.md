@@ -65,7 +65,11 @@ Produce the scope doc (posted as a message, not a file the user must open):
    well above its plain implementation estimate** — in one run, four such cards
    each landed at roughly twice their estimate. Treat that multiplier the way
    you treat the split above: a shape to confirm against your own first run,
-   not a band to import.
+   not a band to import. **Count seams, not bullets.** A card that lands a new
+   transport, a repo-wide guard, or a routing/identity function is a
+   milestone-sized card however few bullets it has: each such seam took 3–5
+   review rounds in one run (a guard alone took five), and the card landed at
+   roughly three times its bullet-count estimate.
 3. **Re-estimate when an approach refutes a premise you priced on.** If an
    issue was budgeted as a cross-repo schema chain and its approach proves the
    chain does not exist, the estimate is stale — being wrong in the user's
@@ -175,7 +179,12 @@ ledger + close comment + approved follow-up issue.
 
 **Merge** (orchestrator). Review clean + CI green + no open human gate →
 squash-merge, delete branch, close issue with a summary comment naming what
-was deferred, sync the board, mark the ledger. Cross-repo groups merge in
+was deferred, sync the board, mark the ledger. **Exception: `main` merged
+INTO an integration branch uses `--merge`, never squash** — main's own commits
+carry closing keywords, and a squash concatenates every message and re-fires
+them when the branch reaches main. Run the full suite on the merged tree
+before the final PR; per-branch gates do not compose (a schema bump under one
+run turned a textually clean merge into four semantic reds, one a lie). Cross-repo groups merge in
 dependency order (producer repo first), all-or-nothing. **Delegate the merge
 mechanics to a small agent** — gate polling, conflict resolution, the
 close-comment/label/board-sync bundle — because orchestrator context is for
@@ -331,6 +340,13 @@ carries:
 - *"Prove each new guard would fail if the thing it guards stopped being
   true"* — vacuous assertions were found green three different ways in one run.
 - *"Rule on scope: is this still one change, and what should be split?"*
+- *"Quote the card's Exit clause and name what composes each deliverable"* —
+  a sink approved as "correct, not user-facing" was wired into nothing; a
+  feature nobody reaches is not shipped.
+- *"For every comparison against a reference, confirm the reference's answer
+  is derivable from the input the compared variant receives"* — a rule scored
+  a drawn-only example against the spoken cassette whose value lived only in
+  the withheld utterance; no model could pass, and it decided the verdict.
 - For a **docs PR paired with a ruling**, add a `DOCS_PR_MATCH` section on
   top of the `VERDICT:` line, never instead of it: **check each clause of the
   docs PR against the ruling it implements and against the code that actually
@@ -516,7 +532,14 @@ that only ever rises is not a measurement.
 4. **Close the milestone** (`gh api -X PATCH .../milestones/N -f
    state=closed`) — auto-close does not exist; one run's milestone sat open
    with every card in it closed until someone thought to check.
-5. **Deferred register → operator ruling → filing. Never agent → filing.** A
+5. **Deferred register → operator ruling → filing. Never agent → filing.**
+   Present the register **pre-grouped by closability**: (a) closable in-branch
+   now with no external resource — recommend folding into the card as one
+   more sub-PR before the final merge; (b) needs a cloud call, eval budget, a
+   UI, or data that does not exist yet — file, at most a few cards; (c) new
+   ideas — file only the top few. An operator asked for exactly that split
+   ("fold most, file 1–3 — controlled and closed soon") after being handed 25
+   flat items. A
    register agent consolidates every deferred item out of the run's close
    comments **plus the domain walkthrough's findings from the ledger**,
    fold-checks each one against issues already open (a candidate

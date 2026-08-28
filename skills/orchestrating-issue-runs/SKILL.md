@@ -122,6 +122,9 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - A third review of a content-identical rebase — diff-of-diffs is the orchestrator's check
 - A new clip/filter merged with no test that actually walks its path — green proves nothing about code no case exercises
 - Handing a fixer an adjudicator's cited number as settled fact rather than a hypothesis to verify
+- A reviewer brief that does not quote the card's Exit clause — the deliverable may be correct and composed into nothing
+- Squash-merging `main` into an integration branch — main's closing keywords ride along
+- A deferred register handed over flat instead of grouped by what can close in-branch now
 
 ## Common rationalizations
 
@@ -154,6 +157,8 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "I drove four rounds, so I can judge whether the diff sprawled" | You are the worst-placed reader of a diff you shaped. Ask the reviewer for the scope ruling. |
 | "The filter's logic is right, it doesn't need its own test" | Right logic, no exercising case — one merged filter sat unpinned exactly this way until a later fixer's test finally walked the path. |
 | "The adjudicator did the math, I can build on the number" | Ruling figures are hypotheses, not facts. In one run a census count, a measured dimension and an exception type all moved on verification; the fixer checks, then posts corrections after merge. |
+| "The sink/guard is correct, wiring is another card's" | Correct and unreached is not shipped. The review quotes the Exit clause and names what composes it. |
+| "The rule compares to the reference cassette, so it's fair" | Only if the reference's answer is derivable from the input the variant sees. One clause was unpassable by any model and decided a verdict. |
 | "The reviewer measured it, so the adjudicator can rule on it" | Hand it over labelled unverified and ask for contradictions. One ruling stood while its own headline number fell. |
 | "The guard is narrow, it only catches the bad case" | Ask what else it now covers. One added so bad *data* would fail had engine setup inside it — the inversion it existed to prevent. |
 | "The issue still reads OPEN, so the auto-close failed" | That read is racy. Read the squash commit body, or re-read after a beat, before writing either outcome into a permanent comment. |
