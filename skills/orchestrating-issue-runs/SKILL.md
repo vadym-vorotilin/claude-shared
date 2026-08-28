@@ -29,9 +29,14 @@ Phase 0  SCOPE      read specs, ADRs, memory, issues, board, open PRs,
 Phase 1  RUN        per issue: approach → go-gate → fix (TDD, worktree)
                     → independent review → fix rounds (resume, cap 5)
                     → merge on clean → close, board sync, ledger, report
-Phase 2  WRAP       run summary, memory update, deferred-minors register
-                    carried into the next run's Phase 0, and the skill
-                    self-update (runbook.md → Self-improvement)
+Phase 2  WRAP       demo evidence + demo document (published as a release if
+                    the run's memory says demos are published — asked at
+                    Phase 0, answer saved to memory), milestone CLOSED,
+                    deferred register → operator ruling → filing, then the
+                    board-consistency sweep as the run's last board action
+                    (whatever the operator defers instead carries into the
+                    next run's Phase 0), run summary, memory update, and the
+                    skill self-update (runbook.md → Self-improvement)
 ```
 
 ## Iron rules
@@ -45,9 +50,12 @@ Phase 2  WRAP       run summary, memory update, deferred-minors register
    green + no open human gate.
 4. **Design questions stop the issue, not the run.** A strong-model
    adjudicator rules with spec citations posted as a binding issue comment;
-   docs amendments become PRs **held for the human**; code proceeds on the
-   ruling. Escalate to the human only what is hard-to-reverse AND a real
-   trade-off the specs don't already decide.
+   docs amendments become PRs the **orchestrator squash-merges itself**, after
+   the paired engine PR (or immediately if standalone) — no held queue; code
+   proceeds on the ruling. **Exception: an amendment that edits a FROZEN spec
+   or contract still goes to the held-for-human list.** Escalate to the human
+   only what is hard-to-reverse AND a real trade-off the specs don't already
+   decide.
 5. **Ledger before first dispatch** (scratchpad file: waves, per-issue state,
    rulings, deferred minors, resume queue). Survives compaction and limits.
    Dead agents are **resumed from their transcripts**, never re-dispatched.
@@ -90,8 +98,20 @@ Phase 2  WRAP       run summary, memory update, deferred-minors register
 - Passing a reviewer's proposed remedy to a fixer as an instruction rather than a hypothesis
 - Patching hole N+1 in a path that has already produced N of the same shape
 - Handing an agent a suite count, baseline or hash you didn't make it re-measure
+- Passing a reviewer's measurement to an adjudicator as an established premise rather than labelled unverified
 - Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
 - Treating an adjudicator's "not gated on" as clearance to run two issues on one file
+- A new guard pinned by a **count** rather than by a property asserted over the whole set
+- Adding a guard and not asking what it now covers **besides** the thing being guarded
+- Treating the post-merge issue-state read as a gate — that read is racy; read the commit body
+- Handing a fixer an issue's factual claim about a file as a given rather than as checkable
+- Merging two green PRs that both touch one counted set — per-branch gates don't compose; serialise or rebase-and-rerun
+- An agent reading a shared clone via FETCH_HEAD — brief it to pin every read to a resolved SHA
+- Merging a squash-stacked PR's parent and assuming the child survives it — rebase `--onto`, then re-check the review
+- Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
+- A progress stamp with a tool call after it — the stamp ends the turn, always
+- A new clip/filter merged with no test that actually walks its path — green proves nothing about code no case exercises
+- Handing a fixer an adjudicator's cited number as settled fact rather than a hypothesis to verify
 
 ## Common rationalizations
 
@@ -116,3 +136,19 @@ Phase 2  WRAP       run summary, memory update, deferred-minors register
 | "The suite was 1000 last I looked" | It moved by 8 when a sibling merged. Make every agent re-measure; two caught this in one run. |
 | "CI is red, the branch is broken" | One was a cancelled job, one an Actions outage at setup. `gh api .../jobs` before believing a red. |
 | "The agent didn't follow my instruction" | Check whether it was right. Three deviations this run were all correct, and all reported up front. |
+| "X already does this work, so my code can't be the one that fails" | Does X **carry the value forward, or ask again?** Five impossibility claims in one PR all slid over that step. |
+| "The exception type proves the mechanism" | A wrong story that predicts the observation is not falsified by it. One survived three rounds. Take the stack trace. |
+| "My fact pins it — the count is right" | A count stops discriminating the moment the code adds one. Assert over the whole set; then only placement can move the target. |
+| "The issue says that file documents X, so I'll fix X" | It may not. Inventing a defect to match an issue is worse than the issue being wrong. Read the file first. |
+| "The agent said `DEVIATIONS: none`" | It answered from intent. Make the return contract require **quoting the line**, not self-assessing compliance. |
+| "I drove four rounds, so I can judge whether the diff sprawled" | You are the worst-placed reader of a diff you shaped. Ask the reviewer for the scope ruling. |
+| "The filter's logic is right, it doesn't need its own test" | Right logic, no exercising case — one merged filter sat unpinned exactly this way until a later fixer's test finally walked the path. |
+| "The adjudicator did the math, I can build on the number" | Ruling figures are hypotheses, not facts. In one run a census count, a measured sill and an exception type all moved on verification; the fixer checks, then posts corrections after merge. |
+| "The reviewer measured it, so the adjudicator can rule on it" | Hand it over labelled unverified and ask for contradictions. One ruling stood while its own headline number fell. |
+| "The guard is narrow, it only catches the bad case" | Ask what else it now covers. One added so bad *data* would fail had engine setup inside it — the inversion it existed to prevent. |
+| "The issue still reads OPEN, so the auto-close failed" | That read is racy. Read the squash commit body, or re-read after a beat, before writing either outcome into a permanent comment. |
+| "Both PRs are green, so merging both is green" | Per-branch gates don't compose over a counted set. Serialise, or rebase and re-run one against the other. |
+| "Same clone, FETCH_HEAD is fine" | Concurrent agents mutate it mid-read. Resolve the SHA once and pin every read in the brief to it. |
+| "The parent merged, the child will just retarget" | It can be closed, or silently retargeted onto a base it was never reviewed against. Rebase `--onto`, then content-hash before carrying the review. |
+| "I'll pick the run back up when the notification arrives" | A pause with no armed timer or monitor is a pause that runs long. Arm it, then pause. |
+| "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render. One run looked silent for four hours while reporting diligently. Stamp last. |
