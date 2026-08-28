@@ -4,6 +4,10 @@ Mechanics for each phase. SKILL.md holds the rules; this holds the how.
 Distilled from real multi-repo runs. Every figure below is one project group's
 observation — **recalibrate on your own first run.**
 
+**"The operator"** here is the human who owns the run — the same person the
+rules call "the user". Both words appear below; they mean one person: the one
+who approves the scope, owns the held-for-human gates, and rules on filings.
+
 ## What this assumes
 
 Check these before Phase 0; the skill will mislead you where they do not hold.
@@ -37,6 +41,13 @@ One strongest-tier agent + the orchestrator. Inputs: specs/ADRs/glossary,
 project memory, ALL open issues + labels + board state, open PRs, CI state
 per repo, prior-run ledgers/deferred-minors.
 
+**If this run's wrap will produce a demo artifact, ask once — before
+presenting the scope doc — whether to publish it as a release**, and SAVE the
+answer to project memory so later runs read it instead of re-asking. Re-ask
+only if memory holds no answer. The run's memory is also what says *how* demos
+are published: which repo, which tag scheme, whether the milestone description
+links the asset.
+
 Produce the scope doc (posted as a message, not a file the user must open):
 
 1. **Waves** — dependency-ordered issue groups; what parallelizes, what
@@ -49,7 +60,12 @@ Produce the scope doc (posted as a message, not a file the user must open):
    own numbers from your first run; a band from someone else's stack will not
    transfer.**
    As a shape rather than a size, one run's split: fixers ~45%, reviewers ~25%,
-   approaches ~25%, adjudication ~5%.
+   approaches ~25%, adjudication ~5%. **A card carrying both an adjudication
+   and a contract act (schema/version-constant change, cross-repo pin) costs
+   well above its plain implementation estimate** — in one run, four such cards
+   each landed at roughly twice their estimate. Treat that multiplier the way
+   you treat the split above: a shape to confirm against your own first run,
+   not a band to import.
 3. **Re-estimate when an approach refutes a premise you priced on.** If an
    issue was budgeted as a cross-repo schema chain and its approach proves the
    chain does not exist, the estimate is stale — being wrong in the user's
@@ -59,17 +75,27 @@ Produce the scope doc (posted as a message, not a file the user must open):
    added after approval have no number attached, and one of them may be the
    most expensive of the run. When the user approves a scope change, give it
    its own estimate in the same message.
-5. **Inconsistency sweep** — spec contradictions, undefined shapes referenced
+5. **Diff what the milestone promises to show against the cards' outputs.**
+   Per noun in the milestone's own Demo/Measure line: which card makes THIS
+   visible, and does that card's exit assertion actually reach the surface? In
+   one run the milestone named four visible numbers and the card decomposition
+   delivered three — the fourth card had shipped a calculator nothing called,
+   and only a wrap-time adjudication caught the silently-breakable promise.
+6. **Inconsistency sweep** — spec contradictions, undefined shapes referenced
    by issues, label/board drift, missing CI on any repo whose PRs must pass a
    merge gate (a gate that rejects green-by-absence holds a zero-CI repo's
    PRs forever — check this BEFORE the first merge, not after).
    Classify each finding: *adjudicable* (agent rules it during the run) vs
    *architectural* (user decides now). **List candidate follow-up issues;
    file none until the user approves the list.**
-6. **Held-for-human list** — spec/contract freezes, anything installing or
-   changing the user's machine, external data only the user has, gates named
-   by the project's own workflow docs.
-7. **Budget** — token target and the drain rule.
+7. **Held-for-human list** — spec/contract freezes (including any doc
+   amendment that would edit one), anything installing or changing the
+   operator's machine, external data only the operator has, gates named by the
+   project's own workflow docs. **A gate the operator delegates back runs as a
+   two-mind protocol**: the implementer decides with citations, and the
+   reviewer independently re-decides. Two convergent minds stood in for the
+   operator cleanly twice in one run; divergence escalates.
+8. **Budget** — token target and the drain rule.
 
 User approves (possibly with edits) → run starts. Scope changes mid-run
 (new issues discovered, blockers) are appended to the ledger and surfaced in
@@ -91,8 +117,21 @@ derivation (parked outranks lifecycle).
 
 **Adjudication.** Strongest tier. Rules each question against the specs with
 citations; posts a binding "## Design decisions" comment; drafts any doc
-amendment as a PR **held for the user**; code proceeds on the ruling. A
-schema-shaped ruling triggers the schema-change chain (below).
+amendment as a PR, reviewed for `DOCS_PR_MATCH` (defined in the reviewer brief
+template below) and **squash-merged by the orchestrator after its paired
+engine PR lands** — or immediately if standalone. No held queue: holding docs
+amendments for the human only added latency, and every one came back merged
+unchanged. Design-changing amendments are still surfaced in the report, just
+not gated — **with one exception: an amendment that edits a FROZEN spec or
+contract still goes to the held-for-human list.** Code proceeds on the ruling.
+A schema-shaped ruling triggers the schema-change chain (below).
+
+**A ruling's own numbers are hypotheses to the fixer, not facts.** An
+adjudicator's cited figure can still be off by measurement — in one run a
+census count, a measured sill and an exception type all moved when the fixer
+checked them. The fixer verifies before building on the figure, and posts any
+correction as a follow-up comment after merge rather than absorbing it
+silently.
 
 **Fixer.** TDD (red recorded, then green), in a fresh worktree
 (`git -C <repo> fetch origin && git worktree add <scratch>/wt-<issue> -b
@@ -100,14 +139,27 @@ schema-shaped ruling triggers the schema-change chain (below).
 red→green evidence, labels flipped by the fixer at start/end. Never merges,
 never pushes to a protected/main branch. Cross-repo issues: one worktree and
 one PR per repo, cross-referenced; merged later as an ordered group.
+**A design resting on several rulings gets a throwaway probe before the real
+diff** — a minimal end-to-end skeleton, actually run. One such probe surfaced
+29 failures from a contradiction across four rulings that nobody had seen on
+paper, and was the cheapest stop-clause of its run. **Widening a gate is a
+design act, not an implementation detail**: a necessary, narrow exemption is
+still disclosed in the PR body and paired with a tripwire test that reads the
+production roster (never a re-typed copy), so the next addition reds.
 
 **Review.** Independent agent, never the implementer. Gets the issue, the
 approach + rulings, the spec sections, the PR. Posts a GitHub review with an
 explicit `VERDICT: APPROVED | CHANGES_REQUESTED` line (self-approval is
 blocked when reviewer and author share the account — the COMMENT + verdict
-line IS the record). Reviews verify claims, not prose: run the suite, probe
-the mechanism adversarially, sabotage-test guards ("would this test catch
-the bug it claims to catch?").
+line IS the record). **The `VERDICT:` line must be literally present in the
+POSTED review body, not just in the agent's return to the orchestrator** —
+the merge agent checks GitHub's own review text, and on one card the posted
+review bodies carried no verdict line at all (the state read back as COMMENTED
+regardless of what the agent's return said). The reviewer brief template below
+carries this requirement so it does not depend on this paragraph being read.
+Reviews verify claims, not prose: run the suite, probe the mechanism
+adversarially, sabotage-test guards ("would this test catch the bug it claims
+to catch?").
 
 **Fix rounds.** Findings go back to the SAME fixer via message (resume), not
 a fresh agent — rounds 1–3. Round 4–5: fresh agent, one tier up. Cap 5, then
@@ -124,7 +176,28 @@ ledger + close comment + approved follow-up issue.
 **Merge** (orchestrator). Review clean + CI green + no open human gate →
 squash-merge, delete branch, close issue with a summary comment naming what
 was deferred, sync the board, mark the ledger. Cross-repo groups merge in
-dependency order (producer repo first), all-or-nothing.
+dependency order (producer repo first), all-or-nothing. **Delegate the merge
+mechanics to a small agent** — gate polling, conflict resolution, the
+close-comment/label/board-sync bundle — because orchestrator context is for
+coordination; a single trivial gate-plus-merge may stay one inline command.
+**A review's docs-only wording nit on an otherwise-clean docs PR: fix it on
+the docs branch yourself before merging** rather than spinning a fix round —
+that worked twice in one run. **A card that straddles the wave boundary closes
+in the wave that did its work, and the remainder is filed fresh** — cleaner
+than an open card in a closed milestone, and the same applies to an exit that
+is structurally unclosable (file its recurring successor).
+
+**The post-merge state read is racy — do not gate on it alone.** A PR body carrying
+only a bare issue reference while the *squash commit* body carries the full closing
+keyword still auto-closes, but a state read immediately after the merge can return OPEN.
+Asserting "the auto-close failed" from that read put a wrong sentence into a
+permanent close comment. **Read the commit body, or re-read the state after a beat**,
+before claiming either outcome.
+
+**Scope rulings belong to the reviewer.** After several fix rounds the orchestrator
+is the worst-placed reader of whether the diff has sprawled — it shaped the rounds
+and will read coherence into it. Ask the reviewer explicitly: is this still one
+change, and what should be split?
 
 ## Protocols
 
@@ -132,6 +205,19 @@ dependency order (producer repo first), all-or-nothing.
 plan, per-issue log lines, rulings, deferred minors, resume queue, the
 pause/resume state. After a compaction or limit reset, trust the ledger and
 `git log` over memory.
+
+**Check-up timer.** On every dispatch or resume, arm a one-shot timer for 45
+minutes (`Monitor`: `sleep 2700; echo "CHECK-UP due: <agent> ..."`). Agents
+die silently — weekly quota, mid-stream API errors, background-wait stalls —
+and the run reads as "still working" for hours otherwise — that is how one
+run's quota pause slipped by unnoticed. When it fires, verify state with cheap
+read-only commands (worktree commit time, `git status`, PR existence,
+transcript last-write time, running build processes) and report one line.
+**If the agent is alive, report the one line and RE-ARM the timer**; a
+legitimately long agent that is checked once and then never again is the exact
+hole this protocol exists to close. Rescue it if it is dead. Cancel the timer
+(`TaskStop`) only when the agent returns on its own. Never re-dispatch a live
+agent because the timer fired.
 
 **Rescue.** Agent killed by limits/crash: `SendMessage` to the same agent id
 — it resumes from its transcript with the worktree state intact. **Verify
@@ -144,8 +230,8 @@ fresh dispatch.
 
 **Stall nudge.** Agents stop with "waiting for the monitor/background task".
 Nudge with: use a BLOCKING wait (`until <check>; do sleep 10; done`, or
-`gh pr checks --watch`), then finish and return the report. Put this in
-fixer briefs preemptively.
+`gh pr checks --watch`), then finish and return the report. Put this in every
+brief preemptively.
 
 **When the nudge fails, remove the dependency.** If the thing the agent is
 waiting on **has not started** — a queued CI run, a job with no runner — a
@@ -154,15 +240,55 @@ the gate off the agent: tell it to return the report with `CI: queued`, and own
 that gate yourself. You own it anyway; merge requires CI green *and* review
 clean, and the agent cannot merge.
 
+**Idle time at parallelism 1.** While the one in-flight agent runs, pre-write
+the next brief instead of waiting on it — this kept dispatch latency near zero
+across a whole run. The brief is finished when the agent returns — only the
+just-landed PR/branch facts get filled in before send.
+
 **Briefing rules.** Every brief: role, ONE issue, binding comments listed by
 name, repo + worktree instructions, concurrent-agent file surfaces to avoid,
 the return contract (data for the orchestrator, incl. a STATUS line).
+
+**Every brief also sets a long Bash timeout (e.g. `timeout: 600000`) and says
+"never run_in_background, no monitors."** A short default Bash timeout is what
+auto-backgrounds long suite runs and live CLI calls; six agents stalled that
+way in one run, each costing a nudge round-trip. **This applies to ANY
+dispatched agent** — wrap, demo-capture, board and post-run agents included,
+not just Phase-1 fixers and reviewers. The one that proved it was a post-run
+capture agent whose ad-hoc brief omitted the line and stalled identically.
+
+**Reviewer brief template.** On top of the rules above, every reviewer brief
+carries:
+
+- *"Post a GitHub review whose body literally contains
+  `VERDICT: APPROVED | CHANGES_REQUESTED`"* — in the posted body, not only in
+  your return to the orchestrator.
+- *"Prove each new guard would fail if the thing it guards stopped being
+  true"* — vacuous assertions were found green three different ways in one run.
+- *"Rule on scope: is this still one change, and what should be split?"*
+- For a **docs PR paired with a ruling**, add a `DOCS_PR_MATCH` section on
+  top of the `VERDICT:` line, never instead of it: **check each clause of the
+  docs PR against the ruling it implements and against the code that actually
+  shipped, and report `DOCS_PR_MATCH: MATCH` or the list of mismatches.** The
+  merge agent merges the docs PR only on `MATCH`; the code PR's gate stays the
+  literal `VERDICT:` line.
+
+**Return contracts must force quoting, not self-assessment.** An agent asked "did you
+comply?" answers from intent — one returned `DEVIATIONS: none` having missed an
+explicit instruction. Ask it to **quote the line** (the closing keyword, the shipped
+wording, the measured number) and it answers from the file instead.
+
+**Tell fixers an issue's factual claims are checkable, not givens.** One issue asserted
+a file documented a command a certain way; it documented no such thing — the claim came
+from the orchestrator's own failed invocation, generalised. The fixer read the file,
+found no defect to correct, verified real behaviour and documented that instead.
+**Inventing a defect to match an issue is worse than the issue being wrong.**
 `gh` comments with literal backticks: always `--body-file`, and write the file
 with a **quoted** heredoc (`<<'EOF'`) — `--body` runs command substitution, and
 so does an *unquoted* heredoc, which is the same bug one step later.
 
-**Five lines that go in EVERY brief.** Each earned its place by catching
-something a brief without it missed:
+**The standing brief lines.** Each earned its place by catching something a
+brief without it missed:
 
 1. **"Re-measure the baseline yourself; do not carry a number across."** Two
    agents in one run caught stale suite counts handed to them by the
@@ -172,23 +298,63 @@ something a brief without it missed:
    and reported; all three were right, including one that corrected a ruling's
    stated premise by measurement while still following the ruling.
 3. **"Any sentence asserting something is impossible or cannot be tested is a
-   hypothesis. Test it before you write it."** Three false impossibility claims
-   shipped in one run, all written honestly by strong agents.
+   hypothesis. Test it before you write it."** **The highest-yield line here, by a
+   wide margin.** One later run produced *five* false impossibility claims in a
+   single pull request — three refuted by a reviewer building the thing, and two
+   caught by the author in its own drafts because it ran the sabotage instead of
+   trusting the paragraph it had just written. All written honestly by strong agents.
+   The author's own diagnosis generalises: *"I reasoned about what a call does
+   instead of running it."*
+
+   Carry the sharpened form into briefs as well, because it names the step all five
+   slid over: **when a claim rests on another component already doing the same work,
+   the load-bearing question is whether that component carries the value forward or
+   asks again.** Nothing usually requires two answers to agree.
+
+   And when a claim survives a round because the evidence fits it: **a wrong story
+   that predicts the observation correctly is not falsified by that observation.**
+   An exception type is evidence; a stack frame is the measurement.
 4. To a **fixer building a guard**: *"the first shape to test your guard against
-   is the shape your own diff introduces."*
+   is the shape your own diff introduces."* Two more, learned the same way:
+   **pin it with a property over the whole set, never a count** — a fact asserting
+   "22 asks" stops discriminating the moment the code makes 23, whereas one
+   asserting "every ask, wherever it lands" can only be moved by placement; and
+   **ask what the new guard now covers besides the thing being guarded** — a guard
+   added so bad *data* fails one node had four lines of *engine* setup inside it,
+   which is the same inversion the guard existed to prevent, reintroduced by the
+   change implementing it.
 5. To a **fixer receiving a reviewer's remedy**: *"verify it, do not copy it —
    a right finding can carry a wrong fix."*
-
-And one for **every reviewer brief**: *"prove each new guard would fail if the
-thing it guards stopped being true"* — vacuous assertions were found green three
-different ways in one run.
+6. To a **fixer on geometry or any position-sensitive card**: *"use an
+   ASYMMETRIC fixture and a hand-typed candidate oracle from day one."*
+   Fixture-blindness repeats by axis. Two geometry cards in one wave shipped
+   tests green under mirror and transpose because the fixture was symmetric,
+   and a gravity filter green because the ground plane was flat. The
+   position-mutation review battery catches this, but the fixture requirement
+   catches it a round earlier — the one card briefed this way came back with no
+   finding on that axis.
 
 **Schema-change chain** (any ruling that adds/changes a persisted field):
-doc amendment PR (held for user) → field + version-constant bump → regenerate
+doc amendment PR (orchestrator-merged, paired with the engine PR — see
+Adjudication above) → field + version-constant bump → regenerate
 generated artifacts (schemas, contracts, pins) → companion PR in each
 consuming repo, lockstep → fixtures updated via their regen tool, never by
 hand → ordered group merge. Fixtures that snapshot serialized state need a
 regen tool committed alongside them or every schema bump breaks them by hand.
+
+**Serialize schema-version acts; parallel PRs collide on the constant.** In
+one run two approved engine PRs both claimed the same next version in a single
+afternoon, and a third followed. Merge the smaller or further-along first,
+have the other rebase and re-run its own regen chain (the tools make that
+cheap); the consuming-repo pin moves last. **Declare the version constant a
+shared file surface in every parallel-mode brief.**
+
+**A merged validator with no live-fixture consumer is unverified in the
+pipeline.** One shipped blocking validator was inert for a day — an exact
+check that its own node's read never satisfied — and was found only by the
+next card's fixer reading neighbour code. When a review notes "zero live
+fixtures exercise this," treat end-to-end activation as unproven: **probe the
+validator through the real node at merge time**, not just at unit level.
 
 **Clean-env rule.** Any shell script an agent writes gets verified in a
 clean environment (Docker `node:XX-bookworm`, or `env -i HOME=$(mktemp -d)`),
@@ -197,6 +363,12 @@ clean/fast runners: second-granularity timestamp collisions, `/dev/stderr`
 redirects (ENXIO on Linux when stderr is a pipe), ambient git
 identity/config. CI's first run on a repo WILL find this class — treat each
 find as its own issue assigned to the code's owning agent, not a drive-by.
+**"Deterministic" is a per-platform claim until it has been measured
+elsewhere.** A solver diverged across two operating systems at the
+optimal/feasible boundary inside the same deterministic budget — and a code
+comment claiming "reproducible on any machine" had already been cited as
+evidence by an adjudicator. The fix lands as its own correction-term file,
+never as a re-baseline of frozen evidence.
 
 **Board/label hygiene.** State labels are flipped by the stage that owns the
 transition; the orchestrator runs the board-sync tool after every close. If
@@ -221,6 +393,14 @@ Get the stamp from `date`, not from memory. Emit it on meaningful completions,
 not on every notification or tool call. If the user asks for "just a number",
 give only the number.
 
+**The stamp must be the FINAL text of its turn — no tool call after it.** Text
+followed by tool calls in the same turn is not reliably rendered: one run
+emitted two stamps (17%, 24%) immediately before dispatching the next agent,
+and the user saw neither — the run looked silent for four hours while reporting
+diligently. Order of operations on a completion: ledger update → next dispatch →
+close the turn with the stamp. If work remains after the stamp is due, end the
+turn anyway and continue on the next event.
+
 **Fix the model once, at the first report, and keep using it.** Percentages
 drift upward otherwise — this skill's own run reported 76% and had to be
 corrected down to 71% mid-run, because approach work on unstarted issues was
@@ -233,6 +413,53 @@ being over-credited. What worked:
 
 A correction downward is fine and should be stated in the same line — a number
 that only ever rises is not a measurement.
+
+## Phase 2 — Wrap (in this order)
+
+1. **Demo evidence**: spike refresh (per the project's demo skill if one
+   exists), screenshots + capture log, honesty fences from the run's rulings.
+   **A card ruled into the milestone after capture has started does not
+   restart the capture** — the capture is still valid evidence for the cards
+   already closed, and the late card runs on its own track. Name, in the wrap
+   brief, which demo pages depend on which still-open card, so the eventual
+   patch touches exactly those pages and nothing else. Patch the affected
+   pages; keep the earlier version.
+2. **Demo document**: assembled from the capture log's own captions (never
+   invented claims), delivered to the user, and — **if the run's memory says
+   demos are published** — released the way that memory describes (which repo,
+   which tag, the artifact as an asset, the milestone description PATCHed to
+   link it). Put it somewhere durable either way: two early runs lost their
+   demo documents to ephemeral scratchpads, which is why this step exists.
+3. **Close the milestone** (`gh api -X PATCH .../milestones/N -f
+   state=closed`) — auto-close does not exist; one run's milestone sat open
+   with every card in it closed until someone thought to check.
+4. **Deferred register → operator ruling → filing. Never agent → filing.** A
+   register agent consolidates every deferred item out of the run's close
+   comments, fold-checks each one against issues already open (a candidate
+   that duplicates an open card is a fold, not a new card), and groups the
+   survivors by kind — contract acts / engine / docs / tooling / fixture /
+   decisions. The orchestrator turns that into a one-screen list with
+   recommendations; **the operator rules**; only then does a filing agent
+   file. The fold-check is most of the value: in one run roughly 45 raw
+   candidates folded to 13 filed cards plus 9 edits to existing cards, and an
+   agent filing straight off the close comments skips it entirely. An
+   adjudicator's "file the follow-up" does not bypass this gate either —
+   briefs route filings to the operator, always.
+   **Place each filed card by the target milestone's own Measure line, not by
+   "it comes next."** A contract act or a rules card does not default into the
+   next themed milestone merely because that milestone is up next; an operator
+   correction caught exactly that, where the next themed milestone had picked
+   up cards its theme did not need. Whatever the operator defers instead of
+   filing carries into the next run's Phase 0.
+5. **Board-consistency sweep, ALWAYS, as the run's last board action** (one
+   subagent) — **it runs after filing, so it sees the new cards**: every open
+   issue has a milestone matching its wave, non-empty board fields, native
+   parent links matching body Parent lines, no label contradictions; the
+   wave's closed set is milestone'd/Done/label-clean; epic spans recomputed
+   after the run's filings (they go stale silently). Report-don't-guess
+   anything ambiguous.
+6. Run summary to the user, memory update (wave-complete entry replaces any
+   paused entry; the user's owed items get their own entry), ledger closed.
 
 ## Self-improvement (mandatory at Phase 2)
 
@@ -263,3 +490,11 @@ Roadmap (pick up when a run makes one relevant):
 - More pressure scenarios: quota-pause recovery and schema-chain compliance
   are untested disciplines — write their scenario pairs the first time this
   skill runs on a project group other than the one it came from.
+
+### Where the evidence lives
+
+The runs behind these rules keep their evidence — issue numbers, milestone
+labels, costs, suite counts — in a private lessons file in the project's own
+repo, per rule 1 above. Every lesson that changes what an agent *does* has
+already been promoted into the phase step, protocol, briefing line, red flag
+or rationalization row where it fires; nothing actionable is parked here.
