@@ -568,6 +568,25 @@ that only ever rises is not a measurement.
 7. Run summary to the user, memory update (wave-complete entry replaces any
    paused entry; the user's owed items get their own entry), ledger closed.
 
+**Quota wind-down (the operator calls it; Phase 2 in miniature).** Start no
+new card. Let in-flight agents finish; each open PR gets at most one review
+round, then either merges (orchestrator gate on the merge SHA) or parks
+green with its rebase facts written on the issue (which base it was cut
+from, which numbers moved under measurement). A card whose only red is a
+defect it *exposed* files that defect as its gate, is labelled `blocked`, and
+parks. The demo publishes as a **pre-release** (`w0N-demo-prelim`): sheets
+from `main`, plus previews rendered from parked PRs in a labelled section
+that says why they are not merged; the milestone stays open. The deferred
+register → ruling → filing becomes the next session's first act, not a spend
+now. Then memory, ledger pause state, skill lessons.
+
+**Mechanics that bit (keep):** take every ledger time from `date`; edit a
+branch and verify in one shell call, merge in a **separate** call, and never
+`cd` into a worktree inside a script (`git -C` only) — `set -e` did not abort
+a failed anchor edit and the PR merged without it; a tmpfs `/tmp` fills with
+four built worktrees (Bash then returns exit 1 with no output) — worktrees go
+on disk under `~/.claude/jobs/<run>/tmp`.
+
 ## Self-improvement (mandatory at Phase 2)
 
 This skill learns from every run. At wrap, before the final summary:

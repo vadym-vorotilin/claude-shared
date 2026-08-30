@@ -125,6 +125,11 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - A reviewer brief that does not quote the card's Exit clause — the deliverable may be correct and composed into nothing
 - Squash-merging `main` into an integration branch — main's closing keywords ride along
 - A deferred register handed over flat instead of grouped by what can close in-branch now
+- Escalating a fixer's "the owner's drawing is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule was the defect, not the drawing, both times it happened
+- An acceptance property like "byte-identical except the version" handed to a fixer without checking what the serializer actually emits for an absent member
+- A ledger timestamp written from memory instead of `date` — they run ahead of the clock
+- Editing a branch and merging it in the same shell call — a failed edit that `set -e` did not catch merged twice
+- Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
 
 ## Common rationalizations
 
@@ -172,3 +177,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The suite is the sum of the filtered chunks" | Some runners' path/namespace filters are exact-match, and dropped a large slice of the suite silently. Run unfiltered, or split by test class. |
 | "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render. One run looked silent for four hours while reporting diligently. Stamp last. |
 | "The census says every item is Met, the demo is done" | Met means the noun shipped. The operator walked the same artifact and found dozens of defects the census could not see. Walk it as the user first. |
+| "The solver says the owner's sketch is infeasible, so the sketch must change" | Name the conflict first (drop one constraint at a time). Twice the named rule was the defect — a per-piece floor, a single-hub assumption — and the sketch stood. Escalate the *rule*, with options, not the sketch. |
+| "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: one pair differed by exactly weight × count, which said the tie-break pass had run at one budget and not the other. A reconciled number is a fact; two numbers are a question. |
+| "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
+| "The survey says X, the owner's drawing says Y — one correction" | Check the whole frame: which parts match. One run found three survey fields wrong (well, pole, access) after being told about one; each correction moved a different downstream number. |
