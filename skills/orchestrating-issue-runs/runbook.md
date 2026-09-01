@@ -331,11 +331,26 @@ the ledger file, because **the orchestrator cannot clear its own context**.
 
 **Where to hand over matters more than whether.** Agent handles are
 session-scoped: a fresh session can read the ledger, the worktrees and the PRs,
-but it cannot `SendMessage` the previous session's agents. So hand the run to a
-fresh session at a **wave boundary**, with nothing in flight. Mid-wave, compact
-instead and keep the handles — a compacted orchestrator still carries more than
-a fresh one, but losing the rescue path for several running agents costs more
-than the context does.
+but it cannot `SendMessage` the previous session's agents. Both options exist
+at every point; what changes is which one is cheap:
+
+- **At a wave boundary, nothing in flight** — a fresh session is cheapest and
+  loses nothing. Compaction is still perfectly valid here if the user prefers
+  to stay put; it just keeps carrying more context than a fresh start would.
+- **Mid-wave, agents running** — compact and keep the handles. A compacted
+  orchestrator carries more than a fresh one, but losing the rescue path for
+  several running agents costs more than the context does.
+
+**The choice is the user's; the orchestrator's job is to make it informed.**
+Post one handover message and then stop dispatching until it is answered:
+where the run is (wave, issues closed, what is in flight and what each agent is
+waiting on), any open gate, the ledger's path, the two options above with the
+trade-off in one line each, and the literal instruction a fresh session needs —
+*"read `<ledger path>`, verify worktree/branch/PR state with `git` and `gh`
+before trusting it, then continue at `<next concrete step>`"*. Say plainly that
+in-flight agents cannot be messaged from a new session, so if any are running,
+either wait for them or accept recovering their work from the worktree and PR.
+End the message with the progress stamp, as always.
 
 **Handoff note.** The unit that lets an agent stop without losing work: written
 when it hits the ceiling, and written **before a deliberate park** rather than
