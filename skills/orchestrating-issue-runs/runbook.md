@@ -315,12 +315,12 @@ adjudication either ratifies, relocates or replaces it; do not block on it and
 do not let it merge un-ruled. In one run two of three were ratified; one moved
 to the right section.
 
-**Cassette retries** (only where the project records live interactions and
-replays them in tests). Re-recording until a take is usable and keeping the last
-one is disclosed, not cherry-picked — and only when every discard was for
-validity. Discarding on content the brief never pinned is a selection the
-operator rules on, and the recording's provenance should carry an attempt count.
-Route it to the deferred register, not to the reviewer.
+**Recorded-interaction retries** (only where the project records live
+interactions and replays them in tests). Re-recording until a take is usable and
+keeping the last one is disclosed, not cherry-picked — and only when every
+discard was for validity. Discarding on content the brief never pinned is a
+selection the operator rules on, and the recording's provenance should carry an
+attempt count. Route it to the deferred register, not to the reviewer.
 
 **The ledger is the orchestrator's own handoff note.** The orchestrator is
 subject to the context ceiling like everything it dispatches. As its own
@@ -599,14 +599,14 @@ brief without it missed:
    change implementing it.
 5. To a **fixer receiving a reviewer's remedy**: *"verify it, do not copy it —
    a right finding can carry a wrong fix."*
-6. To a **fixer on geometry or any position-sensitive card**: *"use an
+6. To a **fixer on any position- or orientation-sensitive card**: *"use an
    ASYMMETRIC fixture and a hand-typed candidate oracle from day one."*
-   Fixture-blindness repeats by axis. Two geometry cards in one wave shipped
-   tests green under mirror and transpose because the fixture was symmetric,
-   and a gravity filter green because the ground plane was flat. The
-   position-mutation review battery catches this, but the fixture requirement
-   catches it a round earlier — the one card briefed this way came back with no
-   finding on that axis.
+   Fixture-blindness repeats by axis. Two such cards in one wave shipped tests
+   green under mirror and transpose because the fixture was symmetric, and a
+   third passed a directional filter because the fixture had no variation on
+   the axis it filtered. The position-mutation review battery catches this, but
+   the fixture requirement catches it a round earlier — the one card briefed
+   this way came back with no finding on that axis.
 7. To **any long-running agent**: *"when your context passes ~150k, stop and
    write the handoff note; do not push on."* The one line that bounds an
    agent's cost, because cost grows with context × turns and not with how much
