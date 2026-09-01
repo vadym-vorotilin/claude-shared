@@ -37,9 +37,44 @@ issues on its own once the scope is approved.
 
 ## Phase 0 — Scope
 
-One strongest-tier agent + the orchestrator. Inputs: specs/ADRs/glossary,
-project memory, ALL open issues + labels + board state, open PRs, CI state
-per repo, prior-run ledgers/deferred-minors.
+One strongest-tier agent, **dispatched** — not the orchestrator reading in
+session. Inputs: specs/ADRs/glossary, project memory, ALL open issues +
+labels + board state, open PRs, CI state per repo, prior-run
+ledgers/deferred-minors.
+
+**The survey is rented context; the scope doc is what the run keeps.** The
+agent reads the sources and returns the doc; the orchestrator runs the receipt
+check below and posts it. An orchestrator that reads the sources itself buys
+the same doc and then re-reads the whole survey on every remaining turn of the
+run — the surest way to spend most of its ceiling (iron rule 9) before the
+first dispatch.
+
+**Check it by tool calls, not by a token target.** The orchestrator has no way
+to read its own context size from inside a run, so a number here is a gate that
+always passes; its own tool calls it can see. Phase 0 is dispatch, receive,
+check, post — plus exactly these three:
+
+- **Resolving a citation.** That issue #N exists and is open, that a cited spec
+  section exists, that a PR is real. Resolving a citation is not reading the
+  source: `gh issue view N --json title,state` is a line, `gh issue view N` is
+  the body. The first is the receipt check; the second is the leak.
+- **Branch protection and the merge method** per repo (What this assumes,
+  above) — one `gh api` call each, and the result goes in the doc.
+- **The project-memory read** behind the demo-release question, which is asked
+  before the doc is presented and so cannot wait for it.
+
+Anything else — opening a spec, reading an issue body, reading a PR diff — is
+the survey leaking into the orchestrator, whatever the doc it ends up holding
+says.
+
+The scope agent is not exempt from rule 9's ceiling, and it writes the handoff
+note like anything else — that rule is unconditional (Handoff note, below),
+and a survey that dies unrecorded is repurchased in full. What differs is the
+remedy. It returns the **partial doc plus the note saying which surfaces it
+covered**, and the **orchestrator** dispatches the rest — per repo, or sources
+versus board state — then posts the merged doc. An agent already at its
+ceiling cannot split itself, and a partial doc posted as the scope is a repo's
+issues missing from the run with nothing to show it.
 
 **If this run's wrap will produce a demo artifact, ask once — before
 presenting the scope doc — whether to publish it as a release**, and SAVE the
@@ -100,6 +135,38 @@ Produce the scope doc (posted as a message, not a file the user must open):
    reviewer independently re-decides. Two convergent minds stood in for the
    operator cleanly twice in one run; divergence escalates.
 8. **Budget** — token target and the drain rule.
+
+**Return the doc, not the evidence — and cap it structurally.** A size target
+is graded by the agent that wrote the doc, which always finds its own doc
+reasonable; the cap that holds is a prohibition. **The doc quotes no source
+material.** Findings carry citations — issue number, spec section, PR,
+`file:line` — never the text they were found in: no pasted issue bodies, no
+spec excerpts, no diff hunks, no CI logs.
+
+**One exemption, and it is narrow.** A finding routed to a human decision —
+the inconsistency sweep (6) and the held-for-human list (7) — quotes **one
+line per clause the decision turns on**. Nobody can rule that two specs
+conflict from two section numbers without opening both, which is the thing
+posting the doc as a message exists to avoid. Bulk evidence stays banned and
+the gate stays binary: a one-line quote inside a finding is not a pasted issue
+body, and no one has to judge which it is.
+
+**Receipt check.** Two passes over the returned doc, both cheap, neither
+self-graded. It **quotes nothing** outside that exemption, and its
+**citations resolve** — every issue number exists and is open, every cited
+spec section is there, every referenced PR is real. This is now the whole of
+what stands between a hallucinated issue number and a wave dispatched against
+it: the orchestrator can no longer catch one by recognising it, because it has
+not read the issues. Anything that fails either pass goes back to the scope
+agent before the doc is posted, not after.
+
+Size then follows, and scales with the run rather than being a constant that
+is wrong for the next repo: the eight items above, a few lines per issue. A
+doc still running long under that constraint is telling you the wave
+decomposition is wrong, not that the format is too tight. And a doc arriving
+at the size of its sources has moved the survey into the orchestrator's
+message history rather than left it behind, where it is carried and re-read
+exactly as it would have been.
 
 User approves (possibly with edits) → run starts. Scope changes mid-run
 (new issues discovered, blockers) are appended to the ledger and surfaced in
@@ -321,6 +388,12 @@ keeping the last one is disclosed, not cherry-picked — and only when every
 discard was for validity. Discarding on content the brief never pinned is a
 selection the operator rules on, and the recording's provenance should carry an
 attempt count. Route it to the deferred register, not to the reviewer.
+
+**The orchestrator cannot see its own context either**, so "approaching the
+ceiling" is judged by run milestones rather than tokens: it offers the handover
+below at each wave boundary from the second on, and the operator decides.
+`--view agents` will not answer this one — that view is built from subagent
+rows and excludes the orchestrator by construction.
 
 **The ledger is the orchestrator's own handoff note.** The orchestrator is
 subject to the context ceiling like everything it dispatches. As its own

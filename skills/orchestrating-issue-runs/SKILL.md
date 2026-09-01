@@ -22,8 +22,9 @@ re-read its context. Run the orchestrator session on the **top standard tier
 and buys nothing on a ledger turn. A session inherits the user's default model,
 which is how a run ends up on the priciest tier with nobody having decided to.
 **The orchestrator cannot switch its own model** — if it finds itself on a
-pricier tier, it asks the user to run `/model opus` in the same message that
-posts the Phase 0 scope for approval, before any dispatch.
+pricier tier it asks the user to run `/model opus` **before dispatching the
+scope agent**, not in the message that posts the scope: dispatching the survey
+and reviewing what it returns are already paid at the session's own tier.
 
 **REQUIRED READING before the first dispatch:** [runbook.md](runbook.md) —
 phase mechanics, briefing templates, and the protocols below in full.
@@ -31,12 +32,14 @@ phase mechanics, briefing templates, and the protocols below in full.
 ## The flow
 
 ```
-Phase 0  SCOPE      read specs, ADRs, memory, issues, board, open PRs,
-                    prior-run ledgers → dependency-ordered wave plan +
-                    per-issue model tier + inconsistency sweep
+Phase 0  SCOPE      a DISPATCHED agent reads specs, ADRs, memory, issues,
+                    board, open PRs, prior-run ledgers → returns a
+                    dependency-ordered wave plan + per-issue model tier +
+                    inconsistency sweep. The orchestrator reads the doc,
+                    not the sources.
          APPROVE    scope doc posted as a message; found inconsistencies
                     listed for approval before any issues are filed.
-                    NO DISPATCH BEFORE THE USER APPROVES THE SCOPE.
+                    NO DISPATCH OF RUN WORK BEFORE THE USER APPROVES.
 Phase 1  RUN        per issue: approach → go-gate → fix (TDD, worktree)
                     → independent review → fix rounds (resume,
                     budget-capped, hard cap 5)
@@ -56,8 +59,11 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 
 ## Iron rules
 
-1. **No dispatch before scope approval.** "The user said unattended" is not
-   approval of a scope they haven't seen. Present the scope doc, wait.
+1. **No dispatch of run work before scope approval.** "The user said
+   unattended" is not approval of a scope they haven't seen. Present the scope
+   doc, wait. The Phase 0 scope agent is the one exception, because it is what
+   produces the doc being approved — nothing downstream of it moves until the
+   user has.
 2. **Worktree per agent, always** — including coupled tasks. Coupling is
    handled by merge order and declared file surfaces, never a shared checkout.
 3. **Verdicts are data; the orchestrator merges.** A reviewer never merges.
@@ -159,6 +165,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
 - A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
 - Resuming a cold agent that is already over the ceiling — that is a continuation from its handoff note, not a resume
+- The orchestrator reading the specs, issues and PRs itself in Phase 0 — that survey belongs to the dispatched scope agent, which returns the doc and takes the context away with it
 - A reviewer brief that names no diff and no resolved SHA — the reviewer will read the whole repo instead of the change
 - Arming a check-up timer per agent — one silent sweep covers every in-flight agent and wakes you only on a stall
 - Starting a wave or a fix round without checking the run's spend against the target
