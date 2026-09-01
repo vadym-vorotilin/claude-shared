@@ -14,6 +14,17 @@ review, fix rounds, merges — runs in the agent loop.
 The orchestrator coordinates and decides; it never implements and never
 reviews code itself. Its context is for coordination.
 
+**Model check at run start.** Orchestration is coordination, not the run's
+hardest thinking — the strongest tiers are dispatched per the table below,
+while the orchestrator's own turns are mostly dispatch and bookkeeping that
+re-read its context. Run the orchestrator session on the **top standard tier
+(Opus-class)**: the strongest tier lists at roughly twice the rate per token
+and buys nothing on a ledger turn. A session inherits the user's default model,
+which is how a run ends up on the priciest tier with nobody having decided to.
+**The orchestrator cannot switch its own model** — if it finds itself on a
+pricier tier, it asks the user to run `/model opus` in the same message that
+posts the Phase 0 scope for approval, before any dispatch.
+
 **REQUIRED READING before the first dispatch:** [runbook.md](runbook.md) —
 phase mechanics, briefing templates, and the protocols below in full.
 
@@ -27,7 +38,8 @@ Phase 0  SCOPE      read specs, ADRs, memory, issues, board, open PRs,
                     listed for approval before any issues are filed.
                     NO DISPATCH BEFORE THE USER APPROVES THE SCOPE.
 Phase 1  RUN        per issue: approach → go-gate → fix (TDD, worktree)
-                    → independent review → fix rounds (resume, cap 5)
+                    → independent review → fix rounds (resume,
+                    budget-capped, hard cap 5)
                     → merge on clean → close, board sync, ledger, report
 Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
                     the artifact as the end user would; rubric lives in
@@ -61,18 +73,32 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    decide.
 5. **Ledger before first dispatch** (scratchpad file: waves, per-issue state,
    rulings, deferred minors, resume queue). Survives compaction and limits.
-   Dead agents are **resumed from their transcripts**, never re-dispatched.
-   If the agent id is genuinely unrecoverable, re-dispatch with the ledger's
-   state summary plus the worktree, branch and PR facts you verified yourself.
+   Dead agents are **resumed from their transcripts** — while they are still
+   under the context ceiling (rule 9). Above it, or with a cold cache (a
+   subagent idle past ~5 minutes), **continue from the handoff note instead**:
+   both paths pay a full cache write at that point, and the fresh agent then
+   re-reads a fraction of the context on every turn that follows. If the agent
+   id is genuinely unrecoverable, dispatch with the ledger's state summary plus
+   the worktree, branch and PR facts you verified yourself.
 6. **Nothing deferred silently.** Every non-blocking finding: ledger entry +
    close-comment mention + follow-up issue (issues only after user approved
    creating them, per scope rules).
 7. **Budget = graceful drain.** At the token target: start nothing new, let
-   in-flight rounds finish, report, pause.
+   in-flight rounds finish, report, pause. **Measure it, don't estimate it** —
+   `/token-report`'s `--json` total between waves and before each fix round
+   (runbook → Budget check). A budget rule with no instrument is a wish.
 8. **Report progress after every substantial agent completion** — a stamped
    `**<date and time> - Progress: N%**` line plus one line of what happened.
    Weight by expected issue cost, never by count; unmerged is not done. See
    runbook.md → Reports.
+9. **Context is a budget.** An agent re-reads its whole context every turn, so
+   cost grows with context × turns and the expensive failure mode is the
+   long-lived agent, not the chatty one. Fixers and other long-running agents
+   **stop at ~150k, write a handoff note, and return it**; the orchestrator
+   dispatches a continuation from that note. The orchestrator holds itself to
+   the same ceiling, using the ledger as its own handoff note. **Reviewers are
+   exempt** — a review is one whole-diff verdict and is never split. The
+   threshold is a default to tune after a wave (runbook → Handoff note).
 
 ## Model tiers (defaults; record per-issue tier in the scope doc)
 
@@ -80,7 +106,8 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 |---|---|
 | Approaches, mechanical fixes, standard reviews, re-reviews | cheap/mid (Sonnet-class) |
 | Load-bearing implement/review: core types, schema, cache/graph logic, anything that runs unattended with write access | top standard (Opus-class) |
-| Design adjudication, contract/freeze drafts, Phase 0 scope | strongest available |
+| Design adjudication | strongest (Fable-class) — requires the scoped brief in runbook → Adjudication |
+| Contract/freeze drafts, Phase 0 scope | strongest available |
 | Repeat of an already-merged pattern | one combined approach+fix agent, cheap tier |
 | Doc/comment text + mechanical tests, zero non-comment production lines | orchestrator verifies instead of dispatching a review — confirm no production diff and no fixture bytes moved, then **re-apply a discriminating mutation yourself on a different axis than the fixer's**. The mutation is what makes it safe; the greps alone are not a gate. |
 
@@ -130,6 +157,11 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - A ledger timestamp written from memory instead of `date` — they run ahead of the clock
 - Editing a branch and merging it in the same shell call — a failed edit that `set -e` did not catch merged twice
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
+- A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
+- Resuming a cold agent that is already over the ceiling — that is a continuation from its handoff note, not a resume
+- A reviewer brief that names no diff and no resolved SHA — the reviewer will read the whole repo instead of the change
+- Arming a check-up timer per agent — one silent sweep covers every in-flight agent and wakes you only on a stall
+- Starting a wave or a fix round without checking the run's spend against the target
 
 ## Common rationalizations
 
@@ -139,7 +171,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "These two issues are coupled, share the checkout" | That's how two agents corrupted each other's trees. Worktrees + merge order. |
 | "Review was clean, the reviewer can merge" | Verdict ≠ decision. Gates (human labels, groups, freezes) live above the reviewer. |
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
-| "Fresh agent is cleaner than resuming" | Resume keeps the task context and costs a fraction. Fresh agents re-derive everything. |
+| "Fresh agent is cleaner than resuming" | True below the ceiling — there a resume keeps the task context for a fraction of the price. Above it both paths pay the same cache write, and the resumed one re-reads a bloated context on every turn after it. |
 | "Minor finding, not worth a follow-up" | Silent discards are how the next run re-finds it at 10x cost. |
 | "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted geometry. Mutate position, not just structure. |
 | "It compiled red first, that's my TDD evidence" | A compile error proves the file was absent. Go green, then mutate the load-bearing decision back to naive and quote that red. |
@@ -181,3 +213,6 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: one pair differed by exactly weight × count, which said the tie-break pass had run at one budget and not the other. A reconciled number is a fact; two numbers are a question. |
 | "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
 | "The survey says X, the owner's drawing says Y — one correction" | Check the whole frame: which parts match. One run found three survey fields wrong (well, pole, access) after being told about one; each correction moved a different downstream number. |
+| "It's nearly done, it can push past the ceiling" | Every turn past the ceiling costs more than the one before it, and "nearly done" is the estimate that has been wrong all run. Write the note — a continuation costs one brief. |
+| "Round 5 is just another round" | A late round on a resumed agent costs a multiple of round 1 for a same-sized fix. Price the round before spending it; when the budget says stop, adjudicate the open findings instead. |
+| "The check-up timer is cheap insurance" | Per agent, every 45 minutes, it re-reads the entire orchestrator context to learn "still alive" — and still finds a stall up to 45 minutes late. One silent sweep is cheaper and faster. |
