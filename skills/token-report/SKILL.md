@@ -14,6 +14,25 @@ deduplicates by `requestId` (resumed and forked transcripts replay history
 verbatim — counting lines double-counts), and prices every call at real
 per-MTok rates.
 
+## What this assumes
+
+- **`python3` on PATH.** No third-party packages, no network — the script is
+  standard library only and never calls an API.
+- **Transcripts under `~/.claude/projects`**, in Claude Code's current JSONL
+  shape: assistant records carrying `message.usage` and `requestId`, subagents
+  at `<project>/<session>/subagents/agent-*.jsonl` with optional
+  `agent-*.meta.json` sidecars. Override the location with `--root`. A `--root`
+  that does not exist says so rather than reporting an empty window.
+- **Local transcripts only.** It measures this machine. Work done in another
+  checkout, another machine, or the web app is not in the total.
+- **A hand-maintained price table** (`BASE` in `token_audit.py`, dated in a
+  comment). A model released after that date is not in it; `rates()` falls back
+  to the dearest known rate in its family, so an unknown model is over-reported
+  rather than silently under-reported. Update the table from Anthropic's
+  published pricing when the numbers matter — never from memory.
+- **Dollar figures are an equivalence, not an invoice.** They price raw usage at
+  list rates; a subscription plan, discounts, or free tiers are not modelled.
+
 ## Run it
 
 ```bash
@@ -62,3 +81,8 @@ python3 $S --since <run-start> --json | python3 -c 'import json,sys; d=json.load
 ```
 
 Check it between waves; stop starting new work when it crosses the target.
+
+`--json` always emits an object, including for an empty window (`usd: 0`) — the
+gate reads a number rather than dying on empty stdin at the moment it is meant
+to speak. Read `root_missing` alongside `usd`: a mistyped `--since` and a
+mistyped `--root` both total zero, and only that flag tells them apart.

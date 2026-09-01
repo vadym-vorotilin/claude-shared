@@ -397,7 +397,10 @@ the figure in the ledger next to the wave line so the drain decision is made
 against a trend rather than one reading. `--view agents --top 40` shows which
 agents carry the cost and how large their contexts grew — that is the view that
 says whether the ceiling is being respected. (Needs the `token-report` skill
-installed; without it, say so in the report rather than estimating.)
+installed; without it, say so in the report rather than estimating. A zero
+reading is a claim to check, not a result: the same `$0.00` comes from a
+mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
+flag is what separates them.)
 
 **Liveness sweep.** Agents die silently — weekly quota, mid-stream API errors,
 background-wait stalls — and the run reads as "still working" for hours
@@ -415,13 +418,20 @@ the orchestrator is woken only when one looks dead:
 : "${SCRATCH:?set SCRATCH to the scratch directory for this run}"  # no silent no-op
 shopt -s nullglob
 STALE_MIN=15
-armed=0
+GRACE=3                      # passes to allow before the first worktree exists
+armed=0; empty=0
 while true; do
   wts=("$SCRATCH"/wt-*/)
-  if [ ${#wts[@]} -eq 0 ] && [ $armed -eq 0 ]; then
-    echo "SWEEP MISCONFIGURED: no worktrees under $SCRATCH"; exit 1
+  if [ ${#wts[@]} -eq 0 ]; then
+    empty=$((empty + 1))
+    # Speak once the sweep has ever seen a worktree (they vanished), or once
+    # the grace period is up (it was armed on the wrong path). Never go quiet.
+    if [ $armed -eq 1 ] || [ $empty -gt $GRACE ]; then
+      echo "SWEEP: no worktrees under $SCRATCH — nothing is being watched"
+    fi
+    sleep 120; continue
   fi
-  armed=1
+  armed=1; empty=0
   for wt in "${wts[@]}"; do
     if find "$wt" -name .git -prune -o -newermt "-${STALE_MIN} minutes" \
          -print -quit 2>/dev/null | grep -q .; then
@@ -441,8 +451,16 @@ made the sweep report a hung agent as healthy the first time this was tested.)
 Two properties make it a gate rather than decoration: it is **silent while
 healthy** (otherwise it is the per-agent timer again, wearing a loop), and it
 **speaks on every failure shape you would act on**, including "the agent said
-it opened a PR and there is none". Check at arm time that it actually names
-live worktrees — a sweep watching an empty glob passes forever.
+it opened a PR and there is none".
+
+The empty glob is one of those failure shapes, and it is the one a sweep gets
+wrong by default. Arming at first dispatch is normal — the fixer has usually
+not created its worktree yet — so the loop tolerates an empty `$SCRATCH` for a
+few passes and then says so, and it says so **immediately** once it has seen a
+worktree and they later vanish (pruned, moved, renamed mid-run). Without that
+second case the sweep watches nothing and reports nothing for the rest of the
+run: a gate that silently always passes is worse than no gate. Confirm at arm
+time that it names live worktrees rather than assuming the silence is health.
 
 On a `STALL` line, verify with cheap read-only commands (worktree commit time,
 `git status`, PR existence, transcript last-write time, running build
@@ -520,8 +538,8 @@ carries:
   feature nobody reaches is not shipped.
 - *"For every comparison against a reference, confirm the reference's answer
   is derivable from the input the compared variant receives"* — a rule scored
-  a drawn-only example against the spoken cassette whose value lived only in
-  the withheld utterance; no model could pass, and it decided the verdict.
+  one variant's example against a reference recording whose value lived only
+  in the withheld input; no model could pass, and it decided the verdict.
 - For a **docs PR paired with a ruling**, add a `DOCS_PR_MATCH` section on
   top of the `VERDICT:` line, never instead of it: **check each clause of the
   docs PR against the ruling it implements and against the code that actually

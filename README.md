@@ -74,6 +74,12 @@ backs up `settings.json` before merging:
   section for asset-based projects (Unity prefab/scene/GUID wiring). Re-reviews
   follow-up pushes, but never posts APPROVE / REQUEST_CHANGES on its own — the
   verdict stays yours.
+- **`/token-report`** — measure where token spend actually goes across this
+  machine's transcripts: by day, model, project, subagent and context size, with
+  a `--json` total for scripted budget checks. Read-only, and local — it walks
+  `~/.claude/projects` and never calls an API. `/orchestrating-issue-runs`
+  depends on it for its budget rule; see *What this assumes* in
+  `skills/token-report/SKILL.md` (notably the hand-maintained price table).
 - **`/short-brief`** — a one-screen status brief that replaces reading a long
   session, rather than summarising it.
 

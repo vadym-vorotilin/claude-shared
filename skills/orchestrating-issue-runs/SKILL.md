@@ -152,7 +152,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - A reviewer brief that does not quote the card's Exit clause — the deliverable may be correct and composed into nothing
 - Squash-merging `main` into an integration branch — main's closing keywords ride along
 - A deferred register handed over flat instead of grouped by what can close in-branch now
-- Escalating a fixer's "the owner's drawing is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule was the defect, not the drawing, both times it happened
+- Escalating a fixer's "the requested design is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule was the defect, not the design, both times it happened
 - An acceptance property like "byte-identical except the version" handed to a fixer without checking what the serializer actually emits for an absent member
 - A ledger timestamp written from memory instead of `date` — they run ahead of the clock
 - Editing a branch and merging it in the same shell call — a failed edit that `set -e` did not catch merged twice
@@ -195,7 +195,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The filter's logic is right, it doesn't need its own test" | Right logic, no exercising case — one merged filter sat unpinned exactly this way until a later fixer's test finally walked the path. |
 | "The adjudicator did the math, I can build on the number" | Ruling figures are hypotheses, not facts. In one run a census count, a measured dimension and an exception type all moved on verification; the fixer checks, then posts corrections after merge. |
 | "The sink/guard is correct, wiring is another card's" | Correct and unreached is not shipped. The review quotes the Exit clause and names what composes it. |
-| "The rule compares to the reference cassette, so it's fair" | Only if the reference's answer is derivable from the input the variant sees. One clause was unpassable by any model and decided a verdict. |
+| "The rule compares to the reference recording, so it's fair" | Only if the reference's answer is derivable from the input the variant sees. One clause was unpassable by any model and decided a verdict. |
 | "The reviewer measured it, so the adjudicator can rule on it" | Hand it over labelled unverified and ask for contradictions. One ruling stood while its own headline number fell. |
 | "The guard is narrow, it only catches the bad case" | Ask what else it now covers. One added so bad *data* would fail had engine setup inside it — the inversion it existed to prevent. |
 | "The issue still reads OPEN, so the auto-close failed" | That read is racy. Read the squash commit body, or re-read after a beat, before writing either outcome into a permanent comment. |
@@ -209,10 +209,10 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The suite is the sum of the filtered chunks" | Some runners' path/namespace filters are exact-match, and dropped a large slice of the suite silently. Run unfiltered, or split by test class. |
 | "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render. One run looked silent for four hours while reporting diligently. Stamp last. |
 | "The census says every item is Met, the demo is done" | Met means the noun shipped. The operator walked the same artifact and found dozens of defects the census could not see. Walk it as the user first. |
-| "The solver says the owner's sketch is infeasible, so the sketch must change" | Name the conflict first (drop one constraint at a time). Twice the named rule was the defect — a per-piece floor, a single-hub assumption — and the sketch stood. Escalate the *rule*, with options, not the sketch. |
+| "The solver says the requested design is infeasible, so the design must change" | Name the conflict first (drop one constraint at a time). Twice the named rule was the defect — a per-unit floor, a single-hub assumption — and the design stood. Escalate the *rule*, with options, not the design. |
 | "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: one pair differed by exactly weight × count, which said the tie-break pass had run at one budget and not the other. A reconciled number is a fact; two numbers are a question. |
 | "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
-| "The survey says X, the owner's drawing says Y — one correction" | Check the whole frame: which parts match. One run found three survey fields wrong (well, pole, access) after being told about one; each correction moved a different downstream number. |
+| "The source data says X, the requested design says Y — one correction" | Check the whole frame: which parts match. One run found three input fields wrong after being told about one; each correction moved a different downstream number. |
 | "It's nearly done, it can push past the ceiling" | "Nearly done" has been the wrong estimate all run, so make it evidential: suite green, one named deliverable left, no open decision. That finishes (hard stop ~200k). Anything else writes the note and returns. |
 | "Round 5 is just another round" | A late round on a resumed agent costs a multiple of round 1 for a same-sized fix. Price the round before spending it; when the budget says stop, adjudicate the open findings instead. |
 | "The check-up timer is cheap insurance" | Per agent, every 45 minutes, it re-reads the entire orchestrator context to learn "still alive" — and still finds a stall up to 45 minutes late. One silent sweep is cheaper and faster. |

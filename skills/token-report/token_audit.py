@@ -15,6 +15,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 # $/MTok (input, output). cache write 5m = 1.25x in, 1h = 2x in, cache read = 0.1x in.
+# Rates as of 2026-06; hand-maintained. A model priced after this date is not
+# here, and rates() deliberately over-reports it rather than guessing low.
 BASE = {
     "claude-fable-5": (10.0, 50.0), "claude-mythos-5": (10.0, 50.0),
     "claude-opus-5": (5.0, 25.0), "claude-opus-4-8": (5.0, 25.0),
@@ -22,16 +24,24 @@ BASE = {
     "claude-sonnet-5": (2.0, 10.0), "claude-sonnet-4-6": (3.0, 15.0),
     "claude-haiku-4-5": (1.0, 5.0),
 }
+def _family_max(fam):
+    hits = [v for k, v in BASE.items() if fam in k]
+    return (max(v[0] for v in hits), max(v[1] for v in hits))
+
 def rates(model):
     m = model or ""
     for k, v in BASE.items():
         if m.startswith(k):
             return v
-    if "fable" in m or "mythos" in m: return (10.0, 50.0)
-    if "opus" in m:   return (5.0, 25.0)
-    if "sonnet" in m: return (2.0, 10.0)
-    if "haiku" in m:  return (1.0, 5.0)
-    return (5.0, 25.0)                       # unknown -> assume top tier
+    # Unknown model: never guess low. Fall back to the DEAREST known rate in
+    # its family, and to the dearest rate in the table when even the family is
+    # unknown -- a model released after BASE was written is then over-reported
+    # rather than silently under-reported in a tool whose point is real prices.
+    for fam in ("fable", "mythos", "opus", "sonnet", "haiku"):
+        if fam in m:
+            return _family_max(fam)
+    return (max(v[0] for v in BASE.values()),
+            max(v[1] for v in BASE.values()))     # unknown -> assume top tier
 
 def cost_usd(model, u):
     inp, out = rates(model)
@@ -60,9 +70,14 @@ def load_rows(root, since, until):
     # per requestId — keeping the first silently drops ~half of output cost.
     best = {}
     for path in glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True):
+        # <root>/<project>/<session-uuid>/subagents/agent-*.jsonl -- climb two
+        # levels past "subagents", not one, or every subagent row is keyed by
+        # its session UUID and the project it belongs to shows only its
+        # main-loop share.
         project = os.path.basename(os.path.dirname(path))
         if project == "subagents":
-            project = os.path.basename(os.path.dirname(os.path.dirname(path)))
+            project = os.path.basename(
+                os.path.dirname(os.path.dirname(os.path.dirname(path))))
         stem = os.path.basename(path)[:-6]
         for line in open(path, errors="replace"):
             if '"usage"' not in line:
@@ -135,23 +150,33 @@ def main():
     a = p.parse_args()
 
     since = a.since or (datetime.now(timezone.utc) - timedelta(days=a.days)).strftime("%Y-%m-%d")
+    root_missing = not os.path.isdir(a.root)
     rows = list(load_rows(a.root, since, a.until))
-    if not rows:
-        print(f"no assistant turns found in {a.root} since {since}"); return
     meta = load_meta(a.root)
     tot = sum(r["usd"] for r in rows)
     side = [r for r in rows if r["side"]]
     cap = a.ctx_cap * 1000
     over = sum(r["usd"] for r in rows if r["ctx"] >= cap)
 
+    # --json emits before any early return: the budget gate in
+    # orchestrating-issue-runs pipes this into json.load, and an empty window
+    # must read as $0.00, not as a JSONDecodeError on empty stdin.
     if a.json:
         print(json.dumps({
             "since": since, "until": a.until, "turns": len(rows), "usd": round(tot, 2),
+            "root": a.root, "root_missing": root_missing,
             "usd_sidechain": round(sum(r["usd"] for r in side), 2),
             "usd_above_ctx_cap": round(over, 2), "ctx_cap_k": a.ctx_cap,
             "by_day": {k: round(v["usd"], 2) for k, v in agg(rows, lambda r: r["day"]).items()},
-            "by_model": {k: round(v["usd"], 2) for k, v in agg(rows, lambda r: r["model"]).items()},
+            "by_model": {k: round(v["usd"], 2) for k, v in agg(rows, lambda r: r["model"] or "?").items()},
         }, indent=2, sort_keys=True)); return
+
+    # Text mode stops here on an empty window -- the report divides by the
+    # total. A missing --root says so, so a typo cannot read as "spent nothing".
+    if root_missing:
+        print(f"--root does not exist: {a.root}"); return
+    if not rows:
+        print(f"no assistant turns found in {a.root} since {since}"); return
 
     print(f"window {since} .. {a.until or 'now'}   {len(rows)} assistant turns   "
           f"${tot:,.2f} equivalent   {sum(r['cr']+r['cw']+r['out'] for r in rows)/1e9:.2f}B raw tokens")
@@ -180,9 +205,9 @@ def main():
             print(f"{lbl:<12} {u:>9,.2f} {100*u/tot:>5.1f}% {n:>7} {u/n:>8.3f}")
         print(f"\n  turns above {a.ctx_cap}k context = ${over:,.2f} ({100*over/tot:.0f}% of all spend)")
 
-    if a.view in ("report", "days"):   table("BY DAY", agg(rows, lambda r: r["day"]), 14)
-    if a.view in ("report", "models"): table("BY MODEL", agg(rows, lambda r: r["model"] or "?"), 26)
-    if a.view in ("report", "projects"): table("BY PROJECT", agg(rows, lambda r: r["project"]), 42)
+    if a.view in ("report", "days"):   table("BY DAY", agg(rows, lambda r: r["day"]), 14, a.top)
+    if a.view in ("report", "models"): table("BY MODEL", agg(rows, lambda r: r["model"] or "?"), 26, a.top)
+    if a.view in ("report", "projects"): table("BY PROJECT", agg(rows, lambda r: r["project"]), 42, a.top)
     if a.view == "report":
         table("LANE", agg(rows, lambda r: "sidechain (subagents)" if r["side"] else "main loop (orchestrator)"), 26)
 
