@@ -65,7 +65,11 @@ Produce the scope doc (posted as a message, not a file the user must open):
    well above its plain implementation estimate** — in one run, four such cards
    each landed at roughly twice their estimate. Treat that multiplier the way
    you treat the split above: a shape to confirm against your own first run,
-   not a band to import.
+   not a band to import. **Count seams, not bullets.** A card that lands a new
+   transport, a repo-wide guard, or a routing/identity function is a
+   milestone-sized card however few bullets it has: each such seam took 3–5
+   review rounds in one run (a guard alone took five), and the card landed at
+   roughly three times its bullet-count estimate.
 3. **Re-estimate when an approach refutes a premise you priced on.** If an
    issue was budgeted as a cross-repo schema chain and its approach proves the
    chain does not exist, the estimate is stale — being wrong in the user's
@@ -115,15 +119,24 @@ brainstorm first"-style gating label when gating — it is spent once the
 approach passed a human-delegated gate; leaving it on poisons board status
 derivation (parked outranks lifecycle).
 
-**Adjudication.** Strongest tier. Rules each question against the specs with
-citations; posts a binding "## Design decisions" comment; drafts any doc
-amendment as a PR, reviewed for `DOCS_PR_MATCH` (defined in the reviewer brief
-template below) and **squash-merged by the orchestrator after its paired
-engine PR lands** — or immediately if standalone. No held queue: holding docs
-amendments for the human only added latency, and every one came back merged
-unchanged. Design-changing amendments are still surfaced in the report, just
-not gated — **with one exception: an amendment that edits a FROZEN spec or
-contract still goes to the held-for-human list.** Code proceeds on the ruling.
+**Adjudication.** Strongest tier. **The brief pins everything the ruling
+needs**: the exact design questions, the conflicting positions quoted from the
+approach comments, the spec sections by path and anchor, and the file surfaces
+involved. The adjudicator rules against those documents; it opens the repo
+only to verify a specific citation, never to explore — an adjudicator left to
+find its own context spends most of its turns exploring, at the highest
+per-token rate in the run. One issue or one pre-declared cluster per adjudicator;
+never batch unrelated issues into one agent — the batched ones run several
+times longer than the median and rule no better. Rules each question against
+the specs with citations; posts a binding "## Design decisions" comment;
+drafts any doc amendment as a PR, reviewed for `DOCS_PR_MATCH` (defined in the
+reviewer brief template below) and **squash-merged by the orchestrator after
+its paired engine PR lands** — or immediately if standalone. No held queue:
+holding docs amendments for the human only added latency, and every one came
+back merged unchanged. Design-changing amendments are still surfaced in the
+report, just not gated — **with one exception: an amendment that edits a
+FROZEN spec or contract still goes to the held-for-human list.** Code proceeds
+on the ruling.
 A schema-shaped ruling triggers the schema-change chain (below).
 
 **A ruling's own numbers are hypotheses to the fixer, not facts.** An
@@ -147,6 +160,28 @@ design act, not an implementation detail**: a necessary, narrow exemption is
 still disclosed in the PR body and paired with a tripwire test that reads the
 production roster (never a re-typed copy), so the next addition reds.
 
+**The fixer stops at the context ceiling.** Every brief carries it: *when your
+context passes ~150k, stop and write the handoff note (below).* An agent
+re-reads its whole context on every turn, so a long fixer's last turns are its
+most expensive ones while a continuation starts near a fifth of that size.
+Mid-card is a fine place to stop: the note, the branch and the worktree carry
+the state.
+
+**The ceiling is a checkpoint, not a guillotine.** Writing the note is
+unconditional — it is cheap, and it is what survives if the agent dies.
+Returning is not:
+
+- **More than a few turns of work left, or any design question still open →
+  return the note.** This is the case the ceiling exists for: the agent that
+  would otherwise run to several hundred k re-deriving its own history.
+- **A bounded finish → finish it, and say so in the note.** Handing off three
+  turns from done buys nothing — the continuation pays a fresh cache write and
+  a re-orientation to save those turns — and it risks the one thing a note
+  cannot carry: what the agent tried and rejected. "Bounded" is evidence, not a
+  feeling: the suite is already green, one named deliverable remains (the PR
+  body, a last assertion, a rename), and no decision is open. Hard stop at
+  ~200k: past that, return the note whatever the state.
+
 **Review.** Independent agent, never the implementer. Gets the issue, the
 approach + rulings, the spec sections, the PR. Posts a GitHub review with an
 explicit `VERDICT: APPROVED | CHANGES_REQUESTED` line (self-approval is
@@ -159,13 +194,26 @@ regardless of what the agent's return said). The reviewer brief template below
 carries this requirement so it does not depend on this paragraph being read.
 Reviews verify claims, not prose: run the suite, probe the mechanism
 adversarially, sabotage-test guards ("would this test catch the bug it claims
-to catch?").
+to catch?"). **The brief pins the diff and the base**: PR number, resolved head
+and base SHAs, the file list — review *that diff*, and open anything outside it
+only to check a specific claim you are making. A reviewer left to explore
+arrives at the same verdict having read several times the context, and unlike a
+fixer it cannot be handed off to cap that (below). Keep reviewers on the top
+standard tier: this is the last gate before merge, and the saving from
+downgrading it is small next to what it catches.
 
 **Fix rounds.** Findings go back to the SAME fixer via message (resume), not
-a fresh agent — rounds 1–3. Round 4–5: fresh agent, one tier up. Cap 5, then
-adjudicate open findings: park with a ruling or stop. Each round ends with a
-scoped re-review of the fix diff by the SAME reviewer (resume). **Exception —
-the orchestrator verifies it instead of spending a review cycle:** any round
+a fresh agent — rounds 1–3, while it is under the ceiling. Round 4–5: fresh
+agent, one tier up, briefed from the fixer's handoff note. Cap 5, then
+adjudicate open findings: park with a ruling or stop. **The real cap is the
+budget, not the count**: before each round after the first, check the run's
+spend (Budget check, below) against what the round is worth. A late round on a
+resumed agent costs a multiple of round 1 for a same-sized fix, because the
+resumed agent carries every earlier round in the context it re-reads each turn.
+When the round is not worth its price, adjudicate the open findings instead.
+Each round ends with a scoped re-review of the fix diff by the SAME reviewer
+(resume). **Exception — the orchestrator verifies it instead of spending a
+review cycle:** any round
 that is doc/comment text plus mechanical tests, with **zero non-comment
 production lines**. What makes that safe is not the greps — it is
 **re-applying a discriminating mutation yourself, on a different axis than
@@ -175,7 +223,12 @@ ledger + close comment + approved follow-up issue.
 
 **Merge** (orchestrator). Review clean + CI green + no open human gate →
 squash-merge, delete branch, close issue with a summary comment naming what
-was deferred, sync the board, mark the ledger. Cross-repo groups merge in
+was deferred, sync the board, mark the ledger. **Exception: `main` merged
+INTO an integration branch uses `--merge`, never squash** — main's own commits
+carry closing keywords, and a squash concatenates every message and re-fires
+them when the branch reaches main. Run the full suite on the merged tree
+before the final PR; per-branch gates do not compose (a schema bump under one
+run turned a textually clean merge into four semantic reds, one a lie). Cross-repo groups merge in
 dependency order (producer repo first), all-or-nothing. **Delegate the merge
 mechanics to a small agent** — gate polling, conflict resolution, the
 close-comment/label/board-sync bundle — because orchestrator context is for
@@ -209,7 +262,7 @@ pause/resume state. After a compaction or limit reset, trust the ledger and
 **Agent briefs — three run-stopping rules.** (1) Name the Monitor tool and
 `run_in_background` explicitly as banned, for **every dispatched agent** —
 "no monitors" alone was read as a Bash-only rule and one fixer stalled on a
-Monitor. The orchestrator's own check-up timer is the sole exception; it is the
+Monitor. The orchestrator's own liveness sweep is the sole exception; it is the
 orchestrator's, and no brief may grant it. (2) Scratch filenames are card-scoped
 (`pr-<issue>-<repo>.md`); two agents sharing one filename propagated one card's
 PR body onto another card's PR twice, and every `gh pr edit N` is preceded by
@@ -262,25 +315,178 @@ adjudication either ratifies, relocates or replaces it; do not block on it and
 do not let it merge un-ruled. In one run two of three were ratified; one moved
 to the right section.
 
-**Cassette retries** (only where the project records live interactions and
-replays them in tests). Re-recording until a take is usable and keeping the last
-one is disclosed, not cherry-picked — and only when every discard was for
-validity. Discarding on content the brief never pinned is a selection the
-operator rules on, and the recording's provenance should carry an attempt count.
-Route it to the deferred register, not to the reviewer.
+**Recorded-interaction retries** (only where the project records live
+interactions and replays them in tests). Re-recording until a take is usable and
+keeping the last one is disclosed, not cherry-picked — and only when every
+discard was for validity. Discarding on content the brief never pinned is a
+selection the operator rules on, and the recording's provenance should carry an
+attempt count. Route it to the deferred register, not to the reviewer.
 
-**Check-up timer.** On every dispatch or resume, arm a one-shot timer for 45
-minutes (`Monitor`: `sleep 2700; echo "CHECK-UP due: <agent> ..."`). Agents
-die silently — weekly quota, mid-stream API errors, background-wait stalls —
-and the run reads as "still working" for hours otherwise — that is how one
-run's quota pause slipped by unnoticed. When it fires, verify state with cheap
-read-only commands (worktree commit time, `git status`, PR existence,
-transcript last-write time, running build processes) and report one line.
-**If the agent is alive, report the one line and RE-ARM the timer**; a
-legitimately long agent that is checked once and then never again is the exact
-hole this protocol exists to close. Rescue it if it is dead. Cancel the timer
-(`TaskStop`) only when the agent returns on its own. Never re-dispatch a live
-agent because the timer fired.
+**The ledger is the orchestrator's own handoff note.** The orchestrator is
+subject to the context ceiling like everything it dispatches. As its own
+context approaches it, bring the ledger fully current — wave state, in-flight
+agents with their worktrees and PRs, open gates, resume queue, spend so far —
+and tell the user that a fresh orchestrator session can take the run over from
+the ledger file, because **the orchestrator cannot clear its own context**.
+
+**Where to hand over matters more than whether.** Agent handles are
+session-scoped: a fresh session can read the ledger, the worktrees and the PRs,
+but it cannot `SendMessage` the previous session's agents. Both options exist
+at every point; what changes is which one is cheap:
+
+- **At a wave boundary, nothing in flight** — a fresh session is cheapest and
+  loses nothing. Compaction is still perfectly valid here if the user prefers
+  to stay put; it just keeps carrying more context than a fresh start would.
+- **Mid-wave, agents running** — compact and keep the handles. A compacted
+  orchestrator carries more than a fresh one, but losing the rescue path for
+  several running agents costs more than the context does.
+
+**The choice is the user's; the orchestrator's job is to make it informed.**
+Post one handover message and then stop dispatching until it is answered:
+where the run is (wave, issues closed, what is in flight and what each agent is
+waiting on), any open gate, the ledger's path, the two options above with the
+trade-off in one line each, and the literal instruction a fresh session needs —
+*"read `<ledger path>`, verify worktree/branch/PR state with `git` and `gh`
+before trusting it, then continue at `<next concrete step>`"*. Say plainly that
+in-flight agents cannot be messaged from a new session, so if any are running,
+either wait for them or accept recovering their work from the worktree and PR.
+End the message with the progress stamp, as always.
+
+**Handoff note.** The unit that lets an agent stop without losing work: written
+when it hits the ceiling, and written **before a deliberate park** rather than
+leaving a large-context agent to thaw at full size later. Five headings:
+
+```
+FILES TOUCHED   path — what changed, and what is half-done
+DECISIONS       each decision and why, including options considered and dropped
+REMAINING       the concrete next step, then the rest, in order
+STATE           repo, branch, worktree path, PR number, resolved base SHA
+GOTCHAS         what surprised you: a flaky test, a slow suite, a wrong claim
+                in the issue
+```
+
+The agent writes the note into its worktree (or the orchestrator copies it into
+the ledger on arrival) as well as returning it — a note that exists only in a
+returned message dies with an agent that never returns.
+
+The orchestrator dispatches the continuation with that note **verbatim**, plus
+the standard brief (role, one issue, binding comments, file surfaces, return
+contract). Do not summarise the note — summarising is where handoffs lose the
+one detail the next agent needed. Verify the STATE lines yourself before
+sending: worktree present, branch pushed, PR open, SHA resolvable.
+
+**Reviewers never hand off.** A review is one coherent whole-diff verdict; a
+split review is two partial opinions, neither of which saw the whole change. If
+a review is genuinely too large for one agent, the diff is too large — ask the
+reviewer for the scope ruling instead.
+
+A lossy note makes the continuation redo work, which no token count shows.
+Treat the first wave that uses one as a pilot: read the note before dispatching
+the continuation, and if the continuation had to re-derive something, add the
+missing heading to this template.
+
+**Budget check.** Iron rule 7 needs a number, not a feeling:
+
+```bash
+python3 ~/.claude/skills/token-report/token_audit.py --since <run-start> --json \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["usd"])'
+```
+
+Consult it between waves and before each fix round after the first, and record
+the figure in the ledger next to the wave line so the drain decision is made
+against a trend rather than one reading. `--view agents --top 40` shows which
+agents carry the cost and how large their contexts grew — that is the view that
+says whether the ceiling is being respected. (Needs the `token-report` skill
+installed; without it, say so in the report rather than estimating. A zero
+reading is a claim to check, not a result: the same `$0.00` comes from a
+mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
+flag is what separates them.)
+
+**Liveness sweep.** Agents die silently — weekly quota, mid-stream API errors,
+background-wait stalls — and the run reads as "still working" for hours
+otherwise; that is how one run's quota pause slipped by unnoticed. Detect it
+**outside the orchestrator's context**: one sweep for the whole run, not a
+timer per agent. A per-agent timer pays a full orchestrator context read on
+every firing, for every agent, just to learn "still alive", and still finds a
+stall up to its interval late.
+
+Arm one persistent `Monitor` at the first dispatch that polls the cheap signals
+for every in-flight agent and **prints nothing while they look healthy**, so
+the orchestrator is woken only when one looks dead:
+
+```bash
+: "${SCRATCH:?set SCRATCH to the scratch directory for this run}"  # no silent no-op
+shopt -s nullglob
+STALE_MIN=15
+GRACE=3                      # passes to allow before the first worktree exists
+armed=0; empty=0
+while true; do
+  wts=("$SCRATCH"/wt-*/)
+  if [ ${#wts[@]} -eq 0 ]; then
+    empty=$((empty + 1))
+    # Speak once the sweep has ever seen a worktree (they vanished), or once
+    # the grace period is up (it was armed on the wrong path) — then STOP.
+    # Never go quiet, and never natter: a sweep watching nothing has nothing
+    # to watch, and a line every two minutes is the per-agent timer again.
+    if [ $armed -eq 1 ] || [ $empty -gt $GRACE ]; then
+      echo "SWEEP DOWN: no worktrees under $SCRATCH — not watching anything"
+      exit 1
+    fi
+    sleep 120; continue
+  fi
+  armed=1; empty=0
+  for wt in "${wts[@]}"; do
+    if find "$wt" -name .git -prune -o -newermt "-${STALE_MIN} minutes" \
+         -print -quit 2>/dev/null | grep -q .; then
+      continue                      # something changed recently: healthy
+    fi
+    echo "STALL: $(basename "$wt") — nothing written for ${STALE_MIN}m"
+  done
+  sleep 120
+done
+```
+
+Adapt the signals to the run — worktree mtimes as above, the agent transcript's
+mtime, `gh pr view` for a PR that should exist by now. (`.git` is pruned on
+purpose: index churn from a stuck command is not progress, and leaving it in
+made the sweep report a hung agent as healthy the first time this was tested.)
+
+Two properties make it a gate rather than decoration: it is **silent while
+healthy** (otherwise it is the per-agent timer again, wearing a loop), and it
+**speaks on every failure shape you would act on**, including "the agent said
+it opened a PR and there is none".
+
+The empty glob is one of those failure shapes, and it is the one a sweep gets
+wrong by default. Arming at first dispatch is normal — the fixer has usually
+not created its worktree yet — so the loop tolerates an empty `$SCRATCH` for a
+few passes and then says so, and it says so **immediately** once it has seen a
+worktree and they later vanish (pruned, moved, renamed mid-run). Without that
+second case the sweep watches nothing and reports nothing for the rest of the
+run: a gate that silently always passes is worse than no gate.
+
+It says it **once and exits**, and that is the other half of the rule. A sweep
+that repeats "I am watching nothing" every two minutes wakes the orchestrator
+into a full context read for a fact it already has — the exact cost that killed
+the per-agent timer two paragraphs up. Speaking once and dying is louder and
+cheaper than a running commentary, and it cannot be tuned out.
+
+So `SWEEP DOWN` is an action, not a notification: fix what it names — usually
+`$SCRATCH` pointing at the wrong path, or worktrees pruned while the run was
+still live — verify the in-flight agents by hand once, and **arm a new sweep**.
+Until you do, nothing is watching, and the run's silence means nothing.
+Confirm at arm time that it names live worktrees rather than assuming the
+silence is health.
+
+On a `STALL` line, verify with cheap read-only commands (worktree commit time,
+`git status`, PR existence, transcript last-write time, running build
+processes) and rescue it if it is genuinely dead. **Never re-dispatch a live
+agent because the sweep fired** — a long agent is not a dead one, and the sweep
+is a hint, not a verdict. `TaskStop` it when the run ends.
+
+**Warm-ping only for a genuine park.** When the run is deliberately paused —
+quota drain, waiting on an operator gate — arm a timer that wakes the
+orchestrator before its own cache goes cold. That is what "a pause needs an
+armed timer or monitor" is for: parks, not dispatches.
 
 **Rescue.** Agent killed by limits/crash: `SendMessage` to the same agent id
 — it resumes from its transcript with the worktree state intact. **Verify
@@ -290,6 +496,14 @@ worktree that still exists. Include "recreate at a fresh path if it is gone".
 Causes seen: watchdog kill after idling on a background job, mid-stream API
 error, session quota limit. All three resumed and completed; none needed a
 fresh dispatch.
+
+**Resume under the ceiling; continue above it.** A resume restores the agent's
+whole context and re-reads it every turn afterwards. If the dead agent was
+already past ~150k — or has been cold for more than a few minutes carrying a
+large context — dispatch a **continuation** instead, from its last handoff note,
+or failing that from the ledger plus the worktree, branch and PR facts you
+verified. Both paths pay one full cache write at that moment; only one of them
+keeps paying for the bloat afterwards.
 
 **Stall nudge.** Agents stop with "waiting for the monitor/background task".
 Nudge with: use a BLOCKING wait (`until <check>; do sleep 10; done`, or
@@ -330,7 +544,17 @@ carries:
   your return to the orchestrator.
 - *"Prove each new guard would fail if the thing it guards stopped being
   true"* — vacuous assertions were found green three different ways in one run.
+- *"Review PR #N at head `<sha>`, base `<sha>` — these files. Open anything
+  outside the diff only to verify a specific claim you are making."* Resolve
+  the SHAs yourself and pin them; a shared clone moves under concurrent agents.
 - *"Rule on scope: is this still one change, and what should be split?"*
+- *"Quote the card's Exit clause and name what composes each deliverable"* —
+  a sink approved as "correct, not user-facing" was wired into nothing; a
+  feature nobody reaches is not shipped.
+- *"For every comparison against a reference, confirm the reference's answer
+  is derivable from the input the compared variant receives"* — a rule scored
+  one variant's example against a reference recording whose value lived only
+  in the withheld input; no model could pass, and it decided the verdict.
 - For a **docs PR paired with a ruling**, add a `DOCS_PR_MATCH` section on
   top of the `VERDICT:` line, never instead of it: **check each clause of the
   docs PR against the ruling it implements and against the code that actually
@@ -390,14 +614,20 @@ brief without it missed:
    change implementing it.
 5. To a **fixer receiving a reviewer's remedy**: *"verify it, do not copy it —
    a right finding can carry a wrong fix."*
-6. To a **fixer on geometry or any position-sensitive card**: *"use an
+6. To a **fixer on any position- or orientation-sensitive card**: *"use an
    ASYMMETRIC fixture and a hand-typed candidate oracle from day one."*
-   Fixture-blindness repeats by axis. Two geometry cards in one wave shipped
-   tests green under mirror and transpose because the fixture was symmetric,
-   and a gravity filter green because the ground plane was flat. The
-   position-mutation review battery catches this, but the fixture requirement
-   catches it a round earlier — the one card briefed this way came back with no
-   finding on that axis.
+   Fixture-blindness repeats by axis. Two such cards in one wave shipped tests
+   green under mirror and transpose because the fixture was symmetric, and a
+   third passed a directional filter because the fixture had no variation on
+   the axis it filtered. The position-mutation review battery catches this, but
+   the fixture requirement catches it a round earlier — the one card briefed
+   this way came back with no finding on that axis.
+7. To **any long-running agent**: *"when your context passes ~150k, stop and
+   write the handoff note; do not push on."* The one line that bounds an
+   agent's cost, because cost grows with context × turns and not with how much
+   the agent says. Pair it with the note template (Handoff note, above) so the
+   agent does not have to ask what a handoff note is. Reviewers get the
+   opposite line: one verdict on the whole diff, never split.
 
 **Schema-change chain** (any ruling that adds/changes a persisted field):
 doc amendment PR (orchestrator-merged, paired with the engine PR — see
@@ -429,8 +659,8 @@ redirects (ENXIO on Linux when stderr is a pipe), ambient git
 identity/config. CI's first run on a repo WILL find this class — treat each
 find as its own issue assigned to the code's owning agent, not a drive-by.
 **"Deterministic" is a per-platform claim until it has been measured
-elsewhere.** A solver diverged across two operating systems at the
-optimal/feasible boundary inside the same deterministic budget — and a code
+elsewhere.** A numeric computation diverged across two operating systems at
+its own accept/reject boundary inside the same deterministic budget — and a code
 comment claiming "reproducible on any machine" had already been cited as
 evidence by an adjudicator. The fix lands as its own correction-term file,
 never as a re-baseline of frozen evidence.
@@ -516,7 +746,14 @@ that only ever rises is not a measurement.
 4. **Close the milestone** (`gh api -X PATCH .../milestones/N -f
    state=closed`) — auto-close does not exist; one run's milestone sat open
    with every card in it closed until someone thought to check.
-5. **Deferred register → operator ruling → filing. Never agent → filing.** A
+5. **Deferred register → operator ruling → filing. Never agent → filing.**
+   Present the register **pre-grouped by closability**: (a) closable in-branch
+   now with no external resource — recommend folding into the card as one
+   more sub-PR before the final merge; (b) needs a cloud call, eval budget, a
+   UI, or data that does not exist yet — file, at most a few cards; (c) new
+   ideas — file only the top few. An operator asked for exactly that split
+   ("fold most, file 1–3 — controlled and closed soon") after being handed 25
+   flat items. A
    register agent consolidates every deferred item out of the run's close
    comments **plus the domain walkthrough's findings from the ledger**,
    fold-checks each one against issues already open (a candidate
@@ -545,6 +782,25 @@ that only ever rises is not a measurement.
 7. Run summary to the user, memory update (wave-complete entry replaces any
    paused entry; the user's owed items get their own entry), ledger closed.
 
+**Quota wind-down (the operator calls it; Phase 2 in miniature).** Start no
+new card. Let in-flight agents finish; each open PR gets at most one review
+round, then either merges (orchestrator gate on the merge SHA) or parks
+green with its rebase facts written on the issue (which base it was cut
+from, which numbers moved under measurement). A card whose only red is a
+defect it *exposed* files that defect as its gate, is labelled `blocked`, and
+parks. The demo publishes as a **pre-release** (`w0N-demo-prelim`): sheets
+from `main`, plus previews rendered from parked PRs in a labelled section
+that says why they are not merged; the milestone stays open. The deferred
+register → ruling → filing becomes the next session's first act, not a spend
+now. Then memory, ledger pause state, skill lessons.
+
+**Mechanics that bit (keep):** take every ledger time from `date`; edit a
+branch and verify in one shell call, merge in a **separate** call, and never
+`cd` into a worktree inside a script (`git -C` only) — `set -e` did not abort
+a failed anchor edit and the PR merged without it; a tmpfs `/tmp` fills with
+four built worktrees (Bash then returns exit 1 with no output) — worktrees go
+on disk under `~/.claude/jobs/<run>/tmp`.
+
 ## Self-improvement (mandatory at Phase 2)
 
 This skill learns from every run. At wrap, before the final summary:
@@ -564,6 +820,15 @@ This skill learns from every run. At wrap, before the final summary:
 4. **Commit. Do not push a shared or public repo without asking** — check
    `gh repo view --json visibility` first, and have the diff reviewed for
    project detail before it goes anywhere public.
+5. **Measure the run and compare it to the last one.** `/token-report` over the
+   run's window (`--since <start> --until <end>`, then `--view agents --top
+   40`): total, the sidechain share, how much of the spend happened above 200k
+   context, and the per-agent context peaks. Write those into the private
+   lessons file next to the previous run's, and compare. This is what tells you
+   whether a cost rule — the context ceiling, a tier change, the liveness sweep
+   — did what it was adopted to do. A rule adopted from a model and never
+   re-measured is a habit, not a lesson; if the numbers say it did not work,
+   revert it here in the same wrap.
 
 Roadmap (pick up when a run makes one relevant):
 - Per-repo install variant (the add-handoff pattern): bake the target repo's
