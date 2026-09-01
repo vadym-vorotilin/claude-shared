@@ -29,7 +29,10 @@ Phase 0  SCOPE      read specs, ADRs, memory, issues, board, open PRs,
 Phase 1  RUN        per issue: approach → go-gate → fix (TDD, worktree)
                     → independent review → fix rounds (resume, cap 5)
                     → merge on clean → close, board sync, ledger, report
-Phase 2  WRAP       demo evidence + demo document (published as a release if
+Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
+                    the artifact as the end user would; rubric lives in
+                    the project repo, never here) + demo document
+                    (published as a release if
                     the run's memory says demos are published — asked at
                     Phase 0, answer saved to memory), milestone CLOSED,
                     deferred register → operator ruling → filing, then the
@@ -110,6 +113,13 @@ Phase 2  WRAP       demo evidence + demo document (published as a release if
 - Merging a squash-stacked PR's parent and assuming the child survives it — rebase `--onto`, then re-check the review
 - Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
 - A progress stamp with a tool call after it — the stamp ends the turn, always
+- Releasing a demo whose evidence census is all-Met and nobody has used the
+  artifact as the end user would — presence is not acceptance
+- A brief that says "no monitors" without naming the Monitor tool and `run_in_background`
+- A scratch filename shared between cards — one PR body overwrote another's, twice
+- Summing a runner's filtered chunks and calling it the suite — an exact-match filter drops everything nested below the named level
+- A fixer-authored convention ("the spec is silent here, so I chose…") heading to merge without a ruling
+- A third review of a content-identical rebase — diff-of-diffs is the orchestrator's check
 - A new clip/filter merged with no test that actually walks its path — green proves nothing about code no case exercises
 - Handing a fixer an adjudicator's cited number as settled fact rather than a hypothesis to verify
 
@@ -143,7 +153,7 @@ Phase 2  WRAP       demo evidence + demo document (published as a release if
 | "The agent said `DEVIATIONS: none`" | It answered from intent. Make the return contract require **quoting the line**, not self-assessing compliance. |
 | "I drove four rounds, so I can judge whether the diff sprawled" | You are the worst-placed reader of a diff you shaped. Ask the reviewer for the scope ruling. |
 | "The filter's logic is right, it doesn't need its own test" | Right logic, no exercising case — one merged filter sat unpinned exactly this way until a later fixer's test finally walked the path. |
-| "The adjudicator did the math, I can build on the number" | Ruling figures are hypotheses, not facts. In one run a census count, a measured sill and an exception type all moved on verification; the fixer checks, then posts corrections after merge. |
+| "The adjudicator did the math, I can build on the number" | Ruling figures are hypotheses, not facts. In one run a census count, a measured dimension and an exception type all moved on verification; the fixer checks, then posts corrections after merge. |
 | "The reviewer measured it, so the adjudicator can rule on it" | Hand it over labelled unverified and ask for contradictions. One ruling stood while its own headline number fell. |
 | "The guard is narrow, it only catches the bad case" | Ask what else it now covers. One added so bad *data* would fail had engine setup inside it — the inversion it existed to prevent. |
 | "The issue still reads OPEN, so the auto-close failed" | That read is racy. Read the squash commit body, or re-read after a beat, before writing either outcome into a permanent comment. |
@@ -151,4 +161,9 @@ Phase 2  WRAP       demo evidence + demo document (published as a release if
 | "Same clone, FETCH_HEAD is fine" | Concurrent agents mutate it mid-read. Resolve the SHA once and pin every read in the brief to it. |
 | "The parent merged, the child will just retarget" | It can be closed, or silently retargeted onto a base it was never reviewed against. Rebase `--onto`, then content-hash before carrying the review. |
 | "I'll pick the run back up when the notification arrives" | A pause with no armed timer or monitor is a pause that runs long. Arm it, then pause. |
+| "The brief said no monitors" | It read as a Bash rule. Name the Monitor tool; one fixer waited on one for an hour. |
+| "It's a rebase, the review stands" | It stands only if the content is identical — prove it with diff-of-diffs, then merge without a third review. |
+| "The spec is silent, so the fixer's convention is fine" | It is a design act. A short adjudication ratified two and relocated one in a single run. |
+| "The suite is the sum of the filtered chunks" | Some runners' path/namespace filters are exact-match, and dropped a large slice of the suite silently. Run unfiltered, or split by test class. |
 | "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render. One run looked silent for four hours while reporting diligently. Stamp last. |
+| "The census says every item is Met, the demo is done" | Met means the noun shipped. The operator walked the same artifact and found dozens of defects the census could not see. Walk it as the user first. |

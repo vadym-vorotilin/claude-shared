@@ -128,7 +128,7 @@ A schema-shaped ruling triggers the schema-change chain (below).
 
 **A ruling's own numbers are hypotheses to the fixer, not facts.** An
 adjudicator's cited figure can still be off by measurement — in one run a
-census count, a measured sill and an exception type all moved when the fixer
+census count, a measured dimension and an exception type all moved when the fixer
 checked them. The fixer verifies before building on the figure, and posts any
 correction as a follow-up comment after merge rather than absorbing it
 silently.
@@ -206,6 +206,69 @@ plan, per-issue log lines, rulings, deferred minors, resume queue, the
 pause/resume state. After a compaction or limit reset, trust the ledger and
 `git log` over memory.
 
+**Agent briefs — three run-stopping rules.** (1) Name the Monitor tool and
+`run_in_background` explicitly as banned, for **every dispatched agent** —
+"no monitors" alone was read as a Bash-only rule and one fixer stalled on a
+Monitor. The orchestrator's own check-up timer is the sole exception; it is the
+orchestrator's, and no brief may grant it. (2) Scratch filenames are card-scoped
+(`pr-<issue>-<repo>.md`); two agents sharing one filename propagated one card's
+PR body onto another card's PR twice, and every `gh pr edit N` is preceded by
+`gh pr view N --json title,headRefName`. (3) A tool that syncs a contract into a
+sibling checkout runs only on the schema card, and its **output path is a
+worktree, never the shared clone**. After any schema card, check the shared
+clones with `git -C <clone> status --porcelain` and **report a dirty one to the
+operator — never reset it**; the uncommitted work in it may be theirs.
+
+**Rebases after a sibling merge.** Per-branch gates do not compose over a
+counted test set, so every merge forces the queued PRs to rebase and re-run.
+The card's **fixer** does the rebase — the orchestrator never implements — and
+publishes it with `git push --force-with-lease`, never a bare `-f`: a fix round
+pushed to the same branch while the rebase was in flight must abort the push,
+not vanish.
+
+When the rebase is content-identical the orchestrator may carry the standing
+review rather than commission a third one — but only on a check that can fail.
+**Record `old-base` and `old-head` before the rebase**; the force-push destroys
+`old-head`, so afterwards is too late. Then:
+
+```bash
+before=$(git diff "$old_base".."$old_head") || exit 1
+after=$(git diff "$new_base".."$new_head")  || exit 1
+[ -n "$before" ] && [ -n "$after" ] || { echo "one side produced no patch — NOT verified"; exit 1; }
+[ "$before" = "$after" ] || { echo "content differs — re-review"; exit 1; }
+```
+
+Both sides must exit 0 **and** print a patch. A bad or garbage-collected SHA
+makes `git diff` write to stderr and print nothing, and comparing two empty
+outputs reports "identical" — a gate that licenses skipping review must never
+pass by producing nothing. Merge on the verified-identical result plus the
+fixer's suite line **from the rebased head**.
+
+Queue gated fixers with a blocking `until` poll on `origin/main` so the next
+card branches promptly after a merge. Bound the poll well inside the brief's
+Bash timeout and have it exit non-zero on expiry, so a slow merge surfaces as a
+failed step rather than a killed shell.
+
+**Test-runner filters.** A runner's path or namespace filter may be exact-match:
+summing folder-level chunks then silently drops everything nested below them —
+a large slice of the suite ran but was never counted. Confirm the runner's
+filter semantics before trusting a summed total; brief agents to run unfiltered
+or split by test class, and to quote per-chunk totals.
+
+**Fixer-authored conventions.** When a spec is silent a fixer will author a
+convention (which side a default falls on, where an annotation anchors, how a
+zero case renders). Treat each as a design act: a narrow, tightly-scoped
+adjudication either ratifies, relocates or replaces it; do not block on it and
+do not let it merge un-ruled. In one run two of three were ratified; one moved
+to the right section.
+
+**Cassette retries** (only where the project records live interactions and
+replays them in tests). Re-recording until a take is usable and keeping the last
+one is disclosed, not cherry-picked — and only when every discard was for
+validity. Discarding on content the brief never pinned is a selection the
+operator rules on, and the recording's provenance should carry an attempt count.
+Route it to the deferred register, not to the reviewer.
+
 **Check-up timer.** On every dispatch or resume, arm a one-shot timer for 45
 minutes (`Monitor`: `sleep 2700; echo "CHECK-UP due: <agent> ..."`). Agents
 die silently — weekly quota, mid-stream API errors, background-wait stalls —
@@ -249,8 +312,10 @@ just-landed PR/branch facts get filled in before send.
 name, repo + worktree instructions, concurrent-agent file surfaces to avoid,
 the return contract (data for the orchestrator, incl. a STATUS line).
 
-**Every brief also sets a long Bash timeout (e.g. `timeout: 600000`) and says
-"never run_in_background, no monitors."** A short default Bash timeout is what
+**Every brief also sets a long Bash timeout (e.g. `timeout: 600000`) and bans
+backgrounding by name — "never use `run_in_background`; never arm a `Monitor`."**
+"No monitors" on its own is not enough: it reads as a Bash rule, and a fixer
+that took it that way still armed the Monitor tool and stalled on it. A short default Bash timeout is what
 auto-backgrounds long suite runs and live CLI calls; six agents stalled that
 way in one run, each costing a nudge round-trip. **This applies to ANY
 dispatched agent** — wrap, demo-capture, board and post-run agents included,
@@ -424,18 +489,37 @@ that only ever rises is not a measurement.
    brief, which demo pages depend on which still-open card, so the eventual
    patch touches exactly those pages and nothing else. Patch the affected
    pages; keep the earlier version.
-2. **Demo document**: assembled from the capture log's own captions (never
+2. **Domain walkthrough review, before the demo document is assembled** (one
+   walkthrough agent — not the `reviewer` role, whose brief template mandates a
+   posted PR verdict there is no PR for here; dispatch it at **top standard
+   (Opus-class)**): the agent takes the demo artifact and uses
+   it the way the project's end user would — opens the artifact, runs the
+   report, follows the flow — and writes down every place the artifact is
+   *present but wrong* for that user. The evidence census answers "did each
+   promised noun ship?"; the walkthrough answers "would the user accept
+   this?" — they are different questions, and one run scored full marks on the
+   census while the operator's own walkthrough of the same artifact found dozens
+   of defects the census could not see. Findings go into the ledger's deferred
+   list as candidate cards — step 5 reads them from there, not from a close
+   comment, because every card is already closed by now — and the demo
+   document names them as known gaps under the honesty fences. **What the walkthrough checks is project knowledge**:
+   the rubric (whatever the domain's own objects and forms are) lives in the
+   project's own repo — a demo skill, a docs file, a brief template — and the
+   wrap brief points at it. This runbook only says *that* the review runs;
+   it never carries a project's rubric.
+3. **Demo document**: assembled from the capture log's own captions (never
    invented claims), delivered to the user, and — **if the run's memory says
    demos are published** — released the way that memory describes (which repo,
    which tag, the artifact as an asset, the milestone description PATCHed to
    link it). Put it somewhere durable either way: two early runs lost their
    demo documents to ephemeral scratchpads, which is why this step exists.
-3. **Close the milestone** (`gh api -X PATCH .../milestones/N -f
+4. **Close the milestone** (`gh api -X PATCH .../milestones/N -f
    state=closed`) — auto-close does not exist; one run's milestone sat open
    with every card in it closed until someone thought to check.
-4. **Deferred register → operator ruling → filing. Never agent → filing.** A
+5. **Deferred register → operator ruling → filing. Never agent → filing.** A
    register agent consolidates every deferred item out of the run's close
-   comments, fold-checks each one against issues already open (a candidate
+   comments **plus the domain walkthrough's findings from the ledger**,
+   fold-checks each one against issues already open (a candidate
    that duplicates an open card is a fold, not a new card), and groups the
    survivors by kind — contract acts / engine / docs / tooling / fixture /
    decisions. The orchestrator turns that into a one-screen list with
@@ -451,14 +535,14 @@ that only ever rises is not a measurement.
    correction caught exactly that, where the next themed milestone had picked
    up cards its theme did not need. Whatever the operator defers instead of
    filing carries into the next run's Phase 0.
-5. **Board-consistency sweep, ALWAYS, as the run's last board action** (one
+6. **Board-consistency sweep, ALWAYS, as the run's last board action** (one
    subagent) — **it runs after filing, so it sees the new cards**: every open
    issue has a milestone matching its wave, non-empty board fields, native
    parent links matching body Parent lines, no label contradictions; the
    wave's closed set is milestone'd/Done/label-clean; epic spans recomputed
    after the run's filings (they go stale silently). Report-don't-guess
    anything ambiguous.
-6. Run summary to the user, memory update (wave-complete entry replaces any
+7. Run summary to the user, memory update (wave-complete entry replaces any
    paused entry; the user's owed items get their own entry), ledger closed.
 
 ## Self-improvement (mandatory at Phase 2)
