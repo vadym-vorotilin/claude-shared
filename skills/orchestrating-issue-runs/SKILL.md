@@ -121,7 +121,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - An agent report mentions a spec gap and you're about to "pick something sensible" instead of routing it to adjudication
 - Closing an issue whose review findings aren't in the ledger
 - Merging without posting the close comment **separately** — the PR auto-closes the issue and `gh issue close --comment` silently does nothing
-- A solver/geometry reviewer brief that doesn't require mutating **position** (mirror, transpose, shift, bracket both sides)
+- A reviewer brief on a position-sensitive card that doesn't require mutating **position** (mirror, transpose, shift, bracket both sides)
 - Accepting a compile-only red as TDD evidence
 - Two issues splitting one convention and neither owning the parent document
 - A new guard whose first test case isn't the shape your own diff introduces
@@ -173,7 +173,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
 | "Fresh agent is cleaner than resuming" | True below the ceiling — there a resume keeps the task context for a fraction of the price. Above it both paths pay the same cache write, and the resumed one re-reads a bloated context on every turn after it. |
 | "Minor finding, not worth a follow-up" | Silent discards are how the next run re-finds it at 10x cost. |
-| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted geometry. Mutate position, not just structure. |
+| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted inputs. Mutate position, not just structure. |
 | "It compiled red first, that's my TDD evidence" | A compile error proves the file was absent. Go green, then mutate the load-bearing decision back to naive and quote that red. |
 | "The fixer says it reproduced my sabotage" | Re-apply it yourself. One reviewer doing that found the fix still passed a subtler mutation. |
 | "My README documents it correctly" | The parent doc may still contradict you, and you can't see it until the sibling merges. Second-merged owns the parent. |
@@ -209,7 +209,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The suite is the sum of the filtered chunks" | Some runners' path/namespace filters are exact-match, and dropped a large slice of the suite silently. Run unfiltered, or split by test class. |
 | "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render. One run looked silent for four hours while reporting diligently. Stamp last. |
 | "The census says every item is Met, the demo is done" | Met means the noun shipped. The operator walked the same artifact and found dozens of defects the census could not see. Walk it as the user first. |
-| "The solver says the requested design is infeasible, so the design must change" | Name the conflict first (drop one constraint at a time). Twice the named rule was the defect — a per-unit floor, a single-hub assumption — and the design stood. Escalate the *rule*, with options, not the design. |
+| "The constraint check says the requested design is infeasible, so the design must change" | Name the conflict first (drop one constraint at a time). Twice the named rule was the defect — a per-unit floor, a single-hub assumption — and the design stood. Escalate the *rule*, with options, not the design. |
 | "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: one pair differed by exactly weight × count, which said the tie-break pass had run at one budget and not the other. A reconciled number is a fact; two numbers are a question. |
 | "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
 | "The source data says X, the requested design says Y — one correction" | Check the whole frame: which parts match. One run found three input fields wrong after being told about one; each correction moved a different downstream number. |

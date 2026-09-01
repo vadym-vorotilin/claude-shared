@@ -425,9 +425,12 @@ while true; do
   if [ ${#wts[@]} -eq 0 ]; then
     empty=$((empty + 1))
     # Speak once the sweep has ever seen a worktree (they vanished), or once
-    # the grace period is up (it was armed on the wrong path). Never go quiet.
+    # the grace period is up (it was armed on the wrong path) — then STOP.
+    # Never go quiet, and never natter: a sweep watching nothing has nothing
+    # to watch, and a line every two minutes is the per-agent timer again.
     if [ $armed -eq 1 ] || [ $empty -gt $GRACE ]; then
-      echo "SWEEP: no worktrees under $SCRATCH — nothing is being watched"
+      echo "SWEEP DOWN: no worktrees under $SCRATCH — not watching anything"
+      exit 1
     fi
     sleep 120; continue
   fi
@@ -459,8 +462,20 @@ not created its worktree yet — so the loop tolerates an empty `$SCRATCH` for a
 few passes and then says so, and it says so **immediately** once it has seen a
 worktree and they later vanish (pruned, moved, renamed mid-run). Without that
 second case the sweep watches nothing and reports nothing for the rest of the
-run: a gate that silently always passes is worse than no gate. Confirm at arm
-time that it names live worktrees rather than assuming the silence is health.
+run: a gate that silently always passes is worse than no gate.
+
+It says it **once and exits**, and that is the other half of the rule. A sweep
+that repeats "I am watching nothing" every two minutes wakes the orchestrator
+into a full context read for a fact it already has — the exact cost that killed
+the per-agent timer two paragraphs up. Speaking once and dying is louder and
+cheaper than a running commentary, and it cannot be tuned out.
+
+So `SWEEP DOWN` is an action, not a notification: fix what it names — usually
+`$SCRATCH` pointing at the wrong path, or worktrees pruned while the run was
+still live — verify the in-flight agents by hand once, and **arm a new sweep**.
+Until you do, nothing is watching, and the run's silence means nothing.
+Confirm at arm time that it names live worktrees rather than assuming the
+silence is health.
 
 On a `STALL` line, verify with cheap read-only commands (worktree commit time,
 `git status`, PR existence, transcript last-write time, running build
@@ -644,8 +659,8 @@ redirects (ENXIO on Linux when stderr is a pipe), ambient git
 identity/config. CI's first run on a repo WILL find this class — treat each
 find as its own issue assigned to the code's owning agent, not a drive-by.
 **"Deterministic" is a per-platform claim until it has been measured
-elsewhere.** A solver diverged across two operating systems at the
-optimal/feasible boundary inside the same deterministic budget — and a code
+elsewhere.** A numeric computation diverged across two operating systems at
+its own accept/reject boundary inside the same deterministic budget — and a code
 comment claiming "reproducible on any machine" had already been cited as
 evidence by an adjudicator. The fix lands as its own correction-term file,
 never as a re-baseline of frozen evidence.

@@ -26,6 +26,8 @@ BASE = {
 }
 def _family_max(fam):
     hits = [v for k, v in BASE.items() if fam in k]
+    if not hits:                             # family dropped out of BASE
+        return (max(v[0] for v in BASE.values()), max(v[1] for v in BASE.values()))
     return (max(v[0] for v in hits), max(v[1] for v in hits))
 
 def rates(model):
@@ -33,10 +35,12 @@ def rates(model):
     for k, v in BASE.items():
         if m.startswith(k):
             return v
-    # Unknown model: never guess low. Fall back to the DEAREST known rate in
-    # its family, and to the dearest rate in the table when even the family is
-    # unknown -- a model released after BASE was written is then over-reported
-    # rather than silently under-reported in a tool whose point is real prices.
+    # Unknown model: do not guess low. Fall back to the dearest rate KNOWN for
+    # its family, and to the dearest in the table when even the family is
+    # unknown. That bounds the guess by what BASE covers -- it is not a promise
+    # of over-reporting: a legacy model dearer than anything still listed (an
+    # older opus, say) resolves below its real price. Add it to BASE when it
+    # matters; the numbers come from published pricing, never from memory.
     for fam in ("fable", "mythos", "opus", "sonnet", "haiku"):
         if fam in m:
             return _family_max(fam)
@@ -120,12 +124,17 @@ def fmt(n):
 
 def table(title, d, namew=44, top=None):
     items = sorted(d.items(), key=lambda kv: -kv[1]["usd"])[:top]
+    dropped = len(d) - len(items)
     tot = sum(v["usd"] for v in d.values()) or 1
     print(f"\n=== {title}   (total ${tot:,.2f}) ===")
     print(f"{'':<{namew}} {'$':>9} {'%':>6} {'turns':>7} {'avgctx':>7} {'maxctx':>7} {'out':>7}")
     for k, v in items:
         print(f"{str(k)[:namew]:<{namew}} {v['usd']:>9,.2f} {100*v['usd']/tot:>5.1f}% {int(v['n']):>7} "
               f"{v['ctx']/max(v['n'],1)/1000:>6.0f}k {v['max']/1000:>6.0f}k {fmt(v['out']):>7}")
+    if dropped:
+        # The header total covers every row. Say what --top hid, or the reader
+        # reconciles the visible rows against it and concludes the tool is wrong.
+        print(f"{f'... {dropped} more rows below --top':<{namew}}")
 
 def agg(rows, keyfn):
     o = defaultdict(lambda: defaultdict(float))
@@ -205,7 +214,9 @@ def main():
             print(f"{lbl:<12} {u:>9,.2f} {100*u/tot:>5.1f}% {n:>7} {u/n:>8.3f}")
         print(f"\n  turns above {a.ctx_cap}k context = ${over:,.2f} ({100*over/tot:.0f}% of all spend)")
 
-    if a.view in ("report", "days"):   table("BY DAY", agg(rows, lambda r: r["day"]), 14, a.top)
+    # BY DAY is exempt from --top: it is a time series, and a reader expects
+    # every day in the window rather than the 25 dearest.
+    if a.view in ("report", "days"):   table("BY DAY", agg(rows, lambda r: r["day"]), 14)
     if a.view in ("report", "models"): table("BY MODEL", agg(rows, lambda r: r["model"] or "?"), 26, a.top)
     if a.view in ("report", "projects"): table("BY PROJECT", agg(rows, lambda r: r["project"]), 42, a.top)
     if a.view == "report":
