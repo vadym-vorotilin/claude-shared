@@ -34,9 +34,10 @@ backs up `settings.json` before merging:
 1. Copies the status line script to `~/.claude/statusline-command.sh`.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
-3. Symlinks **every** `skills/*/` directory into `~/.claude/skills/` — that's
-   `/claude-shared`, `/sync-claude-env`, and `/add-handoff`, not just one. A real
-   (non-symlink) directory already at that name is left untouched.
+3. Symlinks **every** `skills/*/` directory into `~/.claude/skills/` — the whole
+   set listed under **Shared skills** below, not just one. A real (non-symlink)
+   directory already at that name is left untouched, so an existing local copy of
+   a skill shadows the shared one until you remove it.
 4. Inserts/updates a small **managed block** in `~/.claude/CLAUDE.md` pointing at
    `/claude-shared`. The block is delimited by `<!-- >>> claude-shared … -->` /
    `<!-- <<< claude-shared <<< -->` markers; **only the text between those markers
@@ -63,6 +64,16 @@ backs up `settings.json` before merging:
   fix → independent review → fix rounds → merge, per issue. Merges and closes
   issues autonomously once the scope is approved, so read
   `skills/orchestrating-issue-runs/runbook.md` → *What this assumes* first.
+- **`/review-pr`** — review a GitHub PR against its spec, not just its diff:
+  reads the PR, its linked issue and any design/plan doc it references, verifies
+  the change is architecturally sound and actually wired up, sweeps for dangling
+  references after deletions, then posts a GitHub review (summary body + inline
+  comments). It **publishes to the PR**, so read *What this assumes* in
+  `skills/review-pr/SKILL.md` first — it needs a `gh` token that can write
+  reviews, and it echoes the target for your go-ahead before every post. Optional
+  section for asset-based projects (Unity prefab/scene/GUID wiring). Re-reviews
+  follow-up pushes, but never posts APPROVE / REQUEST_CHANGES on its own — the
+  verdict stays yours.
 - **`/short-brief`** — a one-screen status brief that replaces reading a long
   session, rather than summarising it.
 
