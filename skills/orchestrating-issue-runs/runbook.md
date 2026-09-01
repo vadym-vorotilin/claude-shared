@@ -161,12 +161,26 @@ still disclosed in the PR body and paired with a tripwire test that reads the
 production roster (never a re-typed copy), so the next addition reds.
 
 **The fixer stops at the context ceiling.** Every brief carries it: *when your
-context passes ~150k, stop, write the handoff note (below) and return it — do
-not start another edit-test cycle past the ceiling.* An agent re-reads its
-whole context on every turn, so a long fixer's last turns are its most
-expensive ones while a continuation starts near a tenth of that size. Mid-card
-is a fine place to stop: the note, the branch and the worktree carry the
-state.
+context passes ~150k, stop and write the handoff note (below).* An agent
+re-reads its whole context on every turn, so a long fixer's last turns are its
+most expensive ones while a continuation starts near a fifth of that size.
+Mid-card is a fine place to stop: the note, the branch and the worktree carry
+the state.
+
+**The ceiling is a checkpoint, not a guillotine.** Writing the note is
+unconditional — it is cheap, and it is what survives if the agent dies.
+Returning is not:
+
+- **More than a few turns of work left, or any design question still open →
+  return the note.** This is the case the ceiling exists for: the agent that
+  would otherwise run to several hundred k re-deriving its own history.
+- **A bounded finish → finish it, and say so in the note.** Handing off three
+  turns from done buys nothing — the continuation pays a fresh cache write and
+  a re-orientation to save those turns — and it risks the one thing a note
+  cannot carry: what the agent tried and rejected. "Bounded" is evidence, not a
+  feeling: the suite is already green, one named deliverable remains (the PR
+  body, a last assertion, a rename), and no decision is open. Hard stop at
+  ~200k: past that, return the note whatever the state.
 
 **Review.** Independent agent, never the implementer. Gets the issue, the
 approach + rulings, the spec sections, the PR. Posts a GitHub review with an
@@ -313,9 +327,15 @@ subject to the context ceiling like everything it dispatches. As its own
 context approaches it, bring the ledger fully current — wave state, in-flight
 agents with their worktrees and PRs, open gates, resume queue, spend so far —
 and tell the user that a fresh orchestrator session can take the run over from
-the ledger file, because **the orchestrator cannot clear its own context**. A
-compaction is not a substitute: it keeps paying for what it carried in, and the
-ledger is what survives either way.
+the ledger file, because **the orchestrator cannot clear its own context**.
+
+**Where to hand over matters more than whether.** Agent handles are
+session-scoped: a fresh session can read the ledger, the worktrees and the PRs,
+but it cannot `SendMessage` the previous session's agents. So hand the run to a
+fresh session at a **wave boundary**, with nothing in flight. Mid-wave, compact
+instead and keep the handles — a compacted orchestrator still carries more than
+a fresh one, but losing the rescue path for several running agents costs more
+than the context does.
 
 **Handoff note.** The unit that lets an agent stop without losing work: written
 when it hits the ceiling, and written **before a deliberate park** rather than
