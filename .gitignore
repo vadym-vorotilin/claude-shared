@@ -2,3 +2,8 @@
 *.bak.*
 __pycache__/
 *.pyc
+
+# Per-project skill overlays. They carry a project's own gates and names;
+# this repo is public, so they never live here.
+skills/*/project.md
+skills/*/project/

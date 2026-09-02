@@ -5,6 +5,40 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 
 # Orchestrating issue runs
 
+> **Project overlay — read `project.md` FIRST if one sits in *this project's*
+> skill directory.**
+> A project keeps its overlay at
+> `<project>/.claude/skills/orchestrating-issue-runs/project.md` — in the
+> project's own skill directory, never inside the shared `claude-shared`
+> checkout, which is public and is where an overlay's private gates would be
+> published. Read it before the runbook and before Phase 0. **Where the overlay
+> or the repo's `CLAUDE.md` conflicts with anything here, they win** — this
+> skill is generic and a project knows its own gates.
+>
+> The overlay is a separate file **by convention, so this one never has to be
+> edited to install it.** An install that edits the shared files cannot be
+> updated without a merge, so it rots — and a rotted overlay fails silently:
+> the project's own overrides stop loading while everything still looks
+> installed. That has happened, and what stopped loading was a rule reserving
+> merges to a human. Give the project its own skill directory, symlink
+> `SKILL.md` and `runbook.md` there from the shared copy so they stay
+> byte-identical, and put every local difference in `project.md`, which stays
+> with the project. The ceiling hook is not installed this way — it goes into
+> the project's `.claude/hooks/`; see runbook → "The fixer stops at the context
+> ceiling". Symlinking `hooks/` beside the skill installs nothing.
+>
+> **Verify the overlay actually loaded before the first dispatch** — ask the
+> session to quote a line that exists only in `project.md`. A machine that has
+> run `sync.sh` already carries this skill under the same name in
+> `~/.claude/skills/`, and which copy wins is not something this skill can
+> promise; if the project's does not, give the project directory a distinct
+> name and point the operator at it.
+>
+> **The most dangerous thing an overlay can carry is a narrower authority than
+> this skill assumes.** This skill assumes the orchestrator merges. If a
+> project reserves merges, deploys, or any other act to a human, that is in
+> the overlay, and it is the first thing to check before dispatching.
+
 Turn a backlog of spec-backed GitHub issues into merged PRs using subagents,
 with exactly two kinds of human involvement: **scope approval before anything
 runs**, and **gates the human genuinely owns** (spec freezes, machine changes,
@@ -66,7 +100,11 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    user has.
 2. **Worktree per agent, always** — including coupled tasks. Coupling is
    handled by merge order and declared file surfaces, never a shared checkout.
-3. **Verdicts are data; the orchestrator merges.** A reviewer never merges.
+3. **Verdicts are data; the orchestrator merges — unless the project says
+   otherwise.** Check `project.md` and `CLAUDE.md` for a human merge gate
+   before the first dispatch, and put it on the held-for-human list if there is
+   one; a run that merges through a gate the project reserved cannot be undone
+   by noticing later. A reviewer never merges.
    An implementer never reviews its own diff. Merge = review clean + checks
    green + no open human gate.
 4. **Design questions stop the issue, not the run.** A strong-model
