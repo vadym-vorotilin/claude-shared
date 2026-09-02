@@ -730,10 +730,22 @@ subagent's prompt cache is short-lived — far shorter than the orchestrator's �
 and a command that blocks for longer than that lifetime expires the agent's
 whole cache, so the next turn rewrites the entire context at the cache-write
 rate rather than reading it. Measured over one run, that single mechanism was
-the largest line item in the whole bill: the most expensive thing an agent did
-was wait for the test suite, and not because of its output. An agent that ran
-the suite dozens of times with turns interleaved across each run paid none of
-it, which is what makes this a briefing choice rather than a fact of life.
+the largest line item in the whole bill.
+
+**It is the waiting, not the test suite.** The suite is the commonest instance
+and not the majority of the cost: in the same measurement, builds, worktree
+checkouts on a large repo, and other ordinary multi-minute commands together
+cost more than the full suite did. So do not read this as advice about testing
+and conclude it misses you because your suite is fast. Any command that outlasts
+the cache costs the same rewrite, whatever it was doing, and the agents in that
+run were already disciplined about test scope — they ran more than twice as many
+targeted tests as full ones, and still paid it.
+
+That also rules out the fix that first suggests itself. **Verifying less is not
+the answer**, and neither is moving the slow command into a second agent: the
+first agent still has to wait for the result, and waiting is the thing that
+costs. An agent that kept taking turns across a long run paid none of it, which
+is what makes this a briefing choice rather than a fact of life.
 
 So the rule is **poll, do not block**: anything expected to outlast the cache
 runs detached and is polled on a short cadence, and anything shorter blocks as
