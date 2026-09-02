@@ -314,6 +314,16 @@ Asserting "the auto-close failed" from that read put a wrong sentence into a
 permanent close comment. **Read the commit body, or re-read the state after a beat**,
 before claiming either outcome.
 
+**Rework that outgrows the work is a signal, not a phase.** The round cap is a
+backstop against a loop, and it does not catch the expensive case: cost lives
+in what one round does, not in how many there are. A single round on a fixer
+that has grown large, re-running the suite dozens of times, can cost more than
+the implementation it repairs — in one measured run, on the worst card the fix
+round outspent the build it was fixing. When a fix round passes the cost of the
+work it repairs, the card was mis-specified or the review was wrong; **stop and
+put it to the operator** rather than grinding out another round. This needs no
+new instrument: the ledger already records what each agent cost.
+
 **Scope rulings belong to the reviewer.** After several fix rounds the orchestrator
 is the worst-placed reader of whether the diff has sprawled — it shaped the rounds
 and will read coherence into it. Ask the reviewer explicitly: is this still one
@@ -633,8 +643,28 @@ dispatching subagents in the same breath**: nothing said an agent could not
 fork, and a triage agent forked four helpers that wrote one shared output file
 and clobbered each other. A short default Bash timeout is what
 auto-backgrounds long suite runs and live CLI calls; six agents stalled that
-way in one run, each costing a nudge round-trip. **This applies to ANY
-dispatched agent** — wrap, demo-capture, board and post-run agents included,
+way in one run, each costing a nudge round-trip.
+
+**But a blocking wait has its own price, and it is the larger one.** A
+subagent's prompt cache is short-lived — far shorter than the orchestrator's —
+and a command that blocks for longer than that lifetime expires the agent's
+whole cache, so the next turn rewrites the entire context at the cache-write
+rate rather than reading it. Measured over one run, that single mechanism was
+the largest line item in the whole bill: the most expensive thing an agent did
+was wait for the test suite, and not because of its output. An agent that ran
+the suite dozens of times with turns interleaved across each run paid none of
+it, which is what makes this a briefing choice rather than a fact of life.
+
+So the rule is **poll, do not block**: anything expected to outlast the cache
+runs detached and is polled on a short cadence, and anything shorter blocks as
+before. A poll turn costs one cache read; a blocked wait costs a full rewrite,
+which is more than an order of magnitude dearer at the context a fixer reaches
+mid-run. Polling also detects the stall the ban was written to prevent — a
+poll that stops coming back is a stall, visible in minutes rather than at the
+next nudge — so this does not reopen the hole. What stays banned is
+**unpolled** backgrounding: firing a long job and then waiting on it blind.
+**That ban applies to ANY dispatched agent** — wrap, demo-capture, board and
+post-run agents included,
 not just Phase-1 fixers and reviewers. The one that proved it was a post-run
 capture agent whose ad-hoc brief omitted the line and stalled identically.
 

@@ -103,8 +103,25 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    **stop at ~150k, write a handoff note, and return it**; the orchestrator
    dispatches a continuation from that note. The orchestrator holds itself to
    the same ceiling, using the ledger as its own handoff note. **Reviewers are
-   exempt** — a review is one whole-diff verdict and is never split. The
-   threshold is a default to tune after a wave (runbook → Handoff note).
+   exempt from the ceiling but not from a budget** — a verdict does not split,
+   so a reviewer may not hand off mid-review; it gets a **turn budget** instead
+   and reports what it could not cover. A review that runs many times its
+   budget has stopped judging a diff and started re-doing the work, and in
+   measurement it costs more than the tier it runs on: capping review length
+   saved more than downgrading every reviewer a tier, with no loss of judgment.
+   Keep reviewers on the stronger tier and bound their length. The thresholds
+   are defaults to tune after a wave (runbook → Handoff note).
+10. **A threshold ships with the instrument that reads it.** No agent can see
+    its own context size: the harness does not report it and `/context` belongs
+    to the operator, so "stop at N tokens" is a rule its subject cannot obey and
+    it will be breached silently — in measurement, by most of the agents it
+    bound, some to twice the stated hard stop. Every threshold in a brief must
+    therefore come with a way to read the quantity, or be restated as something
+    the agent can already see: a turn count, a wave boundary, a deliverable.
+    Where no instrument exists, build one — a `PreToolUse` hook receives the
+    transcript path, so it can measure the agent and inject the warning, which
+    turns instruction into enforcement. **A threshold with no instrument is
+    decoration, and worse than none: it reads as a control that is working.**
 
 ## Model tiers (defaults; record per-issue tier in the scope doc)
 
