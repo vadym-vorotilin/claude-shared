@@ -91,9 +91,24 @@ make_subagent() { # transcript-path id agent-type [model-id] [input-tokens] [spa
   jq -cn --arg m "$model" --argjson tk "$tokens" \
     '{type:"assistant", isSidechain:true, timestamp:"2026-01-01T00:00:10.000Z",
       message:{model:$m, usage:{
-       input_tokens:1, cache_creation_input_tokens:0,
-       cache_read_input_tokens:($tk-1), output_tokens:7}}}' \
+       input_tokens:1, cache_creation_input_tokens:1,
+       cache_read_input_tokens:($tk-2), output_tokens:7,
+       cache_creation:{ephemeral_5m_input_tokens:1, ephemeral_1h_input_tokens:0}}}}' \
     >> "$dir/agent-$id.jsonl"
+}
+
+# Append an assistant turn to the session's own transcript. Which cache bucket
+# a turn writes is what says how long its cache lives — an hour for a main
+# session, five minutes for a subagent — so it's part of the fixture.
+make_session_turn() { # transcript-path iso-timestamp [1h|5m]
+  local tp="$1" ts="$2" bucket="${3:-1h}" other=5m
+  [ "$bucket" = 5m ] && other=1h
+  jq -cn --arg t "$ts" --arg b "ephemeral_${bucket}_input_tokens" \
+         --arg o "ephemeral_${other}_input_tokens" \
+    '{type:"assistant", timestamp:$t, message:{model:"claude-opus-5", usage:{
+       input_tokens:1, cache_creation_input_tokens:9, cache_read_input_tokens:100,
+       output_tokens:7, cache_creation:{($b):9, ($o):0}}}}' \
+    >> "$tp"
 }
 
 # Append the line a session writes when it collects a tool's output: a user

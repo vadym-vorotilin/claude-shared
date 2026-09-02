@@ -9,7 +9,13 @@ setup() {
   # Hermetic by default: no CLI model table, so tests exercise the built-in
   # fallback unless they point STATUSLINE_MODEL_WINDOWS at a fixture.
   export STATUSLINE_MODEL_WINDOWS="$TEST_TMP/no-model-table"
+  # Pin the clock 30 seconds past the turn the fixtures date, so the cache
+  # reading is deterministic: a tenth of a subagent's 5-minute TTL.
+  export STATUSLINE_NOW=1767225640            # 2026-01-01T00:00:40Z
 }
+
+# The fixtures' last turn, as an epoch, for tests that move the clock.
+FIXTURE_TURN=1767225610                       # 2026-01-01T00:00:10Z
 teardown() { common_teardown; }
 
 statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
@@ -239,7 +245,7 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
 # ---- subagents ------------------------------------------------------------
 # The harness never sends subagent state, so the script reads the sidechain
 # transcripts Claude Code writes under <session-id>/subagents/ and renders the
-# ones still being appended to as one compact line: "S/34% · O/11%".
+# ones still being appended to as one compact line: "S/34%/40% · O/11%/2%".
 
 # Session JSON pointing at a transcript path inside the test tmpdir.
 session_json() { # transcript-path
@@ -255,7 +261,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5-20251001 40000
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/20%"
+  assert_equal "$(agent_line "$out")" "H/20%/10%"
 }
 
 @test "the initial is the agent's own model, not the session's" {
@@ -263,7 +269,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 20000
   out="$(statusline "$(session_json "$tp")")"
   assert_contains "$(line_n "$out" 2)" "Opus 5"   # session line unchanged
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
 @test "renders several subagents on one line, separated by a middot" {
@@ -272,7 +278,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a2 Explore claude-sonnet-5 250000
   out="$(statusline "$(session_json "$tp")")"
   assert_equal "$(count_lines "$out")" 4           # dir, session, agents, spacer
-  assert_equal "$(agent_line "$out")" "H/20% · S/25%"
+  assert_equal "$(agent_line "$out")" "H/20%/10% · S/25%/10%"
 }
 
 # Spawn order, matching the agent list the CLI shows below the prompt. meta.json
@@ -284,7 +290,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" aaa Explore claude-sonnet-5 250000
   touch -d "@$(( $(date +%s) - 30 ))" "$TEST_TMP/sess/subagents/agent-zzz.meta.json"
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/20% · S/25%"
+  assert_equal "$(agent_line "$out")" "H/20%/10% · S/25%/10%"
 }
 
 @test "the order ignores which subagent wrote most recently" {
@@ -295,7 +301,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   touch -d "@$(( $(date +%s) - 30 ))" "$d/agent-older.meta.json"
   touch "$d/agent-older.jsonl"                    # oldest agent, newest write
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/20% · S/25%"
+  assert_equal "$(agent_line "$out")" "H/20%/10% · S/25%/10%"
 }
 
 @test "shows no subagent line when the session has none" {
@@ -327,7 +333,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
   touch -d "@$(( $(date +%s) - 300 ))" "$TEST_TMP/sess/subagents/agent-a1.jsonl"
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
 # What does retire an agent: the session collecting its result, which it
@@ -347,7 +353,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
   make_session_ref "$tp" a1 "2026-01-01T00:00:05.000Z"   # before its last entry
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
 # A background agent's tool result lands at spawn, long before it finishes, so
@@ -368,7 +374,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
   make_session_notify "$tp" a1 "2026-01-01T00:00:05.000Z"   # before its last entry
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
 # A session names an agent for reasons other than collecting its result.
@@ -381,7 +387,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
   make_session_queue "$tp" a1 "2026-01-01T00:00:12.000Z"   # after its last entry
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
 @test "retires it once a result does land, queued message or not" {
@@ -399,14 +405,14 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a2 general-purpose claude-haiku-4-5 40000
   make_session_ref "$tp" a1 "2026-01-01T00:00:12.000Z"
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/20%"
+  assert_equal "$(agent_line "$out")" "H/20%/10%"
 }
 
 @test "collapses subagents past the cap into a +N entry" {
   tp="$TEST_TMP/sess.jsonl"
   for id in a1 a2 a3 a4; do make_subagent "$tp" "$id" Explore claude-haiku-4-5 20000; done
   out="$(STATUSLINE_AGENT_MAX=2 statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/10% · H/10% · +2"
+  assert_equal "$(agent_line "$out")" "H/10%/10% · H/10%/10% · +2"
 }
 
 # meta.json records the spec ("haiku") even before the agent's first turn, but
@@ -436,10 +442,11 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   { printf '{"type":"user","message":{"role":"user","content":"'
     head -c 300000 /dev/zero | tr '\0' x
     printf '"}}\n'; } >> "$f"
-  jq -cn '{type:"assistant", message:{model:"claude-haiku-4-5", usage:{
-    input_tokens:1, cache_creation_input_tokens:0, cache_read_input_tokens:59999}}}' >> "$f"
+  jq -cn '{type:"assistant", timestamp:"2026-01-01T00:00:10.000Z",
+    message:{model:"claude-haiku-4-5", usage:{
+      input_tokens:1, cache_creation_input_tokens:0, cache_read_input_tokens:59999}}}' >> "$f"
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "H/30%"
+  assert_equal "$(agent_line "$out")" "H/30%/10%"
 }
 
 @test "the subagent line sits between the session line and the quota line" {
@@ -452,7 +459,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   out="$(statusline "$json")"
   assert_equal "$(count_lines "$out")" 5   # dir, session, agents, quotas, spacer
   assert_contains "$(line_n "$out" 2)" "ctx: 12%"
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
   assert_contains "$(line_n "$out" 4)" "5h: 31%"
 }
 
@@ -479,7 +486,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
     '{cwd:$c, transcript_path:$tp, model:{id:"claude-fable-5-1", display_name:"Fable 5.1"},
       context_window:{used_percentage:14, context_window_size:1000000}}')"
   out="$(statusline "$json")"
-  assert_equal "$(agent_line "$out")" "F/23%"
+  assert_equal "$(agent_line "$out")" "F/23%/10%"
 }
 
 # A smaller model under a 1M session keeps its own window, not the session's.
@@ -490,14 +497,14 @@ agent_line() { plain "$(line_n "$1" 3)"; }
     '{cwd:$c, transcript_path:$tp, model:{id:"claude-fable-5-1", display_name:"Fable 5.1"},
       context_window:{context_window_size:1000000}}')"
   out="$(statusline "$json")"
-  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
 @test "measures a 1M-context model against the million-token window" {
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 Explore 'claude-sonnet-5[1m]' 500000
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "S/50%"
+  assert_equal "$(agent_line "$out")" "S/50%/10%"
 }
 
 # The model table will go stale. A turn can't exceed its own window, so a
@@ -506,7 +513,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 general-purpose claude-sonnet-9 227678
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "S/23%"
+  assert_equal "$(agent_line "$out")" "S/23%/10%"
 }
 
 # Sonnet and Opus crossed to 1M at 5 and 4.7; reading them against 200k put a
@@ -516,7 +523,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 Explore claude-sonnet-5 250000
   make_subagent "$tp" a2 Explore claude-opus-5 100000
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "S/25% · O/10%"
+  assert_equal "$(agent_line "$out")" "S/25%/10% · O/10%/10%"
 }
 
 @test "measures the 200k generation of Sonnet and Opus against 200k" {
@@ -524,7 +531,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   make_subagent "$tp" a1 Explore claude-sonnet-4-5 40000
   make_subagent "$tp" a2 Explore claude-opus-4-5 40000
   out="$(statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "S/20% · O/20%"
+  assert_equal "$(agent_line "$out")" "S/20%/10% · O/20%/10%"
 }
 
 @test "never renders a context percentage past 100" {
@@ -534,7 +541,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
     '{cwd:$c, transcript_path:$tp, model:{id:"claude-opus-5", display_name:"Opus 5"},
       context_window:{context_window_size:200000}}')"
   out="$(statusline "$json")"
-  assert_equal "$(agent_line "$out")" "O/100%"
+  assert_equal "$(agent_line "$out")" "O/100%/10%"
 }
 
 # ---- the CLI's model table ------------------------------------------------
@@ -560,7 +567,7 @@ fake_bundle() { # path window-for-zeta
   fake_bundle "$TEST_TMP/claude" 400000
   unset STATUSLINE_MODEL_WINDOWS
   out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "Z/25%"
+  assert_equal "$(agent_line "$out")" "Z/25%/10%"
   assert_file_exists "$HOME/.claude/cache/statusline-model-windows"
 }
 
@@ -572,7 +579,7 @@ fake_bundle() { # path window-for-zeta
   STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")" >/dev/null
   fake_bundle "$TEST_TMP/claude" 1000000      # a different size, so a new signature
   out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "Z/10%"
+  assert_equal "$(agent_line "$out")" "Z/10%/10%"
 }
 
 # Transcripts name a dated build ("claude-haiku-4-5-20251001") where the table
@@ -583,7 +590,7 @@ fake_bundle() { # path window-for-zeta
   fake_bundle "$TEST_TMP/claude" 400000
   unset STATUSLINE_MODEL_WINDOWS
   out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "A/25%"
+  assert_equal "$(agent_line "$out")" "A/25%/10%"
 }
 
 @test "ignores a CLI that yields no model table" {
@@ -592,5 +599,126 @@ fake_bundle() { # path window-for-zeta
   echo "not a bundle" > "$TEST_TMP/claude"
   unset STATUSLINE_MODEL_WINDOWS
   out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
-  assert_equal "$(agent_line "$out")" "S/25%"   # built-in fallback still knows Sonnet 5
+  assert_equal "$(agent_line "$out")" "S/25%/10%"   # built-in fallback still knows Sonnet 5
+}
+
+# ---- the cache clock ------------------------------------------------------
+# A context is only cheap to come back to while its prompt cache is alive, and
+# that cache outlives the request that wrote it by five minutes for a subagent
+# and an hour for a main session. So both lines carry how much of that window
+# the silence since the last turn has spent. STATUSLINE_NOW is pinned 30s past
+# the turn the fixtures date; tests wanting another reading move it.
+
+@test "shows the share of the cache TTL spent and what is left of it" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z"
+  out="$(plain "$(statusline "$(session_json "$tp")")")"
+  assert_contains "$(line_n "$out" 2)" "TTL: 0% (-59m)"
+}
+
+@test "reads a third of the hour spent after twenty minutes quiet" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z"
+  out="$(plain "$(STATUSLINE_NOW=$(( FIXTURE_TURN + 1200 )) statusline "$(session_json "$tp")")")"
+  assert_contains "$(line_n "$out" 2)" "TTL: 33% (-40m)"
+}
+
+# Which bucket a turn wrote is the TTL, and the API reports it, so a session
+# that wrote the 5-minute one is measured against five minutes.
+@test "measures a session against the cache bucket its turn actually wrote" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z" 5m
+  out="$(plain "$(STATUSLINE_NOW=$(( FIXTURE_TURN + 150 )) statusline "$(session_json "$tp")")")"
+  assert_contains "$(line_n "$out" 2)" "TTL: 50% (-2m)"
+}
+
+@test "clamps the TTL at 100% and drops the countdown once the cache is gone" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z" 5m
+  out="$(plain "$(STATUSLINE_NOW=$(( FIXTURE_TURN + 400 )) statusline "$(session_json "$tp")")")"
+  assert_contains "$(line_n "$out" 2)" "TTL: 100%"
+  refute_contains "$out" "(-"
+}
+
+@test "spells a whole hour left as -1h, without the zero minutes" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z"
+  out="$(plain "$(STATUSLINE_NOW=$FIXTURE_TURN statusline "$(session_json "$tp")")")"
+  assert_contains "$(line_n "$out" 2)" "TTL: 0% (-1h)"
+}
+
+# Each field needs its own hue or it reads as part of the one before it. The
+# session's context is yellow, so the TTL takes white.
+@test "colors the TTL apart from the context reading" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z"
+  out="$(STATUSLINE_NOW=$(( FIXTURE_TURN + 600 )) statusline "$(session_json "$tp")")"
+  assert_contains "$out" $'\033[37m'"TTL: 16%"
+}
+
+@test "turns the TTL red once the cache is nearly gone" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z"
+  out="$(STATUSLINE_NOW=$(( FIXTURE_TURN + 3000 )) statusline "$(session_json "$tp")")"
+  assert_contains "$out" $'\033[31m'"TTL: 83%"
+}
+
+@test "omits the cache TTL when the session has taken no turn yet" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_ref "$tp" a1 "2026-01-01T00:00:05.000Z"   # a user line, no turn
+  out="$(statusline "$(session_json "$tp")")"
+  refute_contains "$out" "TTL:"
+}
+
+@test "omits the cache TTL when there is no transcript to read" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}}')"
+  out="$(statusline "$json")"
+  refute_contains "$out" "TTL:"
+}
+
+# Five minutes run out fast: four minutes quiet is 80% of a subagent's cache
+# gone, where the same wait costs a session 7% of its hour.
+@test "measures a subagent's silence against its five-minute cache" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 40000
+  out="$(STATUSLINE_NOW=$(( FIXTURE_TURN + 240 )) statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/20%/80%"
+}
+
+# A turn can write no cache at all, which says nothing about the TTL; the
+# five-minute default stands in.
+@test "falls back to five minutes for a subagent turn that wrote no cache" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore ""
+  jq -cn '{type:"assistant", isSidechain:true, timestamp:"2026-01-01T00:00:10.000Z",
+    message:{model:"claude-haiku-4-5", usage:{input_tokens:1,
+      cache_creation_input_tokens:0, cache_read_input_tokens:19999}}}' \
+    >> "$TEST_TMP/sess/subagents/agent-a1.jsonl"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
+}
+
+@test "gives a subagent's context reading and its TTL different colors" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 40000
+  fresh="$(STATUSLINE_NOW=$(( FIXTURE_TURN + 60 ))  statusline "$(session_json "$tp")")"
+  stale="$(STATUSLINE_NOW=$(( FIXTURE_TURN + 240 )) statusline "$(session_json "$tp")")"
+  assert_contains "$fresh" $'\033[32m'"20%"   # context, green
+  assert_contains "$fresh" $'\033[37m'"20%"   # TTL, white
+  assert_contains "$stale" $'\033[31m'"80%"   # red at four of its five minutes
+}
+
+# Both clocks at once: the session's hour on line 2, each agent's five minutes
+# on line 3.
+@test "renders the session's clock and each agent's on their own lines" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_session_turn "$tp" "2026-01-01T00:00:10.000Z"
+  make_subagent "$tp" a1 Explore claude-opus-5 110000
+  make_subagent "$tp" a2 Explore claude-sonnet-5 250000
+  json="$(jq -n --arg c /tmp/proj --arg m 'Opus 5' --arg tp "$tp" \
+    '{cwd:$c, model:{display_name:$m}, transcript_path:$tp,
+      context_window:{used_percentage:22}}')"
+  out="$(plain "$(STATUSLINE_NOW=$(( FIXTURE_TURN + 120 )) statusline "$json")")"
+  assert_equal "$(line_n "$out" 2)" "Opus 5 | ctx: 22% | TTL: 3% (-58m)"
+  assert_equal "$(line_n "$out" 3)" "O/11%/40% · S/25%/40%"
 }

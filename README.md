@@ -20,7 +20,7 @@ the exact set of changes it makes.
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
-| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| ctx% \| 5h%` + a live subagent line |
+| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| ctx% \| cache TTL \| 5h%` + a live subagent line |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins`, `statusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see below) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
@@ -180,14 +180,17 @@ as one compact line under the session, in spawn order — oldest first, matching
 the agent list the CLI shows below the prompt:
 
 ```
-S/34% · S/27% · O/11% · F/5% · H/88%
+S/34%/40% · S/27%/2% · O/11%/20% · F/5%/80% · H/88%/12%
 ```
 
-A model initial and a context percentage each — enough to see a fan-out's shape
-and spot the agent about to run out of room, without a line per agent. The
-initial takes the session model's violet, the percentage green, the slash the
-gray of the receding weekly quota. An agent that hasn't taken its first turn
-yet shows its initial alone; past eight agents the rest collapse into `+N`.
+Three fields each — model initial, context percentage, and the share of its
+cache TTL that its silence has spent (see **The cache clock** below) — enough to
+see a fan-out's shape, spot the agent about to run out of room and the one whose
+cache is about to go, without a line per agent. Each field takes its own hue, or
+the eye can't pick one out of the run: the initial in the session model's
+violet, the context percentage green, the TTL white, the slashes the gray of the
+receding weekly quota. An agent that hasn't taken its first turn yet shows its
+initial alone; past eight agents the rest collapse into `+N`.
 
 Ordering is by `meta.json`'s mtime, written once when the agent spawns — not by
 the transcript's, which every running agent bumps constantly and which
@@ -250,6 +253,42 @@ Two env knobs beyond those, read at render time: `STATUSLINE_AGENT_MAX`
 (default 8) caps the entries before the `+N`, and `STATUSLINE_CLAUDE_BIN` pins
 the CLI binary for a machine where neither `/proc` nor `PATH` finds it.
 (`STATUSLINE_NOW` exists as well, but only so the tests can fix the clock.)
+
+### The cache clock
+
+A context is only cheap to come back to while its prompt cache is alive, and
+that cache outlives the request that wrote it by a fixed TTL — five minutes for
+a subagent, an hour for a main session. Past it the whole context is re-sent at
+full price. So how full a context is only tells half the story; the other half
+is how long it has been sitting there. Both lines carry it:
+
+```
+Opus 5 | ctx: 22% | TTL: 33% (-40m)
+O/11%/40% · S/25%/80%
+```
+
+`TTL` is the share of that window the silence since the last turn has spent,
+and the countdown what is left of it. It renders white and turns red from 80%
+on — the one signal worth a color change, in a hue no context percentage uses,
+so no field reads as part of the one before it. Once the cache is gone the
+percentage sticks at 100% and the countdown disappears.
+
+Two things make the reading trustworthy rather than assumed:
+
+- **The TTL is read, not hardcoded.** Every turn's `usage.cache_creation`
+  reports which bucket it wrote — `ephemeral_5m_input_tokens` or
+  `ephemeral_1h_input_tokens` — so the window comes from the transcript and
+  survives the harness changing its mind. A turn that wrote no cache says
+  nothing, so the search walks back to one that did; failing that it falls back
+  to five minutes for an agent, an hour for a session.
+- **The clock runs from the last assistant turn**, the last moment a request is
+  *known* to have refreshed the cache. That reads conservatively on purpose: a
+  turn still streaming hasn't been written yet, so a long one counts as silence
+  until it lands. The cache is never claimed to be fresher than the transcript
+  can prove.
+
+Timestamps are converted with plain integer arithmetic rather than `date -d`,
+which GNU and BSD spell differently.
 
 Keeping it live needs a `refreshInterval` in the `statusLine` block, which the
 shared `settings.json` sets to 15 seconds. Without one the status line repaints
