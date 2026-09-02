@@ -4,7 +4,12 @@
 
 load 'helpers/setup'
 
-setup()    { common_setup; }
+setup() {
+  common_setup
+  # Hermetic by default: no CLI model table, so tests exercise the built-in
+  # fallback unless they point STATUSLINE_MODEL_WINDOWS at a fixture.
+  export STATUSLINE_MODEL_WINDOWS="$TEST_TMP/no-model-table"
+}
 teardown() { common_teardown; }
 
 statusline() { printf '%s' "$1" | bash "$REPO/claude/statusline-command.sh"; }
@@ -229,4 +234,363 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   out="$(statusline "$json")"
   assert_contains "$out" "M"
   refute_contains "$out" "main"
+}
+
+# ---- subagents ------------------------------------------------------------
+# The harness never sends subagent state, so the script reads the sidechain
+# transcripts Claude Code writes under <session-id>/subagents/ and renders the
+# ones still being appended to as one compact line: "S/34% · O/11%".
+
+# Session JSON pointing at a transcript path inside the test tmpdir.
+session_json() { # transcript-path
+  jq -n --arg c /tmp/proj --arg m 'Opus 5' --arg tp "$1" \
+    '{cwd:$c, model:{display_name:$m}, transcript_path:$tp}'
+}
+
+# The agent line composes colored fragments, so assert on it without ANSI.
+plain() { printf '%s' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }
+agent_line() { plain "$(line_n "$1" 3)"; }
+
+@test "renders a live subagent as a model initial and context percentage" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5-20251001 40000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/20%"
+}
+
+@test "the initial is the agent's own model, not the session's" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 20000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_contains "$(line_n "$out" 2)" "Opus 5"   # session line unchanged
+  assert_equal "$(agent_line "$out")" "H/10%"
+}
+
+@test "renders several subagents on one line, separated by a middot" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 40000
+  make_subagent "$tp" a2 Explore claude-sonnet-5 250000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 4           # dir, session, agents, spacer
+  assert_equal "$(agent_line "$out")" "H/20% · S/25%"
+}
+
+# Spawn order, matching the agent list the CLI shows below the prompt. meta.json
+# is written once at spawn; the transcript is appended to constantly, so
+# ordering on that reshuffled the line every second.
+@test "orders subagents oldest-spawned first" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" zzz Explore claude-haiku-4-5-20251001 40000
+  make_subagent "$tp" aaa Explore claude-sonnet-5 250000
+  touch -d "@$(( $(date +%s) - 30 ))" "$TEST_TMP/sess/subagents/agent-zzz.meta.json"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/20% · S/25%"
+}
+
+@test "the order ignores which subagent wrote most recently" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" older Explore claude-haiku-4-5-20251001 40000
+  make_subagent "$tp" newer Explore claude-sonnet-5 250000
+  d="$TEST_TMP/sess/subagents"
+  touch -d "@$(( $(date +%s) - 30 ))" "$d/agent-older.meta.json"
+  touch "$d/agent-older.jsonl"                    # oldest agent, newest write
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/20% · S/25%"
+}
+
+@test "shows no subagent line when the session has none" {
+  tp="$TEST_TMP/sess.jsonl"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 3   # dir, session, spacer
+}
+
+@test "shows no subagent line when transcript_path is absent" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(count_lines "$out")" 3
+}
+
+# An agent that finished is retired by the session's record of its result (see
+# below); the window is only a backstop for one whose result never lands.
+@test "drops a subagent long past the liveness window" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-opus-5 10000
+  out="$(STATUSLINE_NOW=$(( $(date +%s) + 7200 )) statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 3
+}
+
+# A running agent goes quiet for minutes waiting on a long tool call — 1% of
+# the gaps between a running agent's own entries run past 170s — so silence is
+# not evidence that it finished.
+@test "keeps a subagent that has gone quiet mid-run" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  touch -d "@$(( $(date +%s) - 300 ))" "$TEST_TMP/sess/subagents/agent-a1.jsonl"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%"
+}
+
+# What does retire an agent: the session collecting its result, which it
+# records after that agent's own last entry.
+@test "drops a subagent once the session has recorded its result" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_ref "$tp" a1 "2026-01-01T00:00:12.000Z"   # after its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 3
+}
+
+# The session also names an agent when it spawns it. That mention predates the
+# agent's own entries and must not be read as a result.
+@test "keeps a subagent whose only mention predates its last entry" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_ref "$tp" a1 "2026-01-01T00:00:05.000Z"   # before its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%"
+}
+
+# A background agent's tool result lands at spawn, long before it finishes, so
+# a result alone can never retire one. What does is the notification the
+# session gets when the agent reports its task complete.
+@test "drops a background subagent once its completion notification lands" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_ref    "$tp" a1 "2026-01-01T00:00:02.000Z"   # the spawn result
+  make_session_notify "$tp" a1 "2026-01-01T00:00:12.000Z"   # after its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 3
+}
+
+# Given more work, it writes past that notification and comes back.
+@test "keeps a background subagent that has written since its notification" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_notify "$tp" a1 "2026-01-01T00:00:05.000Z"   # before its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%"
+}
+
+# A session names an agent for reasons other than collecting its result.
+# Queueing it a message writes entries naming it, and an agent idling on that
+# queued message has by definition not written since — so the mention lands
+# after its last entry and looks exactly like a result. Reading it as one
+# retired agents in mid-run, which is the shape this rule must never get wrong.
+@test "keeps a subagent that only had a message queued for it" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_queue "$tp" a1 "2026-01-01T00:00:12.000Z"   # after its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%"
+}
+
+@test "retires it once a result does land, queued message or not" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_queue "$tp" a1 "2026-01-01T00:00:12.000Z"
+  make_session_ref   "$tp" a1 "2026-01-01T00:00:13.000Z"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 3
+}
+
+@test "retires only the finished agent, not its siblings" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_subagent "$tp" a2 general-purpose claude-haiku-4-5 40000
+  make_session_ref "$tp" a1 "2026-01-01T00:00:12.000Z"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/20%"
+}
+
+@test "collapses subagents past the cap into a +N entry" {
+  tp="$TEST_TMP/sess.jsonl"
+  for id in a1 a2 a3 a4; do make_subagent "$tp" "$id" Explore claude-haiku-4-5 20000; done
+  out="$(STATUSLINE_AGENT_MAX=2 statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10% · H/10% · +2"
+}
+
+# meta.json records the spec ("haiku") even before the agent's first turn, but
+# there's no usage yet to derive a percentage from.
+@test "shows the initial alone before the agent's first turn" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Plan ""
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H"
+}
+
+@test "falls back to ? when the model can't be determined" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Plan ""
+  rm "$TEST_TMP/sess/subagents/agent-a1.meta.json"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "?"
+}
+
+# Only the tail of a transcript is scanned, so a long-running agent stays
+# cheap to read — but the last turn must still be found in it.
+@test "reads the last turn from a transcript past the tail budget" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5 10000
+  f="$TEST_TMP/sess/subagents/agent-a1.jsonl"
+  # A single oversized turn, written without passing it through argv.
+  { printf '{"type":"user","message":{"role":"user","content":"'
+    head -c 300000 /dev/zero | tr '\0' x
+    printf '"}}\n'; } >> "$f"
+  jq -cn '{type:"assistant", message:{model:"claude-haiku-4-5", usage:{
+    input_tokens:1, cache_creation_input_tokens:0, cache_read_input_tokens:59999}}}' >> "$f"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/30%"
+}
+
+@test "the subagent line sits between the session line and the quota line" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5 20000
+  json="$(jq -n --arg c /tmp/proj --arg m 'Opus 5' --arg tp "$tp" \
+    '{cwd:$c, model:{display_name:$m}, transcript_path:$tp,
+      context_window:{used_percentage:12},
+      rate_limits:{five_hour:{used_percentage:31}}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(count_lines "$out")" 5   # dir, session, agents, quotas, spacer
+  assert_contains "$(line_n "$out" 2)" "ctx: 12%"
+  assert_equal "$(agent_line "$out")" "H/10%"
+  assert_contains "$(line_n "$out" 4)" "5h: 31%"
+}
+
+# The model initial takes the session model's color, the percentage the green
+# of a healthy reading, and the slash the gray of the receding weekly quota.
+@test "colors the initial, the percentage and the slash apart" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5 20000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_contains "$out" $'\033[35m'"H"
+  assert_contains "$out" $'\033[90m'"/"
+  assert_contains "$out" $'\033[32m'"10%"
+}
+
+# ---- subagent context windows ---------------------------------------------
+# Windows are per-model — 1M for Fable and the [1m] variants, 200k for most
+# others — and a transcript doesn't record which one an agent was given. The
+# harness does send the size for the session's own model.
+
+@test "measures an agent on the session's model against the harness's window size" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-fable-5-1 227678
+  json="$(jq -n --arg c /tmp --arg tp "$tp" \
+    '{cwd:$c, transcript_path:$tp, model:{id:"claude-fable-5-1", display_name:"Fable 5.1"},
+      context_window:{used_percentage:14, context_window_size:1000000}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(agent_line "$out")" "F/23%"
+}
+
+# A smaller model under a 1M session keeps its own window, not the session's.
+@test "an agent on a different model is measured by the model table" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5-20251001 20000
+  json="$(jq -n --arg c /tmp --arg tp "$tp" \
+    '{cwd:$c, transcript_path:$tp, model:{id:"claude-fable-5-1", display_name:"Fable 5.1"},
+      context_window:{context_window_size:1000000}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(agent_line "$out")" "H/10%"
+}
+
+@test "measures a 1M-context model against the million-token window" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore 'claude-sonnet-5[1m]' 500000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "S/50%"
+}
+
+# The model table will go stale. A turn can't exceed its own window, so a
+# reading past 200k is proof a model it doesn't know was given a bigger one.
+@test "infers a large window for an unknown model past the 200k default" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-sonnet-9 227678
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "S/23%"
+}
+
+# Sonnet and Opus crossed to 1M at 5 and 4.7; reading them against 200k put a
+# perfectly healthy agent at 64%.
+@test "measures the 1M generation of Sonnet and Opus against a million tokens" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-sonnet-5 250000
+  make_subagent "$tp" a2 Explore claude-opus-5 100000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "S/25% · O/10%"
+}
+
+@test "measures the 200k generation of Sonnet and Opus against 200k" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-sonnet-4-5 40000
+  make_subagent "$tp" a2 Explore claude-opus-4-5 40000
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "S/20% · O/20%"
+}
+
+@test "never renders a context percentage past 100" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-opus-5 260000
+  json="$(jq -n --arg c /tmp --arg tp "$tp" \
+    '{cwd:$c, transcript_path:$tp, model:{id:"claude-opus-5", display_name:"Opus 5"},
+      context_window:{context_window_size:200000}}')"
+  out="$(statusline "$json")"
+  assert_equal "$(agent_line "$out")" "O/100%"
+}
+
+# ---- the CLI's model table ------------------------------------------------
+# Windows move with the model lineup, so rather than carrying a table that goes
+# stale they're read out of the installed CLI's own bundle and cached against
+# its mtime and size.
+
+# A file shaped like the bundle's model list, with invented models so a real
+# lineup change can't make the test pass or fail for the wrong reason.
+fake_bundle() { # path window-for-zeta
+  printf '%s' 'var x=[' > "$1"
+  for m in alpha-1 beta-2 gamma-3 delta-4; do
+    printf '{id:"claude-%s",family:"%s",display_name:"X",context:{window:200000}},' \
+      "$m" "${m%%-*}" >> "$1"
+  done
+  printf '{id:"claude-zeta-5",family:"zeta",display_name:"Z",context:{window:%s,native_1m:!0}}];' \
+    "$2" >> "$1"
+}
+
+@test "reads context windows out of the installed CLI" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-zeta-5 100000
+  fake_bundle "$TEST_TMP/claude" 400000
+  unset STATUSLINE_MODEL_WINDOWS
+  out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "Z/25%"
+  assert_file_exists "$HOME/.claude/cache/statusline-model-windows"
+}
+
+@test "re-reads the table when the CLI changes" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-zeta-5 100000
+  unset STATUSLINE_MODEL_WINDOWS
+  fake_bundle "$TEST_TMP/claude" 400000
+  STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")" >/dev/null
+  fake_bundle "$TEST_TMP/claude" 1000000      # a different size, so a new signature
+  out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "Z/10%"
+}
+
+# Transcripts name a dated build ("claude-haiku-4-5-20251001") where the table
+# carries the family entry.
+@test "matches a dated model id against the table by prefix" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-alpha-1-20260101 50000
+  fake_bundle "$TEST_TMP/claude" 400000
+  unset STATUSLINE_MODEL_WINDOWS
+  out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "A/25%"
+}
+
+@test "ignores a CLI that yields no model table" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-sonnet-5 250000
+  echo "not a bundle" > "$TEST_TMP/claude"
+  unset STATUSLINE_MODEL_WINDOWS
+  out="$(STATUSLINE_CLAUDE_BIN="$TEST_TMP/claude" statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "S/25%"   # built-in fallback still knows Sonnet 5
 }

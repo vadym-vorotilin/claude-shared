@@ -86,6 +86,267 @@ GRAY=$'\033[90m'
 RESET=$'\033[0m'
 SEP="${RESET} | "
 
+# ---- subagents ------------------------------------------------------------
+# The harness sends main-loop state only: .model and .context_window always
+# describe this session, never a Task subagent, and stepping into a subagent
+# view doesn't re-run this script with different data. But since 2.1 each
+# subagent keeps its own transcript beside the session's:
+#
+#   <projects>/<slug>/<session-id>/subagents/agent-<id>.jsonl
+#   <projects>/<slug>/<session-id>/subagents/agent-<id>.meta.json
+#
+# so the live ones can be read off disk. Liveness is not mtime alone — an agent
+# waiting on a long tool call goes quiet for minutes — so it is the plausibly
+# live ones minus the ones the session transcript has already collected a
+# result for. They render as one compact line, "S/34% · O/11% · H/88%": a model
+# initial and a context percentage each, oldest-spawned first, matching the
+# agent list the CLI shows below the prompt.
+AGENT_WINDOW=${STATUSLINE_AGENT_WINDOW:-900}  # seconds since last write
+AGENT_MAX=${STATUSLINE_AGENT_MAX:-8}          # entries before collapsing to "+N"
+AGENT_TAIL=262144                             # bytes of agent transcript scanned
+SESSION_TAIL=2097152                          # bytes of session transcript scanned
+
+transcript=$(echo "$input" | jq -r '.transcript_path // empty')
+agents_dir=""
+[ -n "$transcript" ] && agents_dir="${transcript%.jsonl}/subagents"
+
+# Context windows are per-model and not knowable from a transcript — Fable 5.1
+# and the [1m] variants get 1M where most models get 200k. The harness sends
+# the resolved size for the session's own model, so an agent on that same model
+# can be measured exactly; anything else is a guess (see agent_limit).
+main_model_id=$(echo "$input" | jq -r '.model.id // empty')
+main_ctx_size=$(echo "$input" | jq -r '(.context_window.context_window_size // empty) | floor')
+case "$main_ctx_size" in ''|*[!0-9]*) main_ctx_size="" ;; esac
+
+# GNU stat and BSD stat spell this differently; try each.
+file_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
+
+# Context windows move with the model lineup — Sonnet crossed to 1M at 5, Opus
+# at 4.7 — so read them out of the installed CLI instead of carrying a table
+# that quietly goes stale. Its bundle embeds the model list; extraction takes
+# ~0.2s on a warm cache, so it's cached against the binary's mtime and size and
+# only re-read after an upgrade. STATUSLINE_MODEL_WINDOWS pins a table file
+# instead, for a machine where the CLI can't be located.
+MODEL_WINDOWS_CACHE="$HOME/.claude/cache/statusline-model-windows"
+
+# The status line runs as a descendant of the CLI, so on Linux /proc names the
+# exact binary in use; elsewhere fall back to whatever is on PATH.
+claude_binary() {
+  local p="${PPID:-}" i=0 exe
+  if [ -n "${STATUSLINE_CLAUDE_BIN:-}" ]; then printf '%s' "$STATUSLINE_CLAUDE_BIN"; return 0; fi
+  while [ -n "$p" ] && [ "$i" -lt 4 ]; do
+    exe=$(readlink "/proc/$p/exe" 2>/dev/null)
+    case "$exe" in
+      */claude|*claude-code*) printf '%s' "$exe"; return 0 ;;
+    esac
+    p=$(sed -n 's/^PPid:[[:space:]]*//p' "/proc/$p/status" 2>/dev/null)
+    i=$(( i + 1 ))
+  done
+  command -v claude 2>/dev/null
+}
+
+# Cache of "<model-id> <window>" lines, refreshed when the CLI changes. Prints
+# nothing if the binary can't be found or doesn't parse — every caller falls
+# back rather than failing.
+model_windows_file() {
+  local bin sig tmp
+  bin=$(claude_binary)
+  [ -n "$bin" ] && [ -r "$bin" ] || return 0
+  sig="$(file_mtime "$bin")-$(wc -c < "$bin" 2>/dev/null | tr -d ' ')"
+  if [ -s "$MODEL_WINDOWS_CACHE" ] && [ "$(head -n 1 "$MODEL_WINDOWS_CACHE")" = "$sig" ]; then
+    printf '%s' "$MODEL_WINDOWS_CACHE"; return 0
+  fi
+  mkdir -p "${MODEL_WINDOWS_CACHE%/*}" 2>/dev/null || return 0
+  tmp="$MODEL_WINDOWS_CACHE.$$"
+  # Each model reads {id:"...",family:"...", ... context:{window:N}}. ERE has no
+  # lazy quantifier to span that in one match (and BSD grep has no -P), so pull
+  # both anchors in order and pair them up.
+  { printf '%s\n' "$sig"
+    grep -a -o -E 'id:"claude-[a-z0-9.-]+",family:"|context:\{window:[0-9]+(e[0-9]+)?' "$bin" 2>/dev/null \
+      | awk -F'"' '/^id:/ { id=$2; next }
+                   /^context:/ { if (id != "") { w=$0; sub(/.*window:/, "", w); print id, w+0; id="" } }'
+  } > "$tmp" 2>/dev/null
+  if [ "$(wc -l < "$tmp" 2>/dev/null | tr -d ' ')" -gt 4 ]; then
+    mv "$tmp" "$MODEL_WINDOWS_CACHE" 2>/dev/null \
+      && { printf '%s' "$MODEL_WINDOWS_CACHE"; return 0; }
+  fi
+  rm -f "$tmp" 2>/dev/null
+}
+
+# Transcripts record a dated id ("claude-haiku-4-5-20251001") where the table
+# has the family entry, so match on the longest id that prefixes it. The
+# signature line has one field and is skipped by the same test.
+model_window() { # model-id -> context window size, or nothing
+  [ -s "$model_windows" ] || return 0
+  awk -v q="$1" '
+    NF == 2 && $2 ~ /^[0-9]+$/ && index(q, $1) == 1 && length($1) > n { n=length($1); w=$2 }
+    END { if (n) print w }' "$model_windows" 2>/dev/null
+}
+
+# "claude-haiku-4-5-20251001" -> H, "claude-sonnet-5[1m]" -> S. One letter is
+# all the space a compact line has, and the families in play don't collide.
+model_letter() { # model-id -> uppercase family initial, "?" when unknown
+  local id="$1" fam
+  id=${id%%'['*}
+  id=${id#claude-}
+  fam=${id%%-*}
+  if [ -z "$fam" ]; then printf '?'; return 0; fi
+  printf '%s' "$fam" | cut -c1 | tr 'a-z' 'A-Z'
+}
+
+# Newest timestamp near the end of a transcript. The last line isn't always a
+# timestamped one, hence the small tail rather than exactly one line.
+last_ts() { # transcript -> ISO-8601 timestamp, or nothing
+  tail -n 3 "$1" 2>/dev/null | sed -n 's/.*"timestamp":"\([^"]*\)".*/\1/p' | tail -n 1
+}
+
+# Last assistant turn of a transcript, without reading a multi-megabyte file:
+# scan only the tail, dropping its first (likely truncated) line.
+last_assistant() { # transcript -> one JSONL line, or nothing
+  local f="$1" size
+  size=$(wc -c < "$f" 2>/dev/null) || return 0
+  if [ "${size:-0}" -gt "$AGENT_TAIL" ]; then
+    tail -c "$AGENT_TAIL" "$f" | tail -n +2 | grep '"type":"assistant"' | tail -n 1
+  else
+    grep '"type":"assistant"' "$f" 2>/dev/null | tail -n 1
+  fi
+}
+
+# Context window to measure an agent against, best source first: the size the
+# harness sent (exact, but only on an exact id match, which a dated agent id
+# misses), then an explicit [1m] suffix on the id, then the CLI's own model
+# table, then a built-in list of the 1M models as of 2.1.258 for when that
+# table can't be read — and failing all of that, the reading itself, since a
+# turn can never exceed its own window.
+agent_limit() { # model-id total-input-tokens -> context window size
+  local id="$1" tokens="$2" w
+  if [ -n "$main_ctx_size" ] && [ -n "$id" ] && [ "$id" = "$main_model_id" ]; then
+    printf '%s' "$main_ctx_size"; return 0
+  fi
+  case "$id" in *'[1m]'*) printf '1000000'; return 0 ;; esac
+  w=$(model_window "$id")
+  case "$w" in ''|*[!0-9]*) w="" ;; esac
+  if [ -n "$w" ]; then printf '%s' "$w"; return 0; fi
+  case "$id" in
+    claude-fable-*|claude-mythos-*|\
+    claude-opus-4-7*|claude-opus-4-8*|claude-opus-5*|claude-sonnet-5*)
+      printf '1000000'; return 0 ;;
+  esac
+  if [ "$tokens" -gt 200000 ]; then printf '1000000'; else printf '200000'; fi
+}
+
+agent_line=""
+if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
+  now=${STATUSLINE_NOW:-$(date +%s)}
+  model_windows=${STATUSLINE_MODEL_WINDOWS:-$(model_windows_file)}
+
+  # Order by spawn, not by last write. meta.json is written once when the agent
+  # starts; the transcript is appended to constantly, so sorting on that
+  # reshuffled the line every second. Oldest first, matching the agent list the
+  # CLI shows below the prompt, with the path breaking same-second ties.
+  fresh=$(for f in "$agents_dir"/agent-*.jsonl; do
+    [ -f "$f" ] || continue
+    active=$(file_mtime "$f")
+    [ -n "$active" ] || continue
+    [ $(( now - active )) -le "$AGENT_WINDOW" ] || continue
+    spawn=$(file_mtime "${f%.jsonl}.meta.json")
+    [ -n "$spawn" ] || spawn=$active
+    printf '%s\t%s\n' "$spawn" "$f"
+  done | sort -t"$(printf '\t')" -k1,1n -k2,2)
+
+  # Which of those have finished. Recent writes can't answer that: a running
+  # agent goes quiet for minutes waiting on a long tool call, and 1% of the
+  # gaps between a running agent's own entries run past 170s — a window tight
+  # enough to retire finished agents promptly would drop live ones. But when an
+  # agent finishes, the session collects its result, and the session transcript
+  # records the agent's id again, after that agent's own last entry. So take
+  # every plausibly-live agent above and subtract those. One pass over the tail
+  # of the session transcript covers all of them; anything older than that tail
+  # is long finished, and the window backstops it.
+  #
+  # Two kinds of entry say an agent is done, and each covers a case the other
+  # misses. "toolUseResult" is what the session writes when it collects a tool's
+  # output — the marker for an agent it waited on. A background agent's result
+  # lands at spawn instead ("launched successfully"), long before it finishes,
+  # so the thing that retires that one is the task-notification the session
+  # receives when the agent reports its task complete.
+  #
+  # Nothing else counts. Queueing a message for a running agent writes a
+  # queue-operation and an attachment naming it, and an agent sitting idle
+  # waiting for that message has by definition not written since, so the
+  # mention lands after its last entry and reads exactly like a result. That
+  # retired live agents mid-run. An agent given more work writes past its own
+  # notification and comes back on the next repaint, so the ordering keeps
+  # working for a background agent that is reused rather than finished.
+  refs=""
+  if [ -s "$transcript" ]; then
+    set --
+    while IFS=$'\t' read -r _ f; do
+      [ -n "$f" ] || continue
+      aid=${f##*/agent-}
+      set -- "$@" -e "${aid%.jsonl}"
+    done <<EOF
+$fresh
+EOF
+    [ "$#" -gt 0 ] && refs=$(tail -c "$SESSION_TAIL" "$transcript" 2>/dev/null \
+      | grep -E '"toolUseResult"|"kind":"task-notification"' | grep -F "$@" 2>/dev/null)
+  fi
+
+  shown=0
+  total=0
+  while IFS=$'\t' read -r _ f; do
+    [ -n "$f" ] || continue
+
+    # Timestamps are ISO-8601 UTC, so they order as plain strings.
+    aid=${f##*/agent-}; aid=${aid%.jsonl}
+    agent_ts=$(last_ts "$f")
+    ref_ts=$(printf '%s\n' "$refs" | grep -F "$aid" \
+      | sed -n 's/.*"timestamp":"\([^"]*\)".*/\1/p' | tail -n 1)
+    if [ -n "$agent_ts" ] && [ -n "$ref_ts" ] && [[ ! $ref_ts < $agent_ts ]]; then
+      continue
+    fi
+
+    total=$(( total + 1 ))
+    [ "$shown" -lt "$AGENT_MAX" ] || continue
+    shown=$(( shown + 1 ))
+
+    # Prefer the model the turn actually ran on; meta records only the spec
+    # ("haiku", or nothing at all when the agent inherits the parent's model).
+    line=$(last_assistant "$f")
+    model_id=""; tokens=""
+    if [ -n "$line" ]; then
+      model_id=$(printf '%s' "$line" | jq -r '.message.model // empty' 2>/dev/null)
+      tokens=$(printf '%s' "$line" | jq -r \
+        '(.message.usage // {}) | ((.input_tokens//0)+(.cache_creation_input_tokens//0)+(.cache_read_input_tokens//0))' 2>/dev/null)
+    fi
+    [ -n "$model_id" ] || model_id=$(jq -r '.model // empty' "${f%.jsonl}.meta.json" 2>/dev/null)
+
+    # Same arithmetic the harness uses for the main window: every input token,
+    # cached or not, over the model's context size.
+    agent_pct=""
+    case "$tokens" in ''|*[!0-9]*) tokens="" ;; esac
+    if [ -n "$tokens" ]; then
+      limit=$(agent_limit "$model_id" "$tokens")
+      agent_pct=$(( (tokens * 100 + limit / 2) / limit ))
+      [ "$agent_pct" -gt 100 ] && agent_pct=100
+    fi
+
+    # An agent that hasn't taken a turn yet has a model but no usage: show the
+    # initial alone rather than a percentage that would read as zero context.
+    entry="${MAGENTA}$(model_letter "$model_id")${RESET}"
+    [ -n "$agent_pct" ] && entry="${entry}${GRAY}/${GREEN}${agent_pct}%${RESET}"
+    [ -n "$agent_line" ] && agent_line="${agent_line}${GRAY} · ${RESET}"
+    agent_line="${agent_line}${entry}"
+  done <<EOF
+$fresh
+EOF
+
+  if [ "$total" -gt "$shown" ]; then
+    agent_line="${agent_line}${GRAY} · +$(( total - shown ))${RESET}"
+  fi
+fi
+
+
 # Line 1: location — dir + git
 printf "%s%s%s" "$CYAN" "$short_cwd" "$RESET"
 if [ -n "$branch" ]; then
@@ -98,6 +359,11 @@ printf "\n"
 printf "%s%s%s" "$MAGENTA" "$model" "$RESET"
 if [ -n "$used" ]; then
   printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
+fi
+
+# Live subagents, one compact entry each, under the session that spawned them.
+if [ -n "$agent_line" ]; then
+  printf "\n%s" "$agent_line"
 fi
 
 # Line 3: quotas — only when the harness sent rate-limit data. The 5h window

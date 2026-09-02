@@ -73,3 +73,58 @@ make_git_repo_with_upstream() { # workdir
   git -C "$work" commit -q -m "seed"
   git -C "$work" push -q -u origin main
 }
+
+# Create a subagent transcript where Claude Code writes them: beside the
+# session transcript, under <session-id>/subagents/. An empty model argument
+# fixtures an agent that hasn't taken a turn yet.
+make_subagent() { # transcript-path id agent-type [model-id] [input-tokens] [spawn-depth]
+  local tp="$1" id="$2" type="$3" model="${4:-}" tokens="${5:-0}" depth="${6:-1}"
+  local dir="${tp%.jsonl}/subagents"
+  mkdir -p "$dir"
+  jq -cn --arg t "$type" --argjson d "$depth" \
+    '{agentType:$t, description:"fixture", toolUseId:"toolu_fixture", spawnDepth:$d, model:"haiku"}' \
+    > "$dir/agent-$id.meta.json"
+  jq -cn '{type:"user", isSidechain:true, timestamp:"2026-01-01T00:00:00.000Z",
+           message:{role:"user", content:"go"}}' \
+    > "$dir/agent-$id.jsonl"
+  [ -n "$model" ] || return 0
+  jq -cn --arg m "$model" --argjson tk "$tokens" \
+    '{type:"assistant", isSidechain:true, timestamp:"2026-01-01T00:00:10.000Z",
+      message:{model:$m, usage:{
+       input_tokens:1, cache_creation_input_tokens:0,
+       cache_read_input_tokens:($tk-1), output_tokens:7}}}' \
+    >> "$dir/agent-$id.jsonl"
+}
+
+# Append the line a session writes when it collects a tool's output: a user
+# entry carrying toolUseResult. Naming an agent's id in one, at a timestamp
+# after that agent's own last entry, is what means "finished".
+make_session_ref() { # transcript-path agent-id iso-timestamp
+  jq -cn --arg a "$2" --arg t "$3" \
+    '{type:"user", timestamp:$t, toolUseResult:{agentId:$a, status:"completed"},
+      message:{role:"user",
+               content:[{type:"tool_result", tool_use_id:"toolu_fixture",
+                         content:"agent \($a) finished"}]}}' \
+    >> "$1"
+}
+
+# Append the notification a session receives when a background agent reports
+# its task complete. Its tool result landed back at spawn, so this is the only
+# entry that says it has finished.
+make_session_notify() { # transcript-path agent-id iso-timestamp
+  jq -cn --arg a "$2" --arg t "$3" \
+    '{type:"user", timestamp:$t, origin:{kind:"task-notification"},
+      promptSource:"system", userType:"external",
+      message:{role:"user", content:"<task-notification>agent \($a) done</task-notification>"}}' \
+    >> "$1"
+}
+
+# Append the entries a session writes when it queues a message for an agent
+# that is already running. They name the agent and carry no result.
+make_session_queue() { # transcript-path agent-id iso-timestamp
+  jq -cn --arg a "$2" --arg t "$3" \
+    '{type:"queue-operation", timestamp:$t, operation:"add",
+      content:"message for agent \($a)"}' >> "$1"
+  jq -cn --arg a "$2" --arg t "$3" \
+    '{type:"attachment", timestamp:$t, attachment:{agentId:$a}}' >> "$1"
+}
