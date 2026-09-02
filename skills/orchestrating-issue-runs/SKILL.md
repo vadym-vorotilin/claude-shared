@@ -142,13 +142,14 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - Treating the post-merge issue-state read as a gate — that read is racy; read the commit body
 - Handing a fixer an issue's factual claim about a file as a given rather than as checkable
 - Merging two green PRs that both touch one counted set — per-branch gates don't compose; serialise or rebase-and-rerun
-- An agent reading a shared clone via FETCH_HEAD — brief it to pin every read to a resolved SHA
+- An agent reading a shared clone at all — FETCH_HEAD, a submodule checkout, a file on disk — brief it to pin every read to a resolved SHA in its own worktree
 - Merging a squash-stacked PR's parent and assuming the child survives it — rebase `--onto`, then re-check the review
 - Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
 - A progress stamp with a tool call after it — the stamp ends the turn, always
 - Releasing a demo whose evidence census is all-Met and nobody has used the
   artifact as the end user would — presence is not acceptance
-- A brief that says "no monitors" without naming the Monitor tool and `run_in_background`
+- A brief that says "no monitors" without naming the Monitor tool and *unpolled* `run_in_background`
+- A brief that does not ban the agent dispatching its own subagents — one forked four helpers that clobbered each other's single output file
 - A scratch filename shared between cards — one PR body overwrote another's, twice
 - Summing a runner's filtered chunks and calling it the suite — an exact-match filter drops everything nested below the named level
 - A fixer-authored convention ("the spec is silent here, so I chose…") heading to merge without a ruling
@@ -160,7 +161,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 - A deferred register handed over flat instead of grouped by what can close in-branch now
 - Escalating a fixer's "the requested design is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule was the defect, not the design, both times it happened
 - An acceptance property like "byte-identical except the version" handed to a fixer without checking what the serializer actually emits for an absent member
-- A ledger timestamp written from memory instead of `date` — they run ahead of the clock
+- A ledger time or progress stamp extrapolated from the previous one instead of read from `date` in that same turn — one run's stamps drifted 77 minutes ahead of the clock
 - Editing a branch and merging it in the same shell call — a failed edit that `set -e` did not catch merged twice
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
 - A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
@@ -180,19 +181,19 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
 | "Fresh agent is cleaner than resuming" | True below the ceiling — there a resume keeps the task context for a fraction of the price. Above it both paths pay the same cache write, and the resumed one re-reads a bloated context on every turn after it. |
 | "Minor finding, not worth a follow-up" | Silent discards are how the next run re-finds it at 10x cost. |
-| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted inputs. Mutate position, not just structure. |
+| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted inputs. Mutate position, not just structure — and where the rule is about *which of two objects* is involved, a whole-structure mirror/transpose/shift moves both at once and stayed green on two cards while the rule was broken. Move one of them. |
 | "It compiled red first, that's my TDD evidence" | A compile error proves the file was absent. Go green, then mutate the load-bearing decision back to naive and quote that red. |
 | "The fixer says it reproduced my sabotage" | Re-apply it yourself. One reviewer doing that found the fix still passed a subtler mutation. |
 | "My README documents it correctly" | The parent doc may still contradict you, and you can't see it until the sibling merges. Second-merged owns the parent. |
 | "The issue is small, a cheap review will do" | A one-constraint issue behind a reviewed seam still took three rounds, all real position bugs. Size ≠ review risk. |
 | "My guard can't go blind, it scans everything" | It was blind to the idiom the same PR introduced. Test your guard against your own diff's shape first. |
-| "The reviewer told me how to fix it" | Its remedy caught 9 of 10 shapes. Measure it before adopting it; a right finding can carry a wrong fix. |
+| "The reviewer told me how to fix it" | Its remedy caught 9 of 10 shapes. A later one was not merely vacuous but **false at the correct value** and would have shipped red. Measure it before adopting it; a right finding can carry a wrong fix, and measuring changed the fix all three times in one run. |
 | "That's the fifth hole, I'll patch it too" | Four of the five were one mistake. Ship an invariant with a named outside, not enumeration N+1. |
 | "The adjudicator says they're independent" | Independent contracts, same file, same function. Re-check file surfaces yourself. |
 | "It's still queued, I'll nudge it to wait properly" | Nothing has started. A better nudge stalls it again — take the gate off the agent. |
 | "The suite was 1000 last I looked" | It moved by 8 when a sibling merged. Make every agent re-measure; two caught this in one run. |
 | "CI is red, the branch is broken" | One was a cancelled job, one an Actions outage at setup. `gh api .../jobs` before believing a red. |
-| "The agent didn't follow my instruction" | Check whether it was right. Three deviations this run were all correct, and all reported up front. |
+| "The agent didn't follow my instruction" | Check whether it was right. Three deviations this run were all correct, and all reported up front. The same holds in reverse: two reviewers retracted their own findings — one blocking — in the review body after measuring. "You were right and I was wrong" is the gate working, not a reviewer to distrust. |
 | "X already does this work, so my code can't be the one that fails" | Does X **carry the value forward, or ask again?** Five impossibility claims in one PR all slid over that step. |
 | "The exception type proves the mechanism" | A wrong story that predicts the observation is not falsified by it. One survived three rounds. Take the stack trace. |
 | "My fact pins it — the count is right" | A count stops discriminating the moment the code adds one. Assert over the whole set; then only placement can move the target. |
@@ -207,7 +208,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "The guard is narrow, it only catches the bad case" | Ask what else it now covers. One added so bad *data* would fail had engine setup inside it — the inversion it existed to prevent. |
 | "The issue still reads OPEN, so the auto-close failed" | That read is racy. Read the squash commit body, or re-read after a beat, before writing either outcome into a permanent comment. |
 | "Both PRs are green, so merging both is green" | Per-branch gates don't compose over a counted set. Serialise, or rebase and re-run one against the other. |
-| "Same clone, FETCH_HEAD is fine" | Concurrent agents mutate it mid-read. Resolve the SHA once and pin every read in the brief to it. |
+| "Same clone, FETCH_HEAD is fine" | Concurrent agents mutate it mid-read, and a superproject's submodules go stale while still reading as authoritative — one session took a stale count and a "the fix never landed" verdict off one. Resolve the SHA once and pin every read in the brief to it, in the agent's own worktree. |
 | "The parent merged, the child will just retarget" | It can be closed, or silently retargeted onto a base it was never reviewed against. Rebase `--onto`, then content-hash before carrying the review. |
 | "I'll pick the run back up when the notification arrives" | A pause with no armed timer or monitor is a pause that runs long. Arm it, then pause. |
 | "The brief said no monitors" | It read as a Bash rule. Name the Monitor tool; one fixer waited on one for an hour. |
@@ -223,3 +224,5 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 | "It's nearly done, it can push past the ceiling" | "Nearly done" has been the wrong estimate all run, so make it evidential: suite green, one named deliverable left, no open decision. That finishes (hard stop ~200k). Anything else writes the note and returns. |
 | "Round 5 is just another round" | A late round on a resumed agent costs a multiple of round 1 for a same-sized fix. Price the round before spending it; when the budget says stop, adjudicate the open findings instead. |
 | "The check-up timer is cheap insurance" | Per agent, every 45 minutes, it re-reads the entire orchestrator context to learn "still alive" — and still finds a stall up to 45 minutes late. One silent sweep is cheaper and faster. |
+| "I made the edit, so it is in the diff" | Not if you later ran `git checkout -- <that file>` in a mutation-revert loop on it. One fixer reported a corrected doc paragraph as landed and its own revert had eaten it. Commit the edit before you start mutating that file, or re-read it from `git diff` — never from the edit. |
+| "Two cards decided the same question opposite ways, one of them is wrong" | Look for the experiment that distinguishes them first. A reviewer ran the one neither card had — restore the removed input, re-run the derivation, diff — and one output was unchanged while the other rebuilt wholesale. One rule covered both; neither card was inconsistent. |

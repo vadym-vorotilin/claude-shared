@@ -228,9 +228,9 @@ still disclosed in the PR body and paired with a tripwire test that reads the
 production roster (never a re-typed copy), so the next addition reds.
 
 **The fixer stops at the context ceiling.** Every brief carries it: *when your
-context passes ~150k, stop and write the handoff note (below).* An agent
-re-reads its whole context on every turn, so a long fixer's last turns are its
-most expensive ones while a continuation starts near a fifth of that size.
+context passes ~150k, stop and write the handoff note (below).* An agent re-reads its whole context on every turn,
+so a long fixer's last turns are its most expensive ones while a continuation
+starts near a fifth of that size.
 Mid-card is a fine place to stop: the note, the branch and the worktree carry
 the state.
 
@@ -324,13 +324,19 @@ change, and what should be split?
 **Ledger.** Scratchpad markdown, written before the first dispatch: wave
 plan, per-issue log lines, rulings, deferred minors, resume queue, the
 pause/resume state. After a compaction or limit reset, trust the ledger and
-`git log` over memory.
+`git log` over memory. **Put it on disk, not on a tmpfs scratchpad** — one
+run's ledger was cleared with `/tmp` between sessions. That one was recovered:
+a subagent rebuilt it from the previous session's transcript by reading the
+tool calls, which is the fallback, but it costs a dispatch and it only works
+while the transcript is still there.
 
 **Agent briefs — three run-stopping rules.** (1) Name the Monitor tool and
-`run_in_background` explicitly as banned, for **every dispatched agent** —
-"no monitors" alone was read as a Bash-only rule and one fixer stalled on a
-Monitor. The orchestrator's own liveness sweep is the sole exception; it is the
-orchestrator's, and no brief may grant it. (2) Scratch filenames are card-scoped
+*unpolled* `run_in_background` explicitly as banned, for **every dispatched
+agent** — "no monitors" alone was read as a Bash-only rule and one fixer
+stalled on a Monitor. Detached-and-polled work is the permitted form (Poll, do
+not block, below). The orchestrator's own liveness sweep is the only Monitor
+any agent may rely on; it is the orchestrator's, and no brief may grant it.
+(2) Scratch filenames are card-scoped
 (`pr-<issue>-<repo>.md`); two agents sharing one filename propagated one card's
 PR body onto another card's PR twice, and every `gh pr edit N` is preceded by
 `gh pr view N --json title,headRefName`. (3) A tool that syncs a contract into a
@@ -381,6 +387,24 @@ zero case renders). Treat each as a design act: a narrow, tightly-scoped
 adjudication either ratifies, relocates or replaces it; do not block on it and
 do not let it merge un-ruled. In one run two of three were ratified; one moved
 to the right section.
+
+**When the named conflict is structural, the third option is to ship the rule
+issued but not posted.** Leave-one-out (SKILL.md's rule) sometimes names no
+defective rule and no defective design: on one card a specified constraint was
+unsatisfiable against the project's frozen acceptance inputs, because it and two
+sibling constraints were each individually valid and jointly unsatisfiable.
+Amending the constraint inside a fixer's diff would have been a spec change
+made by an implementer; re-authoring those inputs to fit was worse.
+What shipped was the constraint **complete and fully tested, with its
+registration disabled** — honest only under three
+conditions: the infeasibility is **measured** (the core named by leave-one-out,
+not asserted), the PR states the exit clause is not met rather than pretending
+it is, and a committed test **re-derives the infeasible core every run** so the
+card reds the day those inputs move and the rule becomes postable.
+The reviewer's job on such a PR is to prove that guard fires — this one did,
+by mutating those inputs until the infeasible core dissolved. Put the
+amend / re-author / park-unposted choice to the operator as a question, and
+ship the defensible option meanwhile rather than stalling on it.
 
 **Recorded-interaction retries** (only where the project records live
 interactions and replays them in tests). Re-recording until a take is usable and
@@ -600,9 +624,14 @@ name, repo + worktree instructions, concurrent-agent file surfaces to avoid,
 the return contract (data for the orchestrator, incl. a STATUS line).
 
 **Every brief also sets a long Bash timeout (e.g. `timeout: 600000`) and bans
-backgrounding by name — "never use `run_in_background`; never arm a `Monitor`."**
+*unpolled* backgrounding by name — "never fire `run_in_background` and then
+wait on it blind; never arm a `Monitor`. If a command will outlast your cache,
+run it detached and poll it on a short cadence (Poll, do not block, below)."**
 "No monitors" on its own is not enough: it reads as a Bash rule, and a fixer
-that took it that way still armed the Monitor tool and stalled on it. A short default Bash timeout is what
+that took it that way still armed the Monitor tool and stalled on it. **Ban
+dispatching subagents in the same breath**: nothing said an agent could not
+fork, and a triage agent forked four helpers that wrote one shared output file
+and clobbered each other. A short default Bash timeout is what
 auto-backgrounds long suite runs and live CLI calls; six agents stalled that
 way in one run, each costing a nudge round-trip. **This applies to ANY
 dispatched agent** — wrap, demo-capture, board and post-run agents included,
@@ -695,6 +724,13 @@ brief without it missed:
    the axis it filtered. The position-mutation review battery catches this, but
    the fixture requirement catches it a round earlier — the one card briefed
    this way came back with no finding on that axis.
+
+   **A rule about a relation between two objects needs a mutation that moves
+   only one of them.** Whole-thing transforms — mirror, transpose, shift,
+   rotate — move both, and on two separate cards every one of them left the
+   suite green while the rule under test was broken. Only a mutation that
+   moves one of the two objects and leaves the other where it is discriminates
+   a working rule from a broken one; no whole-thing transform can.
 7. To **any long-running agent**: *"when your context passes ~150k, stop and
    write the handoff note; do not push on."* The one line that bounds an
    agent's cost, because cost grows with context × turns and not with how much
@@ -716,6 +752,18 @@ afternoon, and a third followed. Merge the smaller or further-along first,
 have the other rebase and re-run its own regen chain (the tools make that
 cheap); the consuming-repo pin moves last. **Declare the version constant a
 shared file surface in every parallel-mode brief.**
+
+**Then merge in ASCENDING version order and let the fixers correct themselves.**
+Three held versions against a `main` that moved four times is one reorder per
+merge if the orchestrator owns the numbering, and every reorder is a round trip
+to a fixer. What worked instead: merge lowest-claimed-version first so the
+constant only ever rises, and give every fixer the standing line **"re-read the
+constant on `main` immediately before you push, and take the next free number
+above it only if yours has been passed."** Gaps are usually harmless — check
+what the version tests actually assert (one suite asserted only a monotonicity
+bound, so a skipped version or two cost nothing), and renumbering a built PR
+down to close a gap re-touches generated fixtures and merged doc text for
+cosmetics.
 
 **A merged validator with no live-fixture consumer is unverified in the
 pipeline.** One shipped blocking validator was inert for a day — an exact
@@ -757,8 +805,13 @@ substantial chunk** — a PR opened, a review verdict, a fix round landed, a mer
 <one line about what just happened>
 ```
 
-Get the stamp from `date`, not from memory. Emit it on meaningful completions,
-not on every notification or tool call. If the user asks for "just a number",
+**Run `date` for every single stamp, in the turn that emits it.** Not from
+memory, and above all not by adding the elapsed work to the last stamp — that
+is how one run's stamps ended up **77 minutes ahead** of the clock before the
+operator caught it, which also made every time in its ledger a label of unknown
+accuracy. This is a per-stamp instruction, not a per-ledger one; it was already
+written once as the latter and was read as advice. Emit it on meaningful
+completions, not on every notification or tool call. If the user asks for "just a number",
 give only the number.
 
 **The stamp must be the FINAL text of its turn — no tool call after it.** Text
@@ -830,7 +883,10 @@ that only ever rises is not a measurement.
    register agent consolidates every deferred item out of the run's close
    comments **plus the domain walkthrough's findings from the ledger**,
    fold-checks each one against issues already open (a candidate
-   that duplicates an open card is a fold, not a new card), and groups the
+   that duplicates an open card is a fold, not a new card) **and against the
+   PR bodies of the run's own merged cards** — a finding a PR already
+   disclosed and disposed of is discharged, not deferred; one filing agent
+   correctly declined four such sets on that ground — and groups the
    survivors by kind — contract acts / engine / docs / tooling / fixture /
    decisions. The orchestrator turns that into a one-screen list with
    recommendations; **the operator rules**; only then does a filing agent
