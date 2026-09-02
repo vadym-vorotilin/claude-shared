@@ -227,8 +227,88 @@ design act, not an implementation detail**: a necessary, narrow exemption is
 still disclosed in the PR body and paired with a tripwire test that reads the
 production roster (never a re-typed copy), so the next addition reds.
 
-**The fixer stops at the context ceiling.** Every brief carries it: *when your
-context passes ~150k, stop and write the handoff note (below).* An agent re-reads its whole context on every turn,
+**The fixer stops at the context ceiling — and something has to tell it.** No
+agent can read its own context (iron rule 10), so the brief line alone gets
+breached silently; in one measured run most of the agents it bound went past
+it and several past the hard stop. Install `hooks/agent-ceiling.py` as a
+`PreToolUse` hook (steps below) and the harness does the measuring. In the
+project's `.claude/settings.json`, inside the top-level `"hooks"` object —
+without that wrapper the entry is valid JSON the harness silently ignores:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "*",
+        "hooks": [{ "type": "command",
+          "command": "sh -c '[ -r \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-ceiling.py\" ] || exit 0; exec python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-ceiling.py\"'" }] }
+    ]
+  }
+}
+```
+
+The `[ -r ... ] || exit 0` guard is not decoration. `python3` on a file it
+cannot open exits 2, and for a `PreToolUse` hook exit 2 means *block this tool
+call* — with `"matcher": "*"` that is every call in the session, the main loop
+included, until someone edits the settings back. A missing hook file has to
+mean "no enforcement", never "no work". The operator also has to approve a
+changed project hook before it runs at all; until that is accepted the hook is
+inert.
+
+It reads the agent's own transcript, blocks **once** on each threshold crossing
+with the ceiling message on stderr, records the crossing, then stays out of the
+way — blocking once is what makes it unmissable, blocking every call would
+deadlock the agent. It exempts the main loop, and it **fails open**: it is
+advisory, and a bug in it must never halt a run. (The companion guard hook, which
+enforces prohibitions rather than budgets, fails **closed** — opposite rule,
+opposite reason. Do not copy one policy into the other.)
+
+**What it assumes — verify these, or it is a silent no-op.** The hook decides
+"this is a dispatched agent" from a `subagents/` segment in the transcript path,
+the layout the CLI has written since 2.1. Where that directory is named
+differently the test never matches, the hook returns 0 on every call, and
+nothing enforces the ceiling — a gate that always passes, which is worse than no
+gate, because you will trust it. It needs the transcript's own directory to be
+writable, too — it records each crossing in a dot-file beside the transcript,
+and where it cannot write one it stays silent rather than block again, which
+means no enforcement at all. It also needs `python3` 3.9 or newer on `PATH`
+(it calls `str.removesuffix`), and the snippet above loads the file from
+`.claude/hooks/`, so install it there — shipping it beside the skill installs
+nothing. **Symlink it, do not copy it**: a copy stops taking fixes, and unlike a
+stale overlay a stale hook still looks like it is working. From the project
+root:
+
+```bash
+mkdir -p .claude/hooks
+ln -sfn "$HOME/.claude/skills/orchestrating-issue-runs/hooks/agent-ceiling.py" \
+        .claude/hooks/agent-ceiling.py
+test -r .claude/hooks/agent-ceiling.py \
+  || echo "target missing — fix the path before adding the settings entry"
+```
+
+That `test -r` is the point of the third line: `ln -s` creates a link to a
+target that is not there without complaint, and a skill installed anywhere but
+`~/.claude/skills/` leaves you with exactly that. `-fn` also makes a re-run
+idempotent instead of erroring on the existing link. If you later move or
+uninstall the skill, remove the settings entry first.
+
+**It cannot tell a reviewer from a fixer.** Iron rule 9 exempts reviewers from
+the ceiling — a verdict does not split — but the hook binds every dispatched
+agent, and its thresholds come from the CLI's own environment, so they cannot be
+raised for one agent mid-run. Set the thresholds high enough for the longest
+reviewer you dispatch and let the reviewer's turn budget bound it instead;
+otherwise a long review is told to hand off mid-verdict, which rule 9 forbids.
+
+Prove it fires before you let it bound a run: **export `AGENT_CEILING_SOFT=1`
+before starting the CLI** — the hook inherits that environment, so a value set
+mid-session never reaches it — then dispatch a throwaway agent. Its first tool
+call should come back blocked with the ceiling message. If it does not, the
+ceiling is unenforced here and the brief line is all you have — which is reason
+to keep that line in every brief regardless, since it is also what makes the
+resulting handoff note well-formed.
+
+Every brief still carries it: *when your context passes ~150k, stop and write
+the handoff note (below).* An agent re-reads its whole context on every turn,
 so a long fixer's last turns are its most expensive ones while a continuation
 starts near a fifth of that size.
 Mid-card is a fine place to stop: the note, the branch and the worktree carry
