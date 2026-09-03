@@ -368,6 +368,19 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   assert_equal "$(count_lines "$out")" 3
 }
 
+# The notification does not always land as a turn. When the session is
+# mid-turn it is enqueued and then removed from the queue, absorbed into the
+# turn in flight, and the transcript holds only those queue entries for it.
+# They carry the notification text, so they retire the agent just the same.
+@test "drops a background subagent whose notification was queued but never delivered" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_ref           "$tp" a1 "2026-01-01T00:00:02.000Z"   # the spawn result
+  make_session_notify_queued "$tp" a1 "2026-01-01T00:00:12.000Z"   # after its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(count_lines "$out")" 3
+}
+
 # Given more work, it writes past that notification and comes back.
 @test "keeps a background subagent that has written since its notification" {
   tp="$TEST_TMP/sess.jsonl"

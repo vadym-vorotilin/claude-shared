@@ -130,8 +130,21 @@ make_session_notify() { # transcript-path agent-id iso-timestamp
   jq -cn --arg a "$2" --arg t "$3" \
     '{type:"user", timestamp:$t, origin:{kind:"task-notification"},
       promptSource:"system", userType:"external",
-      message:{role:"user", content:"<task-notification>agent \($a) done</task-notification>"}}' \
+      message:{role:"user", content:"<task-notification>\n<task-id>\($a)</task-id>\n<status>completed</status>\n</task-notification>"}}' \
     >> "$1"
+}
+
+# The same notification when it never reaches the session as a turn: it is
+# enqueued, then removed from the queue (typically absorbed as an attachment
+# to a turn already in flight), and no user entry is ever written for it.
+make_session_notify_queued() { # transcript-path agent-id iso-timestamp
+  local op
+  for op in enqueue remove; do
+    jq -cn --arg a "$2" --arg t "$3" --arg op "$op" \
+      '{type:"queue-operation", timestamp:$t, operation:$op,
+        content:"<task-notification>\n<task-id>\($a)</task-id>\n<status>completed</status>\n</task-notification>"}' \
+      >> "$1"
+  done
 }
 
 # Append the entries a session writes when it queues a message for an agent

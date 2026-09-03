@@ -361,13 +361,19 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
   # output — the marker for an agent it waited on. A background agent's result
   # lands at spawn instead ("launched successfully"), long before it finishes,
   # so the thing that retires that one is the task-notification the session
-  # receives when the agent reports its task complete.
+  # receives when the agent reports its task complete. That notification does
+  # not always land as a turn: when the session is mid-turn it is enqueued,
+  # then removed from the queue and absorbed into the turn in flight, and the
+  # transcript holds only those queue-operation entries for it — in one long
+  # orchestration, close to half the completions. They carry the notification
+  # text, "<task-id>...</task-id>", so any entry with that tag counts too.
   #
   # Nothing else counts. Queueing a message for a running agent writes a
   # queue-operation and an attachment naming it, and an agent sitting idle
   # waiting for that message has by definition not written since, so the
   # mention lands after its last entry and reads exactly like a result. That
-  # retired live agents mid-run. An agent given more work writes past its own
+  # retired live agents mid-run; the tag is what tells a queued notification
+  # from a queued message. An agent given more work writes past its own
   # notification and comes back on the next repaint, so the ordering keeps
   # working for a background agent that is reused rather than finished.
   refs=""
@@ -381,7 +387,7 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
 $fresh
 EOF
     [ "$#" -gt 0 ] && refs=$(tail -c "$SESSION_TAIL" "$transcript" 2>/dev/null \
-      | grep -E '"toolUseResult"|"kind":"task-notification"' | grep -F "$@" 2>/dev/null)
+      | grep -E '"toolUseResult"|"kind":"task-notification"|<task-id>' | grep -F "$@" 2>/dev/null)
   fi
 
   shown=0
