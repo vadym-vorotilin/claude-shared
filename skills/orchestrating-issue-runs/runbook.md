@@ -787,7 +787,15 @@ done
 ```
 
 Adapt the signals to the run — worktree mtimes as above, the agent transcript's
-mtime, `gh pr view` for a PR that should exist by now. (`.git` is pruned on
+mtime, `gh pr view` for a PR that should exist by now. **Add the cache signal
+too: an agent transcript not written to for five minutes is an agent whose
+cache has expired**, a live one that is polling with too long a bound or not at
+all. Say it once per agent (`COLD: <agent>`), not every pass — it is a brief
+violation to correct with a queued one-line message ("every poll call returns
+within four minutes"), and a line for the self-improvement pass, not a rescue.
+The shared status line reads the same thing off the same transcripts, as each
+live agent's TTL percentage: a reading at 100% on an agent that is meant to be
+polling says the same thing without waiting for the sweep. (`.git` is pruned on
 purpose: index churn from a stuck command is not progress, and leaving it in
 made the sweep report a hung agent as healthy the first time this was tested.)
 
@@ -885,9 +893,17 @@ times what a cache read costs — so any command you expect to run longer than
 about four minutes runs detached and you poll it on a short cadence (Poll, do
 not block, below). This is a cache rule, not a timeout rule: it applies to
 builds, checkouts, renders and recordings exactly as much as to the suite."**
-Give the agent the poll form, not just the ban — a bounded wait per call, e.g.
+Give the agent the poll form, not just the ban — a bounded wait per call:
 `timeout 230 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; tail -3 <log>`
-— because an agent told only what not to do will block anyway.
+— because an agent told only what not to do will block anyway. **And say that
+the bound is a maximum, not an example: every poll call returns within about
+four minutes, whatever the command is expected to take.** The long Bash
+timeout is a ceiling for a runaway command, not a poll cadence. Briefed with
+the 230-second form and nothing about it being a limit, one fixer stretched its
+polls toward the Bash ceiling to save turns — detached, polling, correct by
+every other reading of the rule — and expired its cache on two polls in a row.
+Each extra poll is one cache read; one bound past the lifetime is a full write,
+about ten reads' worth, so a longer bound never saves anything.
 **Put that line in every waiting role's brief**, not only the fixer's:
 reviewers re-measuring a suite, screenshot and recording agents, wrap and
 demo-capture agents.

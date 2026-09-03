@@ -228,7 +228,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 
 ## Red flags — stop, you are about to violate the flow
 
-**The full set is [reference/red-flags.md](reference/red-flags.md)** — 68 rows,
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 70 rows,
 grouped, none deleted. Read it once at run start and again at any wave boundary
 where the run changed shape. These ten fire the most often:
 
@@ -260,7 +260,7 @@ where the run changed shape. These ten fire the most often:
 ## Common rationalizations
 
 **The full set is [reference/rationalizations.md](reference/rationalizations.md)**
-— 61 rows, none deleted. These ten fire the most often:
+— 62 rows, none deleted. These ten fire the most often:
 
 | Excuse | Reality |
 |---|---|

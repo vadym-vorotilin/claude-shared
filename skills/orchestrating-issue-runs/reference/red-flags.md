@@ -49,6 +49,11 @@ believed it was following the flow.
 - A brief that lets an agent **block** on a command expected to outlast its
   prompt cache (~5 minutes idle) — the next turn then rewrites the whole
   context at the cache-write rate; poll instead
+- A poll form given as an example with no maximum — the bound gets stretched
+  toward the Bash timeout to save turns, and past the cache lifetime it costs a
+  full rewrite; say "every poll call returns within four minutes"
+- A live agent's transcript untouched for five minutes — its cache is gone;
+  correct its poll bound rather than reading the silence as health
 - A waiting role briefed without the poll rule because it is "not a fixer" —
   reviewers re-measuring a suite, screenshot and recording agents, and wrap
   agents pay the identical rewrite
