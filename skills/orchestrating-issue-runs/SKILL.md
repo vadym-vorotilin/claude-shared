@@ -21,8 +21,11 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 > the project's own overrides stop loading while everything still looks
 > installed. That has happened, and what stopped loading was a rule reserving
 > merges to a human. Give the project its own skill directory, symlink
-> `SKILL.md` and `runbook.md` there from the shared copy so they stay
-> byte-identical, and put every local difference in `project.md`, which stays
+> `SKILL.md`, `runbook.md` **and `reference/`** there from the shared copy so
+> they stay byte-identical — the two `reference/` files hold the full red-flag
+> and rationalization sets that SKILL.md only samples, and an install that
+> symlinks the first two alone leaves those pointers dangling in exactly the
+> way nobody notices. Put every local difference in `project.md`, which stays
 > with the project. The ceiling hook is not installed this way — it goes into
 > the project's `.claude/hooks/`; see runbook → "The fixer stops at the context
 > ceiling". Symlinking `hooks/` beside the skill installs nothing.
@@ -66,10 +69,15 @@ phase mechanics, briefing templates, and the protocols below in full.
 ## The flow
 
 ```
-Phase 0  SCOPE      a DISPATCHED agent reads specs, ADRs, memory, issues,
-                    board, open PRs, prior-run ledgers → returns a
-                    dependency-ordered wave plan + per-issue model tier +
-                    inconsistency sweep. The orchestrator reads the doc,
+Phase 0  GOAL       one sentence, written FIRST: the observable outcome this
+                    run must produce, testable by looking at the artifact
+                    (iron rule 11). It bounds the wave, every brief and the
+                    progress stamp.
+         SCOPE      a DISPATCHED agent reads specs, ADRs, memory, issues,
+                    board, open PRs, prior-run ledgers → returns the MINIMUM
+                    dependency-ordered wave plan that closes the goal, what it
+                    leaves out by name, per-issue model tier, a filing budget,
+                    and an inconsistency sweep. The orchestrator reads the doc,
                     not the sources.
          APPROVE    scope doc posted as a message; found inconsistencies
                     listed for approval before any issues are filed.
@@ -124,26 +132,51 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    re-reads a fraction of the context on every turn that follows. If the agent
    id is genuinely unrecoverable, dispatch with the ledger's state summary plus
    the worktree, branch and PR facts you verified yourself.
-6. **Nothing deferred silently.** Every non-blocking finding: ledger entry +
-   close-comment mention + follow-up issue (issues only after user approved
-   creating them, per scope rules).
+6. **Nothing deferred silently — and not everything deferred becomes a card.**
+   Every non-blocking finding gets a ledger entry and a close-comment mention.
+   A **follow-up issue** on top of that only when the finding moves the run's
+   goal line (rule 11), and only after the user approved creating it, per scope
+   rules. "Nothing deferred silently" was read as "everything deferred is
+   filed", and the register then manufactures work: one run filed three cards
+   for every card it merged, all of them real findings, none of them on the
+   goal. **Set a filing budget in the scope doc and report filed-to-merged in
+   the wrap.** Two runs above 1 means the mechanism is producing the backlog.
 7. **Budget = graceful drain.** At the token target: start nothing new, let
    in-flight rounds finish, report, pause. **Measure it, don't estimate it** —
    `/token-report`'s `--json` total between waves and before each fix round
    (runbook → Budget check). A budget rule with no instrument is a wish.
 8. **Report progress after every substantial agent completion** — a stamped
-   `**<date and time> - Progress: N%**` line plus one line of what happened.
-   Weight by expected issue cost, never by count; unmerged is not done. See
-   runbook.md → Reports.
-9. **Context is a budget.** An agent re-reads its whole context every turn, so
-   cost grows with context × turns and the expensive failure mode is the
-   long-lived agent, not the chatty one. Fixers and other long-running agents
-   **stop at ~150k, write a handoff note, and return it**; the orchestrator
-   dispatches a continuation from that note. The orchestrator holds itself to
-   the same ceiling, using the ledger as its own handoff note. **Reviewers are
-   exempt from the ceiling but not from a budget** — a verdict does not split,
-   so a reviewer may not hand off mid-review; it gets a **turn budget** instead
-   and reports what it could not cover. A review that runs many times its
+   `**<date and time> - Progress: Exit <met>/<total> · N%**` line plus one line
+   of what happened. **Exit items first, card cost second**: the percentage
+   measures spend consumed, and a run can consume most of its cards without
+   moving a single Exit item. Weight the percentage by expected issue cost,
+   never by count; unmerged is not done. Read the token report in the same turn
+   and record it in the ledger — that is the orchestrator's own context
+   instrument (rule 9). See runbook.md → Reports.
+9. **Context is a budget, and the orchestrator's is not the fixer's.** An agent
+   re-reads its whole context every turn, so cost grows with context × turns
+   and the expensive failure mode is the long-lived agent, not the chatty one.
+   - **Fixers and other long-running dispatched agents stop at ~150k, write a
+     handoff note, and return it** (hard stop ~200k); the orchestrator
+     dispatches a continuation from that note.
+   - **The orchestrator's ceiling is soft 200k / hard 500k**, and past the soft
+     one it does not stop — it **offers the operator a handover at the next
+     natural boundary**: a merge, a wave end, a ruling. The two numbers differ
+     because the two jobs do: an orchestrator's turns are bookkeeping over a
+     ledger that is already in a warm cache, so cost per turn grows at the
+     cache-read rate; a fixer re-derives a repo's history, a diff and a suite
+     on every turn and pays for it at full rate. Handing over too early is not
+     free either — every handover costs a cold write of the ledger plus a
+     re-orientation, and re-orientation is where lane seams get lost.
+   - **The orchestrator's number has no hook and so needs an instrument.** The
+     ceiling hook exempts the main loop by construction, and `--view agents`
+     excludes the orchestrator because it is built from subagent rows. Read the
+     token report **at each progress stamp** and put the figure in the ledger,
+     or the soft ceiling is decoration (rule 10).
+
+   **Reviewers are exempt from the ceiling but not from a budget** — a verdict
+   does not split, so a reviewer may not hand off mid-review; it gets a **turn
+   budget** instead and reports what it could not cover. A review that runs many times its
    budget has stopped judging a diff and started re-doing the work, and in
    measurement it costs more than the tier it runs on: capping review length
    saved more than downgrading every reviewer a tier, with no loss of judgment.
@@ -160,6 +193,27 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
     transcript path, so it can measure the agent and inject the warning, which
     turns instruction into enforcement. **A threshold with no instrument is
     decoration, and worse than none: it reads as a control that is working.**
+    An agent measured past **twice** its stated ceiling is not a ledger note —
+    it is an instrument that did not bind, and every other agent under the same
+    rule is therefore unmeasured too. Fix it before the next dispatch.
+11. **The run has one goal line, and it is written before Phase 0.** One
+    sentence naming the observable outcome — a report that opens, a screen
+    that loads, a recording someone can watch — testable by looking at the
+    artifact, not at the board. Everything downstream keys on it:
+    - the **scope agent derives the minimum card set that closes it** and names
+      everything else as out of the wave, by name, in the doc;
+    - **every brief carries the goal line**, and the return contract asks what
+      the deliverable moved on it;
+    - the **progress stamp reports Exit items met / total FIRST**, card cost
+      second (runbook → Progress line);
+    - **rulings are sized by the goal.** A question that does not change the
+      Exit does not get a durable design record; one probe is run per card
+      before the operator is asked anything. Above roughly two rulings per
+      merged card, the spec is the defect — propose the change as one batch.
+
+    Without it the unit of work is the card, and a backlog will always supply
+    more cards than a goal needs. A run that ends with the Exit unmoved and the
+    cards closed has diverged, however well the loop ran.
 
 ## Model tiers (defaults; record per-issue tier in the scope doc)
 
@@ -174,110 +228,49 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 
 ## Red flags — stop, you are about to violate the flow
 
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 68 rows,
+grouped, none deleted. Read it once at run start and again at any wave boundary
+where the run changed shape. These ten fire the most often:
+
 - About to dispatch a fixer and the user hasn't approved a scope doc
-- About to `git checkout` in a shared clone instead of `git worktree add`
-- A reviewer prompt that says "merge if clean"
-- Fixing a finding yourself in the orchestrator session
-- Re-dispatching a task whose agent died instead of resuming it
-- An agent report mentions a spec gap and you're about to "pick something sensible" instead of routing it to adjudication
-- Closing an issue whose review findings aren't in the ledger
-- Merging without posting the close comment **separately** — the PR auto-closes the issue and `gh issue close --comment` silently does nothing
-- A reviewer brief on a position-sensitive card that doesn't require mutating **position** (mirror, transpose, shift, bracket both sides)
-- Accepting a compile-only red as TDD evidence
-- Two issues splitting one convention and neither owning the parent document
-- A new guard whose first test case isn't the shape your own diff introduces
-- Passing a reviewer's proposed remedy to a fixer as an instruction rather than a hypothesis
-- Patching hole N+1 in a path that has already produced N of the same shape
-- Handing an agent a suite count, baseline or hash you didn't make it re-measure
-- Passing a reviewer's measurement to an adjudicator as an established premise rather than labelled unverified
-- Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
-- Treating an adjudicator's "not gated on" as clearance to run two issues on one file
-- A new guard pinned by a **count** rather than by a property asserted over the whole set
-- Adding a guard and not asking what it now covers **besides** the thing being guarded
-- Treating the post-merge issue-state read as a gate — that read is racy; read the commit body
-- Handing a fixer an issue's factual claim about a file as a given rather than as checkable
-- Merging two green PRs that both touch one counted set — per-branch gates don't compose; serialise or rebase-and-rerun
-- An agent reading a shared clone at all — FETCH_HEAD, a submodule checkout, a file on disk — brief it to pin every read to a resolved SHA in its own worktree
-- Merging a squash-stacked PR's parent and assuming the child survives it — rebase `--onto`, then re-check the review
-- Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
-- A progress stamp with a tool call after it — the stamp ends the turn, always
-- Releasing a demo whose evidence census is all-Met and nobody has used the
-  artifact as the end user would — presence is not acceptance
-- A brief that says "no monitors" without naming the Monitor tool and *unpolled* `run_in_background`
-- A brief that does not ban the agent dispatching its own subagents — one forked four helpers that clobbered each other's single output file
-- A scratch filename shared between cards — one PR body overwrote another's, twice
-- Summing a runner's filtered chunks and calling it the suite — an exact-match filter drops everything nested below the named level
-- A fixer-authored convention ("the spec is silent here, so I chose…") heading to merge without a ruling
-- A third review of a content-identical rebase — diff-of-diffs is the orchestrator's check
-- A new clip/filter merged with no test that actually walks its path — green proves nothing about code no case exercises
-- Handing a fixer an adjudicator's cited number as settled fact rather than a hypothesis to verify
-- A reviewer brief that does not quote the card's Exit clause — the deliverable may be correct and composed into nothing
-- Squash-merging `main` into an integration branch — main's closing keywords ride along
-- A deferred register handed over flat instead of grouped by what can close in-branch now
-- Escalating a fixer's "the requested design is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule was the defect, not the design, both times it happened
-- An acceptance property like "byte-identical except the version" handed to a fixer without checking what the serializer actually emits for an absent member
-- A ledger time or progress stamp extrapolated from the previous one instead of read from `date` in that same turn — one run's stamps drifted 77 minutes ahead of the clock
-- Editing a branch and merging it in the same shell call — a failed edit that `set -e` did not catch merged twice
-- Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
-- A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
-- Resuming a cold agent that is already over the ceiling — that is a continuation from its handoff note, not a resume
-- The orchestrator reading the specs, issues and PRs itself in Phase 0 — that survey belongs to the dispatched scope agent, which returns the doc and takes the context away with it
-- A reviewer brief that names no diff and no resolved SHA — the reviewer will read the whole repo instead of the change
-- Arming a check-up timer per agent — one silent sweep covers every in-flight agent and wakes you only on a stall
-- Starting a wave or a fix round without checking the run's spend against the target
+- A run with no goal line — or a wave larger than the minimum card set that
+  closes it, with nothing naming the rest as out of the wave
+- Filing a card for a finding that moves nothing on the goal line — that is a
+  close-comment line, not a card
+- A follow-on milestone most of whose cards descend from its predecessor's —
+  a stop signal, not a backlog; the direction question goes to the operator
+  before dispatch
+- The orchestrator reading the specs, issues and PRs itself in Phase 0 — that
+  survey belongs to the dispatched scope agent, which takes the context away
+  with it
+- A reviewer prompt that says "merge if clean", or fixing a finding yourself in
+  the orchestrator session
+- A brief that lets an agent **block** on a command expected to outlast its
+  prompt cache (~5 min idle), or that says "no monitors" without naming the
+  Monitor tool and *unpolled* `run_in_background`, or that does not ban the
+  agent dispatching its own subagents
+- Re-dispatching a task whose agent died instead of resuming it — and, the
+  other way, resuming a cold agent already over the ceiling, which is a
+  continuation from its handoff note
+- Escalating a fixer's "the requested design is infeasible" before leave-one-out
+  has **named** the conflict — and a menu that omits DEMOTING the rule it names
+- A progress stamp with a tool call after it, or one that leads with card cost
+  instead of Exit items met / total
 
 ## Common rationalizations
+
+**The full set is [reference/rationalizations.md](reference/rationalizations.md)**
+— 61 rows, none deleted. These ten fire the most often:
 
 | Excuse | Reality |
 |---|---|
 | "User said unattended, so start now" | Unattended = no mid-run questions, not no scope gate. Present scope first. |
-| "These two issues are coupled, share the checkout" | That's how two agents corrupted each other's trees. Worktrees + merge order. |
-| "Review was clean, the reviewer can merge" | Verdict ≠ decision. Gates (human labels, groups, freezes) live above the reviewer. |
+| "The scope doc lists the open cards, that is the plan" | A card list is not a goal. Write one observable outcome first, then derive the minimum card set that closes it and name the rest as out of the wave. Otherwise every card that exists reads as in scope. |
+| "The finding is real, so it gets a card" | Real and irrelevant to the goal is a close-comment line. A register that files every real finding generates work: measure filed-to-merged, and two runs above 1 says the mechanism is producing the backlog. |
+| "It's a follow-on milestone, so the backlog says what to do next" | Compute the lineage — what share of its cards descend from the predecessor's. Above about half, the predecessor did not close its question and this one will re-cut the same defects. Ask the operator before dispatch. |
+| "The command only takes six minutes, I'll wait for it" | Six idle minutes is past a subagent's prompt-cache lifetime, so the next turn rewrites the entire context at the write rate — more than an order of magnitude above what polling costs. Detach and poll. |
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
-| "Fresh agent is cleaner than resuming" | True below the ceiling — there a resume keeps the task context for a fraction of the price. Above it both paths pay the same cache write, and the resumed one re-reads a bloated context on every turn after it. |
-| "Minor finding, not worth a follow-up" | Silent discards are how the next run re-finds it at 10x cost. |
-| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted inputs. Mutate position, not just structure — and where the rule is about *which of two objects* is involved, a whole-structure mirror/transpose/shift moves both at once and stayed green on two cards while the rule was broken. Move one of them. |
-| "It compiled red first, that's my TDD evidence" | A compile error proves the file was absent. Go green, then mutate the load-bearing decision back to naive and quote that red. |
-| "The fixer says it reproduced my sabotage" | Re-apply it yourself. One reviewer doing that found the fix still passed a subtler mutation. |
-| "My README documents it correctly" | The parent doc may still contradict you, and you can't see it until the sibling merges. Second-merged owns the parent. |
-| "The issue is small, a cheap review will do" | A one-constraint issue behind a reviewed seam still took three rounds, all real position bugs. Size ≠ review risk. |
-| "My guard can't go blind, it scans everything" | It was blind to the idiom the same PR introduced. Test your guard against your own diff's shape first. |
-| "The reviewer told me how to fix it" | Its remedy caught 9 of 10 shapes. A later one was not merely vacuous but **false at the correct value** and would have shipped red. Measure it before adopting it; a right finding can carry a wrong fix, and measuring changed the fix all three times in one run. |
-| "That's the fifth hole, I'll patch it too" | Four of the five were one mistake. Ship an invariant with a named outside, not enumeration N+1. |
-| "The adjudicator says they're independent" | Independent contracts, same file, same function. Re-check file surfaces yourself. |
-| "It's still queued, I'll nudge it to wait properly" | Nothing has started. A better nudge stalls it again — take the gate off the agent. |
-| "The suite was 1000 last I looked" | It moved by 8 when a sibling merged. Make every agent re-measure; two caught this in one run. |
-| "CI is red, the branch is broken" | One was a cancelled job, one an Actions outage at setup. `gh api .../jobs` before believing a red. |
-| "The agent didn't follow my instruction" | Check whether it was right. Three deviations this run were all correct, and all reported up front. The same holds in reverse: two reviewers retracted their own findings — one blocking — in the review body after measuring. "You were right and I was wrong" is the gate working, not a reviewer to distrust. |
+| "The rule is in the spec, so the choice is amend it or re-author the inputs" | There is a third: **demote** it — hard to soft, soft to advisory. Demotion is always on the menu when leave-one-out names a rule as the conflict, and where the spec states its own cutting order, quote that order. |
+| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted inputs. Mutate position — and where the rule is about *which of two objects* is involved, a whole-structure transform moves both at once and stayed green on two cards while the rule was broken. Move one of them. |
+| "The reviewer told me how to fix it" | Its remedy caught 9 of 10 shapes. A later one was **false at the correct value** and would have shipped red. A right finding can carry a wrong fix; measuring changed the fix all three times in one run. |
 | "X already does this work, so my code can't be the one that fails" | Does X **carry the value forward, or ask again?** Five impossibility claims in one PR all slid over that step. |
-| "The exception type proves the mechanism" | A wrong story that predicts the observation is not falsified by it. One survived three rounds. Take the stack trace. |
-| "My fact pins it — the count is right" | A count stops discriminating the moment the code adds one. Assert over the whole set; then only placement can move the target. |
-| "The issue says that file documents X, so I'll fix X" | It may not. Inventing a defect to match an issue is worse than the issue being wrong. Read the file first. |
-| "The agent said `DEVIATIONS: none`" | It answered from intent. Make the return contract require **quoting the line**, not self-assessing compliance. |
-| "I drove four rounds, so I can judge whether the diff sprawled" | You are the worst-placed reader of a diff you shaped. Ask the reviewer for the scope ruling. |
-| "The filter's logic is right, it doesn't need its own test" | Right logic, no exercising case — one merged filter sat unpinned exactly this way until a later fixer's test finally walked the path. |
-| "The adjudicator did the math, I can build on the number" | Ruling figures are hypotheses, not facts. In one run a census count, a measured dimension and an exception type all moved on verification; the fixer checks, then posts corrections after merge. |
-| "The sink/guard is correct, wiring is another card's" | Correct and unreached is not shipped. The review quotes the Exit clause and names what composes it. |
-| "The rule compares to the reference recording, so it's fair" | Only if the reference's answer is derivable from the input the variant sees. One clause was unpassable by any model and decided a verdict. |
-| "The reviewer measured it, so the adjudicator can rule on it" | Hand it over labelled unverified and ask for contradictions. One ruling stood while its own headline number fell. |
-| "The guard is narrow, it only catches the bad case" | Ask what else it now covers. One added so bad *data* would fail had engine setup inside it — the inversion it existed to prevent. |
-| "The issue still reads OPEN, so the auto-close failed" | That read is racy. Read the squash commit body, or re-read after a beat, before writing either outcome into a permanent comment. |
-| "Both PRs are green, so merging both is green" | Per-branch gates don't compose over a counted set. Serialise, or rebase and re-run one against the other. |
-| "Same clone, FETCH_HEAD is fine" | Concurrent agents mutate it mid-read, and a superproject's submodules go stale while still reading as authoritative — one session took a stale count and a "the fix never landed" verdict off one. Resolve the SHA once and pin every read in the brief to it, in the agent's own worktree. |
-| "The parent merged, the child will just retarget" | It can be closed, or silently retargeted onto a base it was never reviewed against. Rebase `--onto`, then content-hash before carrying the review. |
-| "I'll pick the run back up when the notification arrives" | A pause with no armed timer or monitor is a pause that runs long. Arm it, then pause. |
-| "The brief said no monitors" | It read as a Bash rule. Name the Monitor tool; one fixer waited on one for an hour. |
-| "It's a rebase, the review stands" | It stands only if the content is identical — prove it with diff-of-diffs, then merge without a third review. |
-| "The spec is silent, so the fixer's convention is fine" | It is a design act. A short adjudication ratified two and relocated one in a single run. |
-| "The suite is the sum of the filtered chunks" | Some runners' path/namespace filters are exact-match, and dropped a large slice of the suite silently. Run unfiltered, or split by test class. |
-| "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render. One run looked silent for four hours while reporting diligently. Stamp last. |
-| "The census says every item is Met, the demo is done" | Met means the noun shipped. The operator walked the same artifact and found dozens of defects the census could not see. Walk it as the user first. |
-| "The constraint check says the requested design is infeasible, so the design must change" | Name the conflict first (drop one constraint at a time). Twice the named rule was the defect — a per-unit floor, a single-hub assumption — and the design stood. Escalate the *rule*, with options, not the design. |
-| "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: one pair differed by exactly weight × count, which said the tie-break pass had run at one budget and not the other. A reconciled number is a fact; two numbers are a question. |
-| "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
-| "The source data says X, the requested design says Y — one correction" | Check the whole frame: which parts match. One run found three input fields wrong after being told about one; each correction moved a different downstream number. |
-| "It's nearly done, it can push past the ceiling" | "Nearly done" has been the wrong estimate all run, so make it evidential: suite green, one named deliverable left, no open decision. That finishes (hard stop ~200k). Anything else writes the note and returns. |
-| "Round 5 is just another round" | A late round on a resumed agent costs a multiple of round 1 for a same-sized fix. Price the round before spending it; when the budget says stop, adjudicate the open findings instead. |
-| "The check-up timer is cheap insurance" | Per agent, every 45 minutes, it re-reads the entire orchestrator context to learn "still alive" — and still finds a stall up to 45 minutes late. One silent sweep is cheaper and faster. |
-| "I made the edit, so it is in the diff" | Not if you later ran `git checkout -- <that file>` in a mutation-revert loop on it. One fixer reported a corrected doc paragraph as landed and its own revert had eaten it. Commit the edit before you start mutating that file, or re-read it from `git diff` — never from the edit. |
-| "Two cards decided the same question opposite ways, one of them is wrong" | Look for the experiment that distinguishes them first. A reviewer ran the one neither card had — restore the removed input, re-run the derivation, diff — and one output was unchanged while the other rebuilt wholesale. One rule covered both; neither card was inconsistent. |

@@ -35,11 +35,63 @@ Check these before Phase 0; the skill will mislead you where they do not hold.
 squash-merge to the default branch is acceptable. This skill merges and closes
 issues on its own once the scope is approved.
 
-## Phase 0 — Scope
+## Phase 0 — Goal, then scope
+
+### The goal line comes first, and it is one sentence
+
+Before the scope agent is dispatched, write the run's **goal line**: the
+observable outcome this run must produce, testable by looking at the artifact —
+a report that shows something it does not show today, a screen that loads, a
+recording somebody can watch — not by looking at the board. Agree it with
+the operator in the same message that asks for scope approval, and put it at
+the top of the ledger.
+
+Iron rule 11 says why this is a rule and not advice: without it the unit of
+work is the card, and a backlog will always supply more cards than a goal
+needs. The failure it prevents has a shape — a run that closes cards
+diligently, files more than it closes, and ends with nothing visible having
+moved.
+
+**The goal line then binds four things**, and each of them is a step below, not
+a sentiment:
+
+1. the scope agent derives the **minimum** card set that closes it and names
+   the rest **out of the wave, by name** (item 1);
+2. every brief carries the goal line, and the return contract asks what the
+   deliverable moved on it (Briefing rules);
+3. the progress stamp reports **Exit items met / total first**, card cost
+   second (Progress line);
+4. rulings are sized by it — no durable design record for a question that does
+   not change the Exit, one probe per card before the operator is asked
+   anything (Adjudication).
+
+### Is this run the right run at all? — the lineage check
+
+A follow-on milestone is the case where the goal line is most likely to be
+missing and least likely to be missed. **Before dispatching the scope agent,
+quote the previous milestone's own wrap verdict** — what it said it had and had
+not achieved — and compute the **lineage share**: what fraction of this
+milestone's cards descend from cards in its predecessor (a `Refs`/parent trail,
+or the same defect re-cut under a new number).
+
+**Above roughly half, stop and put the direction question to the operator
+before any dispatch.** A milestone that is mostly its predecessor's leftovers
+is not a backlog; it is evidence that the predecessor did not close its
+question, and running it again re-cuts the same defects at the same price. One
+observed chain ran several milestones deep with no new requirement entering
+after the first, and the visible result across all of them was cosmetic. The
+cheap tell was available at the start of each: the lineage share was near
+total.
+
+The operator's answer is a direction ruling, not a scope edit: continue, change
+the acceptance standard, or go somewhere else. Only then is the scope agent
+worth its cost.
+
+### Scope
 
 One strongest-tier agent, **dispatched** — not the orchestrator reading in
-session. Inputs: specs/ADRs/glossary, project memory, ALL open issues +
-labels + board state, open PRs, CI state per repo, prior-run
+session. Inputs: the goal line, specs/ADRs/glossary, project memory, ALL open
+issues + labels + board state, open PRs, CI state per repo, prior-run
 ledgers/deferred-minors.
 
 **The survey is rented context; the scope doc is what the run keeps.** The
@@ -85,8 +137,14 @@ links the asset.
 
 Produce the scope doc (posted as a message, not a file the user must open):
 
-1. **Waves** — dependency-ordered issue groups; what parallelizes, what
-   serializes, and why (file surfaces, contract dependencies).
+1. **Waves — the minimum set that closes the goal line, and what it leaves
+   out.** Dependency-ordered issue groups; what parallelizes, what serializes,
+   and why (file surfaces, contract dependencies). Then, in the same item, the
+   **out-of-wave list**: every open card in the milestone that this plan does
+   not include, **named**, one clause each for why it does not move the goal.
+   An unnamed card reads as in scope to every later reader, including the
+   orchestrator at the wrap. This item is the difference between a wave plan
+   and a to-do list of everything that exists.
 2. **Per-issue**: model tier, risk class, expected human gates, rough token
    cost. **Estimate the agent's cumulative total including its fix and
    re-review rounds** — that is what you actually buy, and a per-dispatch
@@ -134,7 +192,12 @@ Produce the scope doc (posted as a message, not a file the user must open):
    two-mind protocol**: the implementer decides with citations, and the
    reviewer independently re-decides. Two convergent minds stood in for the
    operator cleanly twice in one run; divergence escalates.
-8. **Budget** — token target and the drain rule.
+8. **Budget** — token target and the drain rule, plus a **hard filing budget**:
+   the maximum number of new cards this run may file, chosen against the goal
+   line and stated as a number. Iron rule 6 explains why it is needed; the
+   number is what makes it enforceable. Report **filed-to-merged** against it
+   in the wrap, and treat two consecutive runs above 1 as the register
+   generating work rather than the backlog growing.
 
 **Return the doc, not the evidence — and cap it structurally.** A size target
 is graded by the agent that wrote the doc, which always finds its own doc
@@ -185,6 +248,26 @@ fixer. Design questions → adjudicator first. Strip any "needs human
 brainstorm first"-style gating label when gating — it is spent once the
 approach passed a human-delegated gate; leaving it on poisons board status
 derivation (parked outranks lifecycle).
+
+**Size the ruling by the goal, and probe before you ask.** Two gates in front
+of the adjudicator, both cheap:
+
+- **Does the answer change the milestone's Exit?** If not, it does not get a
+  durable design record (an ADR or equivalent). Rule it in the issue comment
+  and move on. A record written for a question the Exit does not turn on costs
+  a doc PR, a review, a merge and an operator read, and moves nothing anyone
+  can see; one run wrote a stack of them in a couple of days, all still
+  unmerged at the wrap, for a milestone whose visible output was cosmetic.
+- **Has one probe been run?** One throwaway measurement per card before the
+  operator is asked anything. Most questions that look like design questions
+  are answered by running the thing once.
+
+**Rulings per merged card is a spec-health metric, and it belongs in the ledger
+spend block.** Above roughly **two per merged card**, the specs are not merely
+silent — they are wrong for the work, and ruling case by case is paying for the
+same defect once per card. Stop and propose the spec change as **one batch**:
+one amendment covering the class, one review, one operator decision. Two
+consecutive milestones each far past that ratio is the shape this catches.
 
 **Adjudication.** Strongest tier. **The brief pins everything the ruling
 needs**: the exact design questions, the conflicting positions quoted from the
@@ -291,6 +374,13 @@ target that is not there without complaint, and a skill installed anywhere but
 `~/.claude/skills/` leaves you with exactly that. `-fn` also makes a re-run
 idempotent instead of erroring on the existing link. If you later move or
 uninstall the skill, remove the settings entry first.
+
+**It cannot see the orchestrator at all.** The hook exempts the main loop by
+construction, so the orchestrator's own soft-200k / hard-500k ceiling has no
+enforcement behind it and is read from the token report at each progress stamp
+instead (Iron rule 9; "The orchestrator's ceiling is not the fixer's", below).
+Do not raise these thresholds because the orchestrator's number went up — they
+bind dispatched agents, whose number did not change.
 
 **It cannot tell a reviewer from a fixer.** Iron rule 9 exempts reviewers from
 the ceiling — a verdict does not split — but the hook binds every dispatched
@@ -478,7 +568,36 @@ adjudication either ratifies, relocates or replaces it; do not block on it and
 do not let it merge un-ruled. In one run two of three were ratified; one moved
 to the right section.
 
-**When the named conflict is structural, the third option is to ship the rule
+**When leave-one-out names a RULE as the conflict, the menu always includes
+DEMOTING it.** The two obvious options — amend the rule's numbers, or re-author
+the inputs until they satisfy it — both preserve the rule's *tier*, and the
+tier is usually the thing that is wrong. A rule can go hard → soft (a weighted
+objective, satisfied where it can be), or soft → advisory (a note on the
+output, checked by nobody). Demotion is often the cheapest correct answer and
+it is the one nobody proposes, because a rule that is written down reads as a
+requirement.
+
+Two things make it a discipline rather than a licence:
+
+- **Where the spec states its own cutting order, quote it.** Specs written by
+  people who expected this often say what to cut first, in a risk or recovery
+  section, and then nobody reads that section under pressure. One spec's own
+  risk section named its rule set as the first thing to cut; over the
+  milestones that followed the set grew while the same defects were re-cut.
+  Quote the order into the menu and the operator is choosing within their own
+  plan, not against it.
+- **A rule kept at a tier the system cannot satisfy is worse than a demoted
+  one.** A specified, tested constraint that is never registered because
+  registering it makes the reference inputs infeasible is a rule the system
+  does not check while the spec says it does. That gap is exactly the failure
+  the rule existed to prevent, reintroduced by its own tier.
+
+So the menu the operator gets is: **demote / amend / re-author / park
+unposted**, each with a measured, rendered result where the domain has an
+artifact to render — never one option, and never the strictest formulation
+alone.
+
+**When the named conflict is structural, a further option is to ship the rule
 issued but not posted.** Leave-one-out (SKILL.md's rule) sometimes names no
 defective rule and no defective design: on one card a specified constraint was
 unsatisfiable against the project's frozen acceptance inputs, because it and two
@@ -503,18 +622,39 @@ discard was for validity. Discarding on content the brief never pinned is a
 selection the operator rules on, and the recording's provenance should carry an
 attempt count. Route it to the deferred register, not to the reviewer.
 
-**The orchestrator cannot see its own context either**, so "approaching the
-ceiling" is judged by run milestones rather than tokens: it offers the handover
-below at each wave boundary from the second on, and the operator decides.
-`--view agents` will not answer this one — that view is built from subagent
-rows and excludes the orchestrator by construction.
+**The orchestrator's ceiling is not the fixer's: soft 200k, hard 500k.** Iron
+rule 9 carries the numbers; this is why they differ and how to read them.
 
-**The ledger is the orchestrator's own handoff note.** The orchestrator is
-subject to the context ceiling like everything it dispatches. As its own
-context approaches it, bring the ledger fully current — wave state, in-flight
-agents with their worktrees and PRs, open gates, resume queue, spend so far —
-and tell the user that a fresh orchestrator session can take the run over from
-the ledger file, because **the orchestrator cannot clear its own context**.
+A fixer re-derives a repo's history, a diff and a suite on every turn, so its
+turns are expensive and its ceiling is tight (~150k, hard ~200k). An
+orchestrator's turns are bookkeeping over a ledger that is already in a warm
+cache: cost per turn grows at the cache-read rate, roughly a tenth of the
+write rate. Held to the fixer's number, three consecutive orchestrator sessions
+in one measured run hit the ceiling inside an hour or two, before any
+substantial coordination had happened — and every handover costs a cold write
+of the ledger plus a re-orientation. Re-orientation is not free bookkeeping
+either: it is where a lane seam gets lost, which is a defect the run then ships.
+
+So past the **soft 200k** the orchestrator does not stop. It **offers the
+operator a handover at the next natural boundary** — a merge, a wave end, a
+ruling — and keeps running until the operator answers or the boundary arrives.
+**Hard 500k** is a stop.
+
+**The orchestrator's number has no hook, so it needs an instrument.** The
+ceiling hook exempts the main loop by construction (below), and `--view agents`
+excludes the orchestrator because that view is built from subagent rows. So
+**read the token report at each progress stamp** and write the figure into the
+ledger beside the stamp. Without it the soft ceiling is decoration — iron rule
+10 applies to the orchestrator's own threshold before it applies to anyone
+else's, and the run milestones alone ("second wave boundary") tell you nothing
+about which side of 200k or 500k you are on.
+
+**The ledger is the orchestrator's own handoff note.** When the instrument says
+the soft ceiling is behind you, bring the ledger fully current — wave state,
+in-flight agents with their worktrees and PRs, open gates, resume queue, spend
+so far — and tell the user that a fresh orchestrator session can take the run
+over from the ledger file, because **the orchestrator cannot clear its own
+context**.
 
 **Where to hand over matters more than whether.** Agent handles are
 session-scoped: a fresh session can read the ledger, the worktrees and the PRs,
@@ -579,11 +719,24 @@ python3 ~/.claude/skills/token-report/token_audit.py --since <run-start> --json 
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["usd"])'
 ```
 
-Consult it between waves and before each fix round after the first, and record
-the figure in the ledger next to the wave line so the drain decision is made
-against a trend rather than one reading. `--view agents --top 40` shows which
-agents carry the cost and how large their contexts grew — that is the view that
-says whether the ceiling is being respected. (Needs the `token-report` skill
+Consult it between waves, before each fix round after the first, **and at each
+progress stamp** — that last one is also the orchestrator's own context
+instrument (Iron rule 9), which has no hook behind it. Record the figure in the
+ledger next to the wave line so the drain decision is made against a trend
+rather than one reading. `--view agents --top 40` shows which agents carry the
+cost and how large their contexts grew — that is the view that says whether the
+ceiling is being respected.
+
+**An agent measured past twice its ceiling is an instrument failure, and it is
+fixed before the next dispatch.** Not a ledger note, not a line in the wrap.
+The ceiling did not bind that agent, which means it is not binding any of the
+others under the same rule either, and the whole run's cost model is
+unmeasured. Check the obvious causes in order — is the hook installed in the
+project's `.claude/settings.json` inside the top-level `"hooks"` object, was
+`AGENT_CEILING_SOFT` exported *before* the CLI started, does the throwaway
+probe still come back blocked — and re-verify by dispatching the probe, not by
+reading the settings file. One run found three fixers at four to five times the
+stated ceiling and recorded it; the next run reproduced it. (Needs the `token-report` skill
 installed; without it, say so in the report rather than estimating. A zero
 reading is a claim to check, not a result: the same `$0.00` comes from a
 mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
@@ -709,14 +862,35 @@ the next brief instead of waiting on it — this kept dispatch latency near zero
 across a whole run. The brief is finished when the agent returns — only the
 just-landed PR/branch facts get filled in before send.
 
-**Briefing rules.** Every brief: role, ONE issue, binding comments listed by
-name, repo + worktree instructions, concurrent-agent file surfaces to avoid,
-the return contract (data for the orchestrator, incl. a STATUS line).
+**Briefing rules.** Every brief: **the run's goal line**, role, ONE issue,
+binding comments listed by name, repo + worktree instructions, concurrent-agent
+file surfaces to avoid, the return contract (data for the orchestrator, incl. a
+STATUS line).
+
+**The goal line goes in the brief and comes back in the return contract.** Add
+a line to every return contract — *"GOAL: what your deliverable moved on the
+run's goal line, in one sentence, or `nothing`"*. Two things fall out of it and
+both are the point. An agent that cannot answer has usually built something
+correct and adjacent, which is a scope conversation to have before the review,
+not after the merge. And a **finding that moves nothing on the goal is a
+close-comment line, never a card** — say that in the brief, in those words,
+because "nothing deferred silently" is otherwise read as "everything deferred
+is filed" (iron rule 6).
 
 **Every brief also sets a long Bash timeout (e.g. `timeout: 600000`) and bans
 *unpolled* backgrounding by name — "never fire `run_in_background` and then
-wait on it blind; never arm a `Monitor`. If a command will outlast your cache,
-run it detached and poll it on a short cadence (Poll, do not block, below)."**
+wait on it blind; never arm a `Monitor`. Your prompt cache expires after about
+five minutes idle, and the next turn then rewrites your whole context at ten
+times what a cache read costs — so any command you expect to run longer than
+about four minutes runs detached and you poll it on a short cadence (Poll, do
+not block, below). This is a cache rule, not a timeout rule: it applies to
+builds, checkouts, renders and recordings exactly as much as to the suite."**
+Give the agent the poll form, not just the ban — a bounded wait per call, e.g.
+`timeout 230 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; tail -3 <log>`
+— because an agent told only what not to do will block anyway.
+**Put that line in every waiting role's brief**, not only the fixer's:
+reviewers re-measuring a suite, screenshot and recording agents, wrap and
+demo-capture agents.
 "No monitors" on its own is not enough: it reads as a Bash rule, and a fixer
 that took it that way still armed the Monitor tool and stalled on it. **Ban
 dispatching subagents in the same breath**: nothing said an agent could not
@@ -725,12 +899,28 @@ and clobbered each other. A short default Bash timeout is what
 auto-backgrounds long suite runs and live CLI calls; six agents stalled that
 way in one run, each costing a nudge round-trip.
 
-**But a blocking wait has its own price, and it is the larger one.** A
-subagent's prompt cache is short-lived — far shorter than the orchestrator's —
-and a command that blocks for longer than that lifetime expires the agent's
-whole cache, so the next turn rewrites the entire context at the cache-write
-rate rather than reading it. Measured over one run, that single mechanism was
-the largest line item in the whole bill.
+**But a blocking wait has its own price, and it is the larger one. This is a
+PROMPT-CACHE rule, not a timeout rule.** A subagent's prompt cache expires
+after roughly **five minutes idle** — far shorter than the orchestrator's — and
+a command that blocks past that lifetime expires the agent's whole cache, so
+the next turn rewrites the entire context at the cache-**write** rate instead of
+reading it. A cache read costs on the order of a tenth of a write. At the
+context a fixer reaches mid-run that is the difference between a rounding error
+and the largest line item in the bill — which is exactly what it was, measured
+over one run.
+
+Read as a timeout rule it gets applied only where a timeout would bite, and
+that is how it keeps being missed. **It binds every role that waits**: a fixer
+on a cold build or a suite, a reviewer re-measuring a suite, a screenshot agent
+driving a browser, a recording agent capturing takes, a wrap or demo-capture
+agent rendering. None of them is exempt for being short-lived; the cost is paid
+by whoever is idle when the cache dies.
+
+**The orchestrator's cache is longer-lived — on the order of an hour — and that
+sets its own cadence.** Its liveness sweep and any wake-up while agents are in
+flight run **under** that hour, so the orchestrator is reading its cache rather
+than rewriting it. A sweep interval longer than the cache lifetime pays the
+rewrite the sweep exists to save.
 
 **It is the waiting, not the test suite.** The suite is the commonest instance
 and not the majority of the cost: in the same measurement, builds, worktree
@@ -853,12 +1043,23 @@ brief without it missed:
    suite green while the rule under test was broken. Only a mutation that
    moves one of the two objects and leaves the other where it is discriminates
    a working rule from a broken one; no whole-thing transform can.
-7. To **any long-running agent**: *"when your context passes ~150k, stop and
-   write the handoff note; do not push on."* The one line that bounds an
-   agent's cost, because cost grows with context × turns and not with how much
-   the agent says. Pair it with the note template (Handoff note, above) so the
-   agent does not have to ask what a handoff note is. Reviewers get the
-   opposite line: one verdict on the whole diff, never split.
+7. To **any long-running dispatched agent**: *"when your context passes ~150k,
+   stop and write the handoff note; do not push on."* The one line that bounds
+   an agent's cost, because cost grows with context × turns and not with how
+   much the agent says. Pair it with the note template (Handoff note, above) so
+   the agent does not have to ask what a handoff note is. Reviewers get the
+   opposite line: one verdict on the whole diff, never split. **The
+   orchestrator's own numbers are different and deliberately so** — soft 200k,
+   hard 500k, offer-a-handover rather than stop (iron rule 9); do not copy the
+   fixer's number into the orchestrator's ledger, or the other way round.
+8. To **every waiting role** — fixer, reviewer re-measuring a suite, screenshot
+   agent, recorder, wrap and capture agents: *"your prompt cache expires after
+   about five minutes idle; run anything longer detached and poll it."* Give
+   the poll form, not just the ban (Briefing rules, above).
+9. **The goal line, and the `GOAL:` return line.** Every brief carries the
+   run's goal line; every return contract asks what the deliverable moved on
+   it, or `nothing`. A finding that moves nothing is a close-comment line, not
+   a card.
 
 **Schema-change chain** (any ruling that adds/changes a persisted field):
 doc amendment PR (orchestrator-merged, paired with the engine PR — see
@@ -867,6 +1068,24 @@ generated artifacts (schemas, contracts, pins) → companion PR in each
 consuming repo, lockstep → fixtures updated via their regen tool, never by
 hand → ordered group merge. Fixtures that snapshot serialized state need a
 regen tool committed alongside them or every schema bump breaks them by hand.
+
+**A schema act on an AGENT-FACING record is a prompt change, and it is briefed
+as one.** Where a project has records a model reads or writes — a structured
+output schema, a tool result the model sees, a recorded interaction replayed in
+tests — the schema *is* part of the prompt. Two consequences the ordinary chain
+does not cover:
+
+- **A field advertised in a model's output schema invites the model to fill
+  it.** A field the model is supposed to leave empty does not belong in the
+  schema at all; documenting "leave this null" alongside it does not undo the
+  invitation, and the model's compliance then varies by tier and by phrasing.
+  Remove the field, or accept that it will be populated.
+- **Bump such a schema and the recordings go stale in a way tests may not
+  show.** The re-record is part of the same card, briefed together with the
+  schema change and with the prompt wording it implies — not a follow-up. If
+  the project pins prompt freshness by a hash, check *which* hash actually moves
+  when the prompt file changes: a composed-prompt hash that does not move on a
+  prompt edit is a freshness pin that pins nothing.
 
 **Serialize schema-version acts; parallel PRs collide on the constant.** In
 one run two approved engine PRs both claimed the same next version in a single
@@ -923,9 +1142,18 @@ substantial chunk** — a PR opened, a review verdict, a fix round landed, a mer
 — emit exactly:
 
 ```
-**<date and time> - Progress: N%**
+**<date and time> - Progress: Exit <met>/<total> · N%**
 <one line about what just happened>
 ```
+
+**Exit items met / total comes FIRST; the percentage is second.** The
+percentage measures card cost consumed, which is a measure of spend, not of
+progress — and a run can consume most of its cards while moving no Exit item at
+all. That is the divergence this whole skill keeps re-learning, and the stamp is
+where it becomes visible early enough to act on. Take the Exit items from the
+milestone's own Exit / Measure / Demo line, count them once at Phase 0, and
+never re-cut the denominator mid-run. If the milestone has no Exit line, the
+goal line (iron rule 11) is the single item.
 
 **Run `date` for every single stamp, in the turn that emits it.** Not from
 memory, and above all not by adding the elapsed work to the last stamp — that
@@ -940,8 +1168,9 @@ give only the number.
 followed by tool calls in the same turn is not reliably rendered: one run
 emitted two stamps (17%, 24%) immediately before dispatching the next agent,
 and the user saw neither — the run looked silent for four hours while reporting
-diligently. Order of operations on a completion: ledger update → next dispatch →
-close the turn with the stamp. If work remains after the stamp is due, end the
+diligently. Order of operations on a completion: token-report read (Budget
+check) → ledger update, figure included → next dispatch → close the turn with
+the stamp. If work remains after the stamp is due, end the
 turn anyway and continue on the next event.
 
 **Fix the model once, at the first report, and keep using it.** Percentages
@@ -995,7 +1224,13 @@ that only ever rises is not a measurement.
    state=closed`) — auto-close does not exist; one run's milestone sat open
    with every card in it closed until someone thought to check.
 5. **Deferred register → operator ruling → filing. Never agent → filing.**
-   Present the register **pre-grouped by closability**: (a) closable in-branch
+   **First filter the register by the goal line**, before grouping: a finding
+   that moves nothing on the goal is a close-comment line and is discharged
+   there, not carried into the register at all. Then check the run against its
+   **filing budget** (Phase 0 item 8) and state filed-to-merged in the same
+   message the register goes in — the operator is ruling on the number as well
+   as the items.
+   Present what survives **pre-grouped by closability**: (a) closable in-branch
    now with no external resource — recommend folding into the card as one
    more sub-PR before the final merge; (b) needs a cloud call, eval budget, a
    UI, or data that does not exist yet — file, at most a few cards; (c) new
@@ -1068,14 +1303,37 @@ This skill learns from every run. At wrap, before the final summary:
 3. **Re-test changed behavioral guidance** (one cheap baseline/with-skill
    scenario pair) before committing; pure reference additions need only a
    read-through.
+   3a. **PRUNE: add a rule, retire or merge a rule.** This step only ever added,
+   and a skill that only adds becomes a document nobody finishes — the red-flag
+   list reached fifty rows before anyone noticed that a fifty-row list is not a
+   checklist. So every pass that adds a rule either **retires** one the run
+   proved wrong or subsumed, or **merges** the new one into an existing rule
+   that was being read too narrowly. Prefer merging: a new rule beside an old
+   one that says almost the same thing is how both get skimmed. Retiring is not
+   deleting — a rule the project reversed is kept as a dated "retired"
+   paragraph wherever it lived, because a reversal that leaves no trace reads
+   later as a rule nobody ever meant.
+   **Long enumerations move to `reference/` files beside the skill**, with a
+   one-line pointer and the ten most load-bearing rows left inline. The full set
+   stays readable and nothing is lost; what changes is that SKILL.md stays the
+   size of a thing an agent actually reads before dispatching. Keep the counts
+   in the pointer honest — they are the only signal that the reference file was
+   updated too.
 4. **Commit. Do not push a shared or public repo without asking** — check
    `gh repo view --json visibility` first, and have the diff reviewed for
    project detail before it goes anywhere public.
 5. **Measure the run and compare it to the last one.** `/token-report` over the
    run's window (`--since <start> --until <end>`, then `--view agents --top
    40`): total, the sidechain share, how much of the spend happened above 200k
-   context, and the per-agent context peaks. Write those into the private
-   lessons file next to the previous run's, and compare. This is what tells you
+   context, and the per-agent context peaks. Alongside them, three ratios that
+   say whether the run was *converging* rather than merely busy, and that go in
+   the ledger's spend block as well as the wrap report:
+   **Exit items met / total** · **filed-to-merged** (two runs above 1 = the
+   register is generating work, iron rule 6) · **rulings per merged card**
+   (above ~2 = the spec is the defect; batch the change, Adjudication above).
+   A run can be green on cost and failing on all three.
+   Write those into the private lessons file next to the previous run's, and
+   compare. This is what tells you
    whether a cost rule — the context ceiling, a tier change, the liveness sweep
    — did what it was adopted to do. A rule adopted from a model and never
    re-measured is a habit, not a lesson; if the numbers say it did not work,
