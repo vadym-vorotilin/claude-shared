@@ -294,15 +294,18 @@ last_ts() { # transcript -> ISO-8601 timestamp, or nothing
 }
 
 # Last assistant turn of a transcript, without reading a multi-megabyte file:
-# scan only the tail, dropping its first (likely truncated) line.
+# scan only the tail, dropping its first (likely truncated) line. One tool
+# result can outrun that tail on its own — a big file read lands as a single
+# 400 KB line — and then the tail holds no turn at all; only then read the
+# whole file, since an agent with no turn would otherwise show no readings.
 last_assistant() { # transcript -> one JSONL line, or nothing
-  local f="$1" size
+  local f="$1" size line
   size=$(wc -c < "$f" 2>/dev/null) || return 0
   if [ "${size:-0}" -gt "$AGENT_TAIL" ]; then
-    tail -c "$AGENT_TAIL" "$f" | tail -n +2 | grep '"type":"assistant"' | tail -n 1
-  else
-    grep '"type":"assistant"' "$f" 2>/dev/null | tail -n 1
+    line=$(tail -c "$AGENT_TAIL" "$f" | tail -n +2 | grep '"type":"assistant"' | tail -n 1)
+    if [ -n "$line" ]; then printf '%s' "$line"; return 0; fi
   fi
+  grep '"type":"assistant"' "$f" 2>/dev/null | tail -n 1
 }
 
 # Context window to measure an agent against, best source first: the size the

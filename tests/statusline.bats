@@ -304,6 +304,19 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   assert_equal "$(agent_line "$out")" "H/20%/10% · S/25%/10%"
 }
 
+# A single tool result can run past the tail the script scans — a big file
+# read lands as one 400 KB line — and then the tail holds no assistant turn at
+# all. The agent must not lose its readings to that; scan further back.
+@test "still reads an agent whose last transcript line outruns the scanned tail" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 20000
+  { printf '{"type":"user","isSidechain":true,"timestamp":"2026-01-01T00:00:11.000Z","message":{"role":"user","content":"'
+    head -c 300000 /dev/zero | tr '\0' x
+    printf '"}}\n'; } >> "$TEST_TMP/sess/subagents/agent-a1.jsonl"
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
+}
+
 @test "shows no subagent line when the session has none" {
   tp="$TEST_TMP/sess.jsonl"
   out="$(statusline "$(session_json "$tp")")"
