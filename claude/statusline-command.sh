@@ -371,14 +371,18 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
   # orchestration, close to half the completions. They carry the notification
   # text, "<task-id>...</task-id>", so any entry with that tag counts too.
   #
-  # Nothing else counts. Queueing a message for a running agent writes a
-  # queue-operation and an attachment naming it, and an agent sitting idle
-  # waiting for that message has by definition not written since, so the
-  # mention lands after its last entry and reads exactly like a result. That
-  # retired live agents mid-run; the tag is what tells a queued notification
-  # from a queued message. An agent given more work writes past its own
-  # notification and comes back on the next repaint, so the ordering keeps
-  # working for a background agent that is reused rather than finished.
+  # Nothing else counts, and the match is on shape, not on the id appearing
+  # somewhere in the line. Sending a running agent a message is a tool call
+  # too, and its result names the agent ("Message queued for delivery to
+  # ..."); queueing one writes a queue-operation and an attachment naming it.
+  # An agent blocked on a long poll, or idle waiting for that message, has by
+  # definition not written since, so either lands after its last entry and
+  # reads exactly like a result — and did, retiring live agents mid-run. What
+  # says "done" is the agent's own id as the result's agentId, or inside the
+  # notification's task-id tag; a message result carries it in neither. An
+  # agent given more work writes past its own notification and comes back on
+  # the next repaint, so the ordering keeps working for a background agent
+  # that is reused rather than finished.
   refs=""
   if [ -s "$transcript" ]; then
     set --
@@ -390,7 +394,7 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
 $fresh
 EOF
     [ "$#" -gt 0 ] && refs=$(tail -c "$SESSION_TAIL" "$transcript" 2>/dev/null \
-      | grep -E '"toolUseResult"|"kind":"task-notification"|<task-id>' | grep -F "$@" 2>/dev/null)
+      | grep -E '"toolUseResult"|<task-id>' | grep -F "$@" 2>/dev/null)
   fi
 
   shown=0
@@ -401,7 +405,7 @@ EOF
     # Timestamps are ISO-8601 UTC, so they order as plain strings.
     aid=${f##*/agent-}; aid=${aid%.jsonl}
     agent_ts=$(last_ts "$f")
-    ref_ts=$(printf '%s\n' "$refs" | grep -F "$aid" \
+    ref_ts=$(printf '%s\n' "$refs" | grep -E "\"agentId\":\"$aid\"|<task-id>$aid</task-id>" \
       | sed -n 's/.*"timestamp":"\([^"]*\)".*/\1/p' | tail -n 1)
     if [ -n "$agent_ts" ] && [ -n "$ref_ts" ] && [[ ! $ref_ts < $agent_ts ]]; then
       continue

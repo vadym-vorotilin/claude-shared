@@ -147,6 +147,19 @@ make_session_notify_queued() { # transcript-path agent-id iso-timestamp
   done
 }
 
+# Append the tool result the session gets from sending a running agent a
+# message: it names the agent, and the agent has not necessarily written since.
+make_session_message() { # transcript-path agent-id iso-timestamp
+  jq -cn --arg a "$2" --arg t "$3" \
+    '{type:"user", timestamp:$t,
+      toolUseResult:{success:true, message:"Message queued for delivery to \($a) at its next tool round.",
+                     pin:{id:$a, name:$a}},
+      message:{role:"user",
+               content:[{type:"tool_result", tool_use_id:"toolu_fixture",
+                         content:"Message queued for delivery to \($a)"}]}}' \
+    >> "$1"
+}
+
 # Append the entries a session writes when it queues a message for an agent
 # that is already running. They name the agent and carry no result.
 make_session_queue() { # transcript-path agent-id iso-timestamp

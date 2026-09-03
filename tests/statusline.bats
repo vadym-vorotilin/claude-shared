@@ -416,6 +416,17 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   assert_equal "$(agent_line "$out")" "H/10%/10%"
 }
 
+# Sending a running agent a message is also a tool call with a result naming
+# it, and an agent blocked on a long poll has not written since — so that
+# result lands after its last entry too. It is not the agent's output.
+@test "keeps a subagent that was sent a message while blocked on a poll" {
+  tp="$TEST_TMP/sess.jsonl"
+  make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
+  make_session_message "$tp" a1 "2026-01-01T00:00:12.000Z"   # after its last entry
+  out="$(statusline "$(session_json "$tp")")"
+  assert_equal "$(agent_line "$out")" "H/10%/10%"
+}
+
 @test "retires it once a result does land, queued message or not" {
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
