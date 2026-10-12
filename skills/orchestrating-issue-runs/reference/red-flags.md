@@ -124,7 +124,7 @@ the flow.
   where the spec states its own cutting order, that order is quoted
 - A field in a record a model fills that the model is supposed to leave
   empty — showing it is an invitation to fill it; remove the field
-- A schema change to an agent-facing record shipped without re-briefing the
-  recording — the record is part of the prompt, so the change is a prompt change
+- A schema change to an agent-facing record shipped without briefing the
+  re-capture with it — the record is part of the prompt, so the change is a prompt change
 - A `sleep`, `until`, `tail -f`, `--watch` or task-output call in the orchestrator's OWN turn — a poll turn at full context; the wait belongs in a background `until` or the sweep (runbook → "The orchestrator never takes a turn to wait")
 - A fresh orchestrator past ~80k before its first dispatch, or a Read of the ledger, the runbook or a brief it wrote (runbook → "The resume packet")

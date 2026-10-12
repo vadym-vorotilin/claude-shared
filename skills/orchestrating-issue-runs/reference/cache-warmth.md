@@ -14,7 +14,7 @@ and a major cost.
 Read as a timeout rule it gets applied only where a timeout would bite, and
 that is how it keeps being missed. **It binds every role that waits**: a fixer
 on a cold build or a suite, a reviewer re-measuring a suite, a screenshot agent
-driving a browser, a recording agent capturing takes, a wrap or demo-capture
+driving a browser, a capture agent re-capturing live output, a wrap or demo-capture
 agent rendering. None of them is exempt for being short-lived; the cost is paid
 by whoever is idle when the cache dies.
 

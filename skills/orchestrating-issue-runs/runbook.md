@@ -1399,10 +1399,10 @@ that only ever rises is not a measurement.
    (Opus-class)**): the agent takes the demo artifact and uses
    it the way the project's end user would — opens the artifact, runs the
    report, follows the flow — and writes down every place the artifact is
-   *present but wrong* for that user. The evidence census answers "did each
+   *present but wrong* for that user. The evidence checklist answers "did each
    promised noun ship?"; the walkthrough answers "would the user accept
    this?" — they are different questions, and a run can score full marks on the
-   census while a walkthrough of the same artifact finds many defects the census
+   checklist while a walkthrough of the same artifact finds many defects the checklist
    could not see. Findings go into the ledger's deferred
    list as candidate cards — step 5 reads them from there, not from a close
    comment, because every card is already closed by now — and the demo

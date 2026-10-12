@@ -122,7 +122,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 4. **Design questions stop the issue, not the run.** A strong-model
    adjudicator rules with spec citations posted as a binding issue comment;
    docs amendments become PRs the **orchestrator squash-merges itself** —
-   after the gate in rule 3, and after the paired engine PR (or immediately if
+   after the gate in rule 3, and after the paired code PR (or immediately if
    standalone) — no held queue; code proceeds on the ruling. **Exception: an amendment that edits a FROZEN spec
    or contract still goes to the held-for-human list.** Escalate to the human
    only what is hard-to-reverse AND a real trade-off the specs don't already
