@@ -86,7 +86,7 @@ the flow.
 
 ## Review, guards and evidence
 
-- A reviewer brief on a position-sensitive card that doesn't require mutating **position** (move one element, shift it, bracket both sides)
+- A reviewer brief on a position-sensitive card that doesn't require mutating **position** (move one element, shift it, reflect or rotate the whole fixture, bracket both sides)
 - Accepting a compile-only red as TDD evidence
 - Two issues splitting one convention and neither owning the parent document
 - A new guard whose first test case isn't the shape your own diff introduces

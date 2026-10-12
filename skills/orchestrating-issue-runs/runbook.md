@@ -1224,8 +1224,8 @@ brief without it missed:
 6. To a **fixer on any position- or orientation-sensitive card**: *"use an
    ASYMMETRIC fixture and a hand-typed candidate oracle from day one."*
    Fixture-blindness repeats by axis. Tests stay green under a whole-fixture
-   transform because the fixture was symmetric, and a directional filter passes
-   because the fixture had no variation on the axis it filtered. The
+   transform because the fixture is symmetric, and a directional filter passes
+   because the fixture has no variation on the axis it filters. The
    position-mutation review battery catches this, but the fixture requirement
    catches it a round earlier.
 
