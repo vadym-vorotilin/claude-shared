@@ -346,15 +346,15 @@ operator, check four things every gate silently assumes. **The scored artefact
 is the one that ships**: a gate that scores a different artefact than the one
 shipped (a reduced or averaged form of it) can tune in the wrong direction —
 what helps the shipped one may hurt the scored one. **A bar relative to a
-baseline moves whenever the space the baseline samples from changes**: a
-random baseline given a new option stops failing, and a recommendation to
-redefine the bar can be overtaken by the next change to that space.
-**Best-of-N on the gating set is optimistic there**: selection over many trials
-on validation drops by about the selection margin on the held-out set, so the
-gate reads held-out data. **The harness is neutral between the things it
-compares**: a harness built around inputs captured against one variant can
-drive every other variant off-distribution, and the new variants look wrong
-because of the harness, not the variant. When a new variant fails, ask what the
+baseline moves whenever whatever the baseline is drawn from changes**: a
+baseline measured before that change can stop meaning what the bar assumed,
+and a recommendation to redefine the bar can be overtaken by the next change.
+**The best of many attempts, picked on the set that gates, flatters it**:
+picking the winner on the same data that judges it overstates the result by
+about the margin of the pick, so the gate reads data the pick never saw. **The
+harness is neutral between the things it compares**: a harness tuned to the
+old variant can put every other variant in conditions it was never built for,
+and the new variants look wrong because of the harness, not the variant. When a new variant fails, ask what the
 harness assumes about the old one before concluding about the new one, and put
 the actual runs in front of someone early.
 
