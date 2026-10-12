@@ -11,7 +11,7 @@ teardown() { common_teardown; }
 TEMPLATE() { echo "$REPO/templates/handoff/SKILL.md"; }
 ADDH()     { echo "$REPO/skills/add-handoff/SKILL.md"; }
 
-template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
+template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
 
 # ------------------------------------------------------------- FEATURES ----
 

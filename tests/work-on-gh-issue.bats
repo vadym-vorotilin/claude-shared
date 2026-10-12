@@ -138,7 +138,7 @@ scan_cmd() { extract_code_block "$(ADDER)" "FAIL if any placeholder survived" ba
 
 # ----------------------------------------------------------------- LINT ----
 
-template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
+template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
 
 @test "every {{TOKEN}} in the template has a fill rule in the installer" {
   for tok in $(template_tokens); do
