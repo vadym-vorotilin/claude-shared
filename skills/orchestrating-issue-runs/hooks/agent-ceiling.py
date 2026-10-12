@@ -16,11 +16,12 @@ hook that enforces prohibitions rather than budgets would fail CLOSED —
 opposite rule, opposite reason; such a hook is optional, per-project, and out
 of scope here (this repo ships none).
 
-When it cannot measure (transcript path or layout not recognised, or no usage
-row yet) it still exits 0, but leaves one line on stderr —
-`agent-ceiling: skipped (<reason>)` — so a hook that never fires is
+When it cannot measure an agent (no transcript path, the agent's transcript
+not found, or no usage row yet) it still exits 0, but leaves one line on
+stderr — `agent-ceiling: skipped (<reason>)` — so a hook that never fires is
 distinguishable from one that is quietly succeeding. stderr only; the exit
-code and blocking behaviour are unchanged.
+code and blocking behaviour are unchanged. The main loop (no agent_id and not
+a subagent transcript) is exempt, not unmeasured, so it exits 0 silently.
 
 Env: AGENT_CEILING_SOFT (default 150000), AGENT_CEILING_HARD (default 200000).
 """
@@ -70,7 +71,9 @@ def main():
             return _skipped("agent transcript not found beside the main one")
         tp = candidate
     if "/subagents/" not in tp:
-        return _skipped("not a subagent transcript layout; main loop is exempt")
+        # No agent_id and not a subagent path: the main loop. It is exempt,
+        # and this runs on every one of its tool calls, so say nothing.
+        return 0
     if not os.path.isfile(tp):
         return _skipped("transcript file not found")
 
