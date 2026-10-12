@@ -133,7 +133,7 @@ file_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 # isn't only how full a context is but how long it has been sitting — past the
 # TTL the whole thing is re-sent at full price. Both are shown, on one clock.
 
-# ISO-8601 UTC ("2026-09-02T11:16:07.527Z") -> epoch seconds. date(1) can't
+# ISO-8601 UTC ("2026-01-01T00:00:00.000Z") -> epoch seconds. date(1) can't
 # parse that portably (GNU spells it -d, BSD -j -f), so convert here with the
 # usual civil-to-days arithmetic. 10# forces base ten: "08" isn't valid octal.
 iso_epoch() { # timestamp -> epoch seconds, or nothing
@@ -298,8 +298,8 @@ last_ts() { # transcript -> ISO-8601 timestamp, or nothing
 
 # Last assistant turn of a transcript, without reading a multi-megabyte file:
 # scan only the tail, dropping its first (likely truncated) line. One tool
-# result can outrun that tail on its own — a big file read lands as a single
-# 400 KB line — and then the tail holds no turn at all; only then read the
+# result can outrun that tail on its own — a large file read lands as a single
+# very long line — and then the tail holds no turn at all; only then read the
 # whole file, since an agent with no turn would otherwise show no readings.
 last_assistant() { # transcript -> one JSONL line, or nothing
   local f="$1" size line
@@ -353,8 +353,7 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
   done | sort -t"$(printf '\t')" -k1,1n -k2,2)
 
   # Which of those have finished. Recent writes can't answer that: a running
-  # agent goes quiet for minutes waiting on a long tool call, and 1% of the
-  # gaps between a running agent's own entries run past 170s — a window tight
+  # agent goes quiet for minutes waiting on a long tool call, so a window tight
   # enough to retire finished agents promptly would drop live ones. But when an
   # agent finishes, the session collects its result, and the session transcript
   # records the agent's id again, after that agent's own last entry. So take
@@ -370,8 +369,8 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
   # receives when the agent reports its task complete. That notification does
   # not always land as a turn: when the session is mid-turn it is enqueued,
   # then removed from the queue and absorbed into the turn in flight, and the
-  # transcript holds only those queue-operation entries for it — in one long
-  # orchestration, close to half the completions. They carry the notification
+  # transcript holds only those queue-operation entries for it — so a large
+  # share of completions can arrive this way. They carry the notification
   # text, "<task-id>...</task-id>", so any entry with that tag counts too.
   #
   # Nothing else counts, and the match is on shape, not on the id appearing
@@ -380,7 +379,7 @@ if [ -n "$agents_dir" ] && [ -d "$agents_dir" ]; then
   # ..."); queueing one writes a queue-operation and an attachment naming it.
   # An agent blocked on a long poll, or idle waiting for that message, has by
   # definition not written since, so either lands after its last entry and
-  # reads exactly like a result — and did, retiring live agents mid-run. What
+  # reads exactly like a result, and would retire a live agent mid-run. What
   # says "done" is the agent's own id as the result's agentId, or inside the
   # notification's task-id tag; a message result carries it in neither. An
   # agent given more work writes past its own notification and comes back on

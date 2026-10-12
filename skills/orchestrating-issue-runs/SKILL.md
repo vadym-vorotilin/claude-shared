@@ -19,8 +19,8 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 > edited to install it.** An install that edits the shared files cannot be
 > updated without a merge, so it rots — and a rotted overlay fails silently:
 > the project's own overrides stop loading while everything still looks
-> installed. That has happened, and what stopped loading was a rule reserving
-> merges to a human. Give the project its own skill directory, symlink
+> installed — and what stops loading could be a rule reserving merges to a
+> human. Give the project its own skill directory, symlink
 > `SKILL.md`, `runbook.md` **and `reference/`** there from the shared copy so
 > they stay byte-identical — the two `reference/` files hold the full red-flag
 > and rationalization sets that SKILL.md only samples, and an install that
@@ -121,9 +121,9 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    green + no open human gate.
 4. **Design questions stop the issue, not the run.** A strong-model
    adjudicator rules with spec citations posted as a binding issue comment;
-   docs amendments become PRs the **orchestrator squash-merges itself**, after
-   the paired engine PR (or immediately if standalone) — no held queue; code
-   proceeds on the ruling. **Exception: an amendment that edits a FROZEN spec
+   docs amendments become PRs the **orchestrator squash-merges itself** —
+   after the gate in rule 3, and after the paired engine PR (or immediately if
+   standalone) — no held queue; code proceeds on the ruling. **Exception: an amendment that edits a FROZEN spec
    or contract still goes to the held-for-human list.** Escalate to the human
    only what is hard-to-reverse AND a real trade-off the specs don't already
    decide.
@@ -140,11 +140,11 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    Every non-blocking finding gets a ledger entry and a close-comment mention.
    A **follow-up issue** on top of that only when the finding moves the run's
    goal line (rule 11), and only after the user approved creating it, per scope
-   rules. "Nothing deferred silently" was read as "everything deferred is
-   filed", and the register then manufactures work: one run filed three cards
-   for every card it merged, all of them real findings, none of them on the
-   goal. **Set a filing budget in the scope doc and report filed-to-merged in
-   the wrap.** Two runs above 1 means the mechanism is producing the backlog.
+   rules. "Nothing deferred silently" is easily read as "everything deferred is
+   filed", and the register then manufactures work: a run can file more cards
+   than it merges, every one a real finding and none of them on the goal.
+   **Set a filing budget in the scope doc and report filed-to-merged in the
+   wrap.** Two runs above 1 means the mechanism is producing the backlog.
 7. **Budget = graceful drain.** At the token target: start nothing new, let
    in-flight rounds finish, report, pause. **Measure it, don't estimate it** —
    `/token-report`'s `--json` total between waves and before each fix round
@@ -184,18 +184,17 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    **Reviewers are exempt from the ceiling but not from a budget** — a verdict
    does not split, so a reviewer may not hand off mid-review; it gets a **turn
    budget** instead and reports what it could not cover. A review that runs many times its
-   budget has stopped judging a diff and started re-doing the work, and in
-   measurement it costs more than the tier it runs on: capping review length
-   saved more than downgrading every reviewer a tier, with no loss of judgment.
-   Keep reviewers on the stronger tier and bound their length. The thresholds
+   budget has stopped judging a diff and started re-doing the work, and its
+   length is a larger lever on cost than the tier it runs on. Keep reviewers on
+   the stronger tier the work calls for and bound their length. The thresholds
    are defaults to tune after a wave (runbook → Handoff note).
 10. **A threshold ships with the instrument that reads it.** No agent can see
     its own context size: the harness does not report it and `/context` belongs
     to the operator, so "stop at N tokens" is a rule its subject cannot obey and
-    it will be breached silently — in measurement, by most of the agents it
-    bound, some to twice the stated hard stop. Every threshold in a brief must
-    therefore come with a way to read the quantity, or be restated as something
-    the agent can already see: a turn count, a wave boundary, a deliverable.
+    it will be breached silently, and by a wide margin. Every threshold in a
+    brief must therefore come with a way to read the quantity, or be restated as
+    something the agent can already see: a turn count, a wave boundary, a
+    deliverable.
     Where no instrument exists, build one — a `PreToolUse` hook receives the
     transcript path, so it can measure the agent and inject the warning, which
     turns instruction into enforcement. **A threshold with no instrument is
@@ -278,6 +277,6 @@ where the run changed shape. These ten fire the most often:
 | "The command only takes six minutes, I'll wait for it" | Six idle minutes is past a subagent's prompt-cache lifetime, so the next turn rewrites the entire context at the write rate — more than an order of magnitude above what polling costs. Detach and poll. |
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
 | "The rule is in the spec, so the choice is amend it or re-author the inputs" | There is a third: **demote** it — hard to soft, soft to advisory. Demotion is always on the menu when leave-one-out names a rule as the conflict, and where the spec states its own cutting order, quote that order. |
-| "Tests are green, the constraint works" | Green survives mirrored, transposed, self-paired and shifted inputs. Mutate position — and where the rule is about *which of two objects* is involved, a whole-structure transform moves both at once and stayed green on two cards while the rule was broken. Move one of them. |
-| "The reviewer told me how to fix it" | Its remedy caught 9 of 10 shapes. A later one was **false at the correct value** and would have shipped red. A right finding can carry a wrong fix; measuring changed the fix all three times in one run. |
-| "X already does this work, so my code can't be the one that fails" | Does X **carry the value forward, or ask again?** Five impossibility claims in one PR all slid over that step. |
+| "Tests are green, the constraint works" | Green survives inputs the check is blind to — a symmetric, self-paired or uniformly shifted case. Mutate position — and where the rule is about *which of two objects* is involved, a whole-structure transform moves both at once and can stay green while the rule is broken. Move one of them. |
+| "The reviewer told me how to fix it" | A remedy that covers most shapes of a defect can still be **false at the correct value** and ship red. A right finding can carry a wrong fix; measure the remedy before adopting it. |
+| "X already does this work, so my code can't be the one that fails" | Does X **carry the value forward, or ask again?** An impossibility claim usually slides over exactly that step. |

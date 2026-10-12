@@ -1,14 +1,15 @@
 ---
 name: review-pr
-description: Review a GitHub pull request against its spec — the PR diff AND its linked issue AND any design/plan doc they reference — verifying the change is architecturally sound, implemented per the plan, and actually wired up (Unity prefab/scene/GUID wiring included), then post it as a GitHub review. Use for "review this PR", "review PR <url/number>", or verifying a PR matches its issue/spec. The opinionated alternative to the built-in `/review`.
+description: Review a GitHub pull request against its spec — the PR diff AND its linked issue AND any design/plan doc they reference — verifying the change is architecturally sound, implemented per the plan, and actually wired up (including serialized asset/scene references in asset-based projects, when the PR touches them), then post it as a GitHub review. Use for "review this PR", "review PR <url/number>", or verifying a PR matches its issue/spec. The opinionated alternative to the built-in `/review`.
 ---
 
 # Review a PR (spec- and wiring-verifying)
 
 Goal: catch what a maintainer would actually act on — not style nits. Verify the
 PR (1) does what its **issue + design doc** say, (2) is architecturally sound,
-and (3) is actually **wired up** (in asset-based projects like Unity, wiring is
-the #1 silent failure — see the optional section). Every finding must name a
+and (3) is actually **wired up** (in asset-based projects, e.g. a game engine's
+prefab/scene references, a broken reference is a silent failure — see the
+optional section). Every finding must name a
 concrete failure scenario and quote the line that proves it.
 
 Post findings **as GitHub PR comments** unless told otherwise — but never before
@@ -21,7 +22,9 @@ cleanup/architecture recommendations, and be honest about optional vs required.
 - `gh` installed and authenticated, with a token that can **write** reviews on
   the target repo. A read-only token fails at the POST, after all the work.
 - A **GitHub-hosted** PR. Nothing here works on GitLab/Bitbucket/Gerrit.
-- `origin` is the PR's **base** repo; fork PRs are read via `pull/<n>/head`.
+- The PR is fetched from its **base** repo by URL (step 1), so `origin` may be
+  your fork or the base repo — the skill does not depend on which. Fork PRs are
+  read the same way, via `pull/<n>/head`.
 - Any referenced design doc is readable by the same token.
 - `base64 -d` (GNU/BSD spelling; older macOS wants `base64 -D`).
 - Posting is a decision the user confirms — this skill never posts on its own.
@@ -52,13 +55,16 @@ The local checkout is often on a different branch and dirty. Do **not** check ou
 the PR branch. Fetch it and read files with `git show`:
 
 ```bash
-# Fetch from the BASE repo by URL, not from `origin`: in the standard fork workflow
-# origin is your own fork, and `pull/<n>/head` there is a different PR entirely.
+# Fetch from the BASE repo by URL, not from `origin`: `origin` may be your own
+# fork, and `pull/<n>/head` there would be a different PR entirely.
 # Use the PR ref, not <headRefName>: on a fork PR that branch lives on someone
 # else's repo, and if the fetched repo has a branch by that name you would
 # silently review unrelated code.
 # The leading + forces the update — a rebase or amend force-push is the normal way
 # a PR moves, and without it the fetch is REJECTED and pr/<n> silently stays stale.
+# The refspec writes only under refs/remotes/pr/ — this skill's own namespace —
+# so no local branch, tag or remote-tracking ref of yours is touched (unless you
+# keep a remote literally named `pr`; rename it first).
 git fetch "https://github.com/<owner>/<repo>.git" "+pull/<n>/head:refs/remotes/pr/<n>"
 git show pr/<n>:<path>                    # read any file at PR head
 git grep -n <pattern> pr/<n>              # search at PR head
@@ -220,12 +226,15 @@ applies again. Use the **new** head SHA as `commit_id` when posting.
 
 ---
 
-## Optional: Unity / asset-based projects
+## Optional: serialized asset / scene wiring
 
-Only when the PR touches **prefabs, scenes, or ScriptableObjects** (`.prefab`,
-`.unity`, `.asset` + their `.meta`). This is where "compiles fine, silently null
-at runtime" bugs live, so read those files in the diff too — don't skip them as
-noise.
+Only when the PR touches serialized assets that reference each other by id —
+e.g. a game engine's prefab/scene references. This is where "compiles fine,
+silently null at runtime" bugs live, so read those files in the diff too —
+don't skip them as noise. The commands below use Unity's layout (`.prefab`,
+`.unity`, `.asset` + their `.meta` files, GUID references) as the worked
+example; adapt the file names and id fields to your engine. The asset and
+script names are invented.
 
 **Wiring verification** (fold into step 2/3):
 

@@ -11,9 +11,16 @@ message on stderr where the model reads it), records the crossing, and then
 stops interfering. Blocking once is what makes it unmissable; blocking every
 call would deadlock the agent.
 
-FAILS OPEN. This is advisory, and a bug here must never halt a run. The
-companion guard hook, which enforces prohibitions rather than budgets, fails
-CLOSED — opposite rule, opposite reason.
+FAILS OPEN. This is advisory, and a bug here must never halt a run. A guard
+hook that enforces prohibitions rather than budgets would fail CLOSED —
+opposite rule, opposite reason; such a hook is optional, per-project, and out
+of scope here (this repo ships none).
+
+When it cannot measure (transcript path or layout not recognised, or no usage
+row yet) it still exits 0, but leaves one line on stderr —
+`agent-ceiling: skipped (<reason>)` — so a hook that never fires is
+distinguishable from one that is quietly succeeding. stderr only; the exit
+code and blocking behaviour are unchanged.
 
 Env: AGENT_CEILING_SOFT (default 150000), AGENT_CEILING_HARD (default 200000).
 """
@@ -27,6 +34,14 @@ def _threshold(name, default):
 
 SOFT = _threshold("AGENT_CEILING_SOFT", 150_000)
 HARD = _threshold("AGENT_CEILING_HARD", 200_000)
+
+def _skipped(reason):
+    """Breadcrumb for 'could not measure'. Never raises, never blocks."""
+    try:
+        sys.stderr.write(f"agent-ceiling: skipped ({reason})\n")
+    except Exception:
+        pass
+    return 0
 
 def main():
     try:
@@ -43,7 +58,7 @@ def main():
     # over-ceiling agents, while the same file run by hand against their
     # transcripts blocked.
     if not tp:
-        return 0
+        return _skipped("no transcript_path in payload")
     if agent_id and "/subagents/" not in tp:
         # The payload may carry the MAIN transcript with the agent id beside
         # it. Never measure the orchestrator and charge it to the agent:
@@ -52,10 +67,12 @@ def main():
         candidate = os.path.join(os.path.dirname(tp), session, "subagents",
                                  "agent-" + agent_id + ".jsonl")
         if not os.path.isfile(candidate):
-            return 0
+            return _skipped("agent transcript not found beside the main one")
         tp = candidate
-    if "/subagents/" not in tp or not os.path.isfile(tp):
-        return 0
+    if "/subagents/" not in tp:
+        return _skipped("not a subagent transcript layout; main loop is exempt")
+    if not os.path.isfile(tp):
+        return _skipped("transcript file not found")
 
     name = os.path.basename(tp).removesuffix(".jsonl")
     state = os.path.join(os.path.dirname(tp), ".ceiling-" + name)
@@ -96,7 +113,7 @@ def main():
                        + (u.get("cache_read_input_tokens") or 0)
                        + (u.get("cache_creation_input_tokens") or 0))
     if ctx <= 0:
-        return 0
+        return _skipped("no usage row in transcript yet")
 
     def emit(level, msg):
         try:

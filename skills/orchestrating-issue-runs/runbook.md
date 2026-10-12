@@ -1,8 +1,8 @@
 # Runbook — orchestrating issue runs
 
 Mechanics for each phase. SKILL.md holds the rules; this holds the how.
-Distilled from real multi-repo runs. Every figure below is one project group's
-observation — **recalibrate on your own first run.**
+Distilled from real multi-repo runs. Every figure below is a starting
+parameter, not a promise — **recalibrate on your own first run.**
 
 **"The operator"** here is the human who owns the run — the same person the
 rules call "the user". Both words appear below; they mean one person: the one
@@ -17,7 +17,15 @@ Check these before Phase 0; the skill will mislead you where they do not hold.
 - **A subagent harness that can resume an agent from its transcript.** Several
   protocols (fix rounds, rescue) assume it. If yours cannot, see Iron rule 5's
   fallback and expect fix rounds to cost full price.
-- **`git worktree`**, and a scratch directory outside the repo.
+- **`git worktree`**, and a scratch directory outside the repo. Snippets that
+  name `origin` and `main` mean "your remote" and "your default branch" —
+  substitute them where yours differ.
+- **Optional per-project pieces — each belongs to the project, not to this
+  skill:** a board-sync tool, a demo skill, a run memory file. Where one is
+  absent, the step that mentions it says what to do instead; none is required
+  for the run to work.
+- **The `token-report` skill**, for every spend figure (Budget check). Without
+  it, say so in the report rather than estimating.
 - **Merge rights that do not need a second human approval.** Reviewer and
   author share one account here, so the verdict line *is* the record. On a repo
   with required approvals or CODEOWNERS the orchestrator's merge will fail —
@@ -67,7 +75,7 @@ a sentiment:
 
 **An Exit item is measured, and the measurement is reproducible:** it needs an
 offline reproduction path before review, and if that path is keyed on a live
-corpus it needs a pinned snapshot or a tolerant mode, or it breaks when the corpus changes. **Where the claim is determinism, pin the
+data set it needs a pinned snapshot or a tolerant mode, or it breaks when the data changes. **Where the claim is determinism, pin the
 expected value from an earlier, independent run and assert it** — a check that
 only compares a run with itself cannot see drift. A rerun that matches pins set by earlier independent runs is
 evidence of reproducibility; one that matches only itself is assertion. **A measured build output
@@ -87,10 +95,10 @@ or the same defect re-cut under a new number).
 **Above roughly half, stop and put the direction question to the operator
 before any dispatch.** A milestone that is mostly its predecessor's leftovers
 is not a backlog; it is evidence that the predecessor did not close its
-question, and running it again re-cuts the same defects at the same price. One
-observed chain ran several milestones deep with no new requirement entering
-after the first, and the visible result across all of them was cosmetic. The
-cheap tell was available at the start of each: the lineage share was near
+question, and running it again re-cuts the same defects at the same price. A
+chain of follow-ons can run several milestones deep with no new requirement
+entering after the first, and nothing visible moving across all of them. The
+cheap tell is available at the start of each: the lineage share is near
 total.
 
 The operator's answer is a direction ruling, not a scope edit: continue, change
@@ -122,8 +130,9 @@ check, post — plus exactly these three:
   the body. The first is the receipt check; the second is the leak.
 - **Branch protection and the merge method** per repo (What this assumes,
   above) — one `gh api` call each, and the result goes in the doc.
-- **The project-memory read** behind the demo-release question, which is asked
-  before the doc is presented and so cannot wait for it.
+- **The project-memory read** (if the project keeps one) behind the
+  demo-release question, which is asked before the doc is presented and so
+  cannot wait for it.
 
 Anything else — opening a spec, reading an issue body, reading a PR diff — is
 the survey leaking into the orchestrator, whatever the doc it ends up holding
@@ -141,9 +150,12 @@ issues missing from the run with nothing to show it.
 **If this run's wrap will produce a demo artifact, ask once — before
 presenting the scope doc — whether to publish it as a release**, and SAVE the
 answer to project memory so later runs read it instead of re-asking. Re-ask
-only if memory holds no answer. The run's memory is also what says *how* demos
+only if memory holds no answer. (Project memory is optional and the project's
+own; where there is none, record the answer in the ledger and the INTRO, and
+ask again each run.) The run's memory is also what says *how* demos
 are published: which repo, which tag scheme, whether the milestone description
-links the asset. **Build a demo page self-contained** — images inline as data
+links the asset — with no memory, ask the operator for those three facts once
+and write them into the ledger. **Build a demo page self-contained** — images inline as data
 URIs, no sibling files: sandboxed page hosts block sibling-file loads (a page can render with every figure missing), and one
 self-contained file is also what attaches cleanly as a release asset.
 **Before a demo page goes to the operator, the orchestrator reads its claims
@@ -165,21 +177,21 @@ Produce the scope doc (posted as a message, not a file the user must open):
 2. **Per-issue**: model tier, risk class, expected human gates, rough token
    cost. **Estimate the agent's cumulative total including its fix and
    re-review rounds** — that is what you actually buy, and a per-dispatch
-   figure will read about half the true cost. Roughly: a review round costs a
-   quarter of the original fixer, because resume keeps the context. **Take your
+   figure will read well under the true cost. A review round costs a
+   fraction of the original fixer, because resume keeps the context. **Take your
    own numbers from your first run; a band from someone else's stack will not
    transfer.**
-   As a shape rather than a size, one run's split: fixers ~45%, reviewers ~25%,
-   approaches ~25%, adjudication ~5%. **A card carrying both an adjudication
-   and a contract act (schema/version-constant change, cross-repo pin) costs
-   well above its plain implementation estimate** — in one run, four such cards
-   each landed at roughly twice their estimate. Treat that multiplier the way
-   you treat the split above: a shape to confirm against your own first run,
-   not a band to import. **Count seams, not bullets.** A card that lands a new
+   As a shape rather than a size: fixers are the largest line, reviewers and
+   approaches each a fraction of it, adjudication the smallest. **A card
+   carrying both an adjudication and a contract act (schema/version-constant
+   change, cross-repo pin) costs well above its plain implementation
+   estimate** — a multiple, not a margin. Treat that multiplier the way you
+   treat the split above: a shape to confirm against your own first run, not a
+   band to import. **Count seams, not bullets.** A card that lands a new
    transport, a repo-wide guard, or a routing/identity function is a
-   milestone-sized card however few bullets it has: each such seam took 3–5
-   review rounds in one run (a guard alone took five), and the card landed at
-   roughly three times its bullet-count estimate.
+   milestone-sized card however few bullets it has: each such seam tends to take
+   several review rounds, and the card lands at a multiple of its bullet-count
+   estimate.
 3. **Re-estimate when an approach refutes a premise you priced on.** If an
    issue was budgeted as a cross-repo schema chain and its approach proves the
    chain does not exist, the estimate is stale — being wrong in the user's
@@ -191,10 +203,10 @@ Produce the scope doc (posted as a message, not a file the user must open):
    its own estimate in the same message.
 5. **Diff what the milestone promises to show against the cards' outputs.**
    Per noun in the milestone's own Demo/Measure line: which card makes THIS
-   visible, and does that card's exit assertion actually reach the surface? In
-   one run the milestone named four visible numbers and the card decomposition
-   delivered three — the fourth card had shipped a calculator nothing called,
-   and only a wrap-time adjudication caught the silently-breakable promise.
+   visible, and does that card's exit assertion actually reach the surface? A
+   milestone can name several visible numbers while the decomposition delivers
+   fewer — a card can ship a helper nothing calls, and the promise stays
+   silently breakable until a wrap-time adjudication catches it.
 6. **Inconsistency sweep** — spec contradictions, undefined shapes referenced
    by issues, label/board drift, missing CI on any repo whose PRs must pass a
    merge gate (a gate that rejects green-by-absence holds a zero-CI repo's
@@ -212,8 +224,8 @@ Produce the scope doc (posted as a message, not a file the user must open):
    before anyone looked at it, and an operator may rule such a capture internal the moment it is shown. Show it, keep it outside the repo, and record
    "seen by the operator" in its place. **A gate the operator delegates back runs as a
    two-mind protocol**: the implementer decides with citations, and the
-   reviewer independently re-decides. Two convergent minds stood in for the
-   operator cleanly twice in one run; divergence escalates.
+   reviewer independently re-decides. Two convergent minds can stand in for the
+   operator; divergence escalates.
 8. **Budget** — token target and the drain rule, plus a **hard filing budget**:
    the maximum number of new cards this run may file, chosen against the goal
    line and stated as a number. Iron rule 6 explains why it is needed; the
@@ -282,15 +294,15 @@ of the adjudicator, both cheap:
   durable design record (an ADR or equivalent). Rule it in the issue comment
   and move on. A record written for a question the Exit does not turn on costs
   a doc PR, a review, a merge and an operator read, and moves nothing anyone
-  can see; one run wrote a stack of them in a couple of days, all still
-  unmerged at the wrap, for a milestone whose visible output was cosmetic.
+  can see; a stack of them is how a run ends with every record unmerged at the
+  wrap and nothing visible moved.
 - **Has one probe been run?** One throwaway measurement per card before the
   operator is asked anything. Most questions that look like design questions
   are answered by running the thing once. **Probe the mechanism, at the length
-  the question needs.** When a learned or emergent behaviour fails, measure what
-  the underlying system physically allows before theorising about the learner —
-  such a probe can turn "the learner hasn't improved" into "the system's
-  limits don't allow it", which changes the ruling. A time or cost budget
+  the question needs.** When an adaptive or emergent behaviour fails, measure
+  what the underlying system allows before theorising about the component that
+  adapts — such a probe can turn "the component hasn't improved" into "the
+  system's limits don't allow it", which changes the ruling. A time or cost budget
   question gets **one full-length run**: a shortened probe's ratio does not
   extrapolate — a probe at a small fraction of the length can predict a
   slowdown the full run does not show, and a ruling built on it cuts the wrong thing.
@@ -309,23 +321,23 @@ involved. The adjudicator rules against those documents; it opens the repo
 only to verify a specific citation, never to explore — an adjudicator left to
 find its own context spends most of its turns exploring, at the highest
 per-token rate in the run. One issue or one pre-declared cluster per adjudicator;
-never batch unrelated issues into one agent — the batched ones run several
-times longer than the median and rule no better. Rules each question against
+never batch unrelated issues into one agent — a batched adjudicator runs far
+longer than a single one and rules no better. Rules each question against
 the specs with citations; posts a binding "## Design decisions" comment;
 drafts any doc amendment as a PR, reviewed for `DOCS_PR_MATCH` (defined in the
 reviewer brief template below) and **squash-merged by the orchestrator after
-its paired engine PR lands** — or immediately if standalone. No held queue:
-holding docs amendments for the human only added latency, and every one came
-back merged unchanged. Design-changing amendments are still surfaced in the
+its paired code PR lands** — or immediately if standalone. No held queue:
+holding docs amendments for the human only adds latency, and they come back
+merged unchanged. Design-changing amendments are still surfaced in the
 report, just not gated — **with one exception: an amendment that edits a
 FROZEN spec or contract still goes to the held-for-human list.** Code proceeds
 on the ruling.
 A schema-shaped ruling triggers the schema-change chain (below).
 
 **A ruling's own numbers are hypotheses to the fixer, not facts.** An
-adjudicator's cited figure can still be off by measurement — in one run a
-census count, a measured dimension and an exception type all moved when the fixer
-checked them. The fixer verifies before building on the figure, and posts any
+adjudicator's cited figure can still be off by measurement — a cited count, a
+measured dimension or a named exception type can move when the fixer checks
+it. The fixer verifies before building on the figure, and posts any
 correction as a follow-up comment after merge rather than absorbing it
 silently.
 **So is a ruling that sets or moves a gate — the orchestrator's own
@@ -336,34 +348,35 @@ shipped (a reduced or averaged form of it) can tune in the wrong direction —
 what helps the shipped one may hurt the scored one. **A bar relative to a
 baseline moves whenever the space the baseline samples from changes**: a
 random baseline given a new option stops failing, and a recommendation to
-redefine it can be wrong within the hour. **Best-of-N on the gating set is
-optimistic there**: selection over many trials on validation drops by about the
-selection margin on the held-out set, so the gate reads held-out data. **The
-harness is neutral between the things it compares**: a harness built around
-inputs recorded against one variant drives every other variant off-distribution,
-and the new variants look wrong because of the replay, not the variant. When a
-new variant fails, ask what the harness assumes about the old one before
-concluding about the new one, and put a visual of the runs in front of someone
-early.
+redefine the bar can be overtaken by the next change to that space.
+**Best-of-N on the gating set is optimistic there**: selection over many trials
+on validation drops by about the selection margin on the held-out set, so the
+gate reads held-out data. **The harness is neutral between the things it
+compares**: a harness built around inputs captured against one variant can
+drive every other variant off-distribution, and the new variants look wrong
+because of the harness, not the variant. When a new variant fails, ask what the
+harness assumes about the old one before concluding about the new one, and put
+the actual runs in front of someone early.
 
 **Fixer.** TDD (red recorded, then green), in a fresh worktree
-(`git -C <repo> fetch origin && git worktree add <scratch>/wt-<issue> -b
-<branch> origin/main`), branch per the repo's convention, PR body carries
+(`git -C <repo> fetch <remote> && git -C <repo> worktree add
+<scratch>/wt-<issue> -b <branch> <remote>/<default-branch>` — `<remote>` and
+`<default-branch>` are whatever this repo uses, usually `origin` and `main`),
+branch per the repo's convention, PR body carries
 red→green evidence, labels flipped by the fixer at start/end. Never merges,
 never pushes to a protected/main branch. Cross-repo issues: one worktree and
 one PR per repo, cross-referenced; merged later as an ordered group.
 **A design resting on several rulings gets a throwaway probe before the real
-diff** — a minimal end-to-end skeleton, actually run. One such probe surfaced
-29 failures from a contradiction across four rulings that nobody had seen on
-paper, and was the cheapest stop-clause of its run. **Widening a gate is a
+diff** — a minimal end-to-end skeleton, actually run. Such a probe can surface
+failures from a contradiction across rulings that nobody saw on paper, and is
+the cheapest stop-clause available. **Widening a gate is a
 design act, not an implementation detail**: a necessary, narrow exemption is
 still disclosed in the PR body and paired with a tripwire test that reads the
 production roster (never a re-typed copy), so the next addition reds.
 
 **The fixer stops at the context ceiling — and something has to tell it.** No
 agent can read its own context (iron rule 10), so the brief line alone gets
-breached silently; in one measured run most of the agents it bound went past
-it and several past the hard stop. Install `hooks/agent-ceiling.py` as a
+breached silently — agents go past it, some past the hard stop. Install `hooks/agent-ceiling.py` as a
 `PreToolUse` hook (steps below) and the harness does the measuring. In the
 project's `.claude/settings.json`, inside the top-level `"hooks"` object —
 without that wrapper the entry is valid JSON the harness silently ignores:
@@ -450,7 +463,7 @@ resulting handoff note well-formed.
 Every brief still carries it: *when your context passes ~150k, stop and write
 the handoff note (below).* An agent re-reads its whole context on every turn,
 so a long fixer's last turns are its most expensive ones while a continuation
-starts near a fifth of that size.
+starts at a small fraction of that size.
 Mid-card is a fine place to stop: the note, the branch and the worktree carry
 the state. **Make it cheap by construction: a card the plan says is large is
 briefed as parts from the start (A, B, then a finisher), and every part
@@ -474,11 +487,12 @@ Returning is not:
   body, a last assertion, a rename), and no decision is open. Hard stop at
   ~200k: past that, return the note whatever the state.
 - **A job that outlasts the agent → launch it detached and return `running`.**
-  A multi-hour job (a long run, a render) is not something an agent should
+  A long-running job (a long run, a render) is not something an agent should
   stay alive across: split the card into implement → launch → return, then a
   finisher dispatched when the orchestrator's background wait sees the done
   marker. The `running` return names the log path, the done marker and the
-  job's PID **verified against `/proc/<pid>/exe`** — `$!` is often the wrapper
+  job's PID **verified against `/proc/<pid>/exe`** (Linux; use your platform's
+  equivalent) — `$!` is often the wrapper
   shell or build tool, which exits or lingers independently of the job, and a
   liveness check on the wrong PID reads a live run as dead or a dead one as
   live.
@@ -489,9 +503,9 @@ explicit `VERDICT: APPROVED | CHANGES_REQUESTED` line (self-approval is
 blocked when reviewer and author share the account — the COMMENT + verdict
 line IS the record). **The `VERDICT:` line must be literally present in the
 POSTED review body, not just in the agent's return to the orchestrator** —
-the merge agent checks GitHub's own review text, and on one card the posted
-review bodies carried no verdict line at all (the state read back as COMMENTED
-regardless of what the agent's return said). The reviewer brief template below
+the merge agent checks GitHub's own review text, and a posted review body can
+carry no verdict line at all (the state reads back as COMMENTED regardless of
+what the agent's return said). The reviewer brief template below
 carries this requirement so it does not depend on this paragraph being read.
 Reviews verify claims, not prose: run the suite, probe the mechanism
 adversarially, sabotage-test guards ("would this test catch the bug it claims
@@ -533,19 +547,20 @@ ledger + close comment + approved follow-up issue.
 
 **Merge** (orchestrator). Review clean + CI green + no open human gate →
 squash-merge, delete branch, close issue with a summary comment naming what
-was deferred, sync the board, mark the ledger. **Exception: `main` merged
+was deferred, sync the board (the project's board-sync tool, if it has one;
+see Board/label hygiene), mark the ledger. **Exception: `main` merged
 INTO an integration branch uses `--merge`, never squash** — main's own commits
 carry closing keywords, and a squash concatenates every message and re-fires
 them when the branch reaches main. Run the full suite on the merged tree
-before the final PR; per-branch gates do not compose (a schema bump under one
-run turned a textually clean merge into four semantic reds, one a lie). Cross-repo groups merge in
+before the final PR; per-branch gates do not compose (a schema bump on one
+branch can turn a textually clean merge into semantic reds). Cross-repo groups merge in
 dependency order (producer repo first), all-or-nothing. **Delegate the merge
 mechanics to a small agent** — gate polling, conflict resolution, the
 close-comment/label/board-sync bundle — because orchestrator context is for
 coordination; a single trivial gate-plus-merge may stay one inline command.
 **A review's docs-only wording nit on an otherwise-clean docs PR: fix it on
-the docs branch yourself before merging** rather than spinning a fix round —
-that worked twice in one run. **A card that straddles the wave boundary closes
+the docs branch yourself before merging** rather than spinning a fix round.
+**A card that straddles the wave boundary closes
 in the wave that did its work, and the remainder is filed fresh** — cleaner
 than an open card in a closed milestone, and the same applies to an exit that
 is structurally unclosable (file its recurring successor).
@@ -560,9 +575,8 @@ before claiming either outcome.
 **Rework that outgrows the work is a signal, not a phase.** The round cap is a
 backstop against a loop, and it does not catch the expensive case: cost lives
 in what one round does, not in how many there are. A single round on a fixer
-that has grown large, re-running the suite dozens of times, can cost more than
-the implementation it repairs — in one measured run, on the worst card the fix
-round outspent the build it was fixing. When a fix round passes the cost of the
+that has grown large, re-running the suite again and again, can cost more than
+the implementation it repairs. When a fix round passes the cost of the
 work it repairs, the card was mis-specified or the review was wrong; **stop and
 put it to the operator** rather than grinding out another round. This needs no
 new instrument: the ledger already records what each agent cost.
@@ -577,21 +591,21 @@ change, and what should be split?
 **Ledger.** Scratchpad markdown, written before the first dispatch: wave
 plan, per-issue log lines, rulings, deferred minors, resume queue, the
 pause/resume state. After a compaction or limit reset, trust the ledger and
-`git log` over memory. **Put it on disk, not on a tmpfs scratchpad** — one
-run's ledger was cleared with `/tmp` between sessions. That one was recovered:
-a subagent rebuilt it from the previous session's transcript by reading the
-tool calls, which is the fallback, but it costs a dispatch and it only works
-while the transcript is still there.
+`git log` over memory. **Put it on disk, not on a tmpfs scratchpad** — a
+ledger there can be cleared with `/tmp` between sessions. It is recoverable:
+a subagent can rebuild it from the previous session's transcript by reading
+the tool calls, which is the fallback, but it costs a dispatch and it only
+works while the transcript is still there.
 
 **Agent briefs — three run-stopping rules.** (1) Name the Monitor tool and
 *unpolled* `run_in_background` explicitly as banned, for **every dispatched
-agent** — "no monitors" alone was read as a Bash-only rule and one fixer
-stalled on a Monitor. Detached-and-polled work is the permitted form (Poll, do
+agent** — "no monitors" alone can be read as a Bash-only rule, and a fixer
+then stalls on a Monitor. Detached-and-polled work is the permitted form (Poll, do
 not block, below). The orchestrator's own liveness sweep is the only Monitor
 any agent may rely on; it is the orchestrator's, and no brief may grant it.
 (2) Scratch filenames are card-scoped
-(`pr-<issue>-<repo>.md`); two agents sharing one filename propagated one card's
-PR body onto another card's PR twice, and every `gh pr edit N` is preceded by
+(`pr-<issue>-<repo>.md`); two agents sharing one filename can propagate one
+card's PR body onto another card's PR, and every `gh pr edit N` is preceded by
 `gh pr view N --json title,headRefName`. (3) A tool that syncs a contract into a
 sibling checkout runs only on the schema card, and its **output path is a
 worktree, never the shared clone**. After any schema card, check the shared
@@ -629,18 +643,17 @@ next card is dispatched on the notification, not on a poll turn. Bound it
 inside the orchestrator's cache lifetime and have it exit non-zero on expiry,
 so a slow merge surfaces as a failed step rather than a killed shell.
 
-**Test-runner filters.** A runner's path or namespace filter may be exact-match:
-summing folder-level chunks then silently drops everything nested below them —
-a large slice of the suite ran but was never counted. Confirm the runner's
-filter semantics before trusting a summed total; brief agents to run unfiltered
-or split by test class, and to quote per-chunk totals.
+**Test-runner filters.** A runner's path or name filter may be exact-match
+rather than prefix-match: summing per-chunk totals then silently drops
+whatever no filter matched — tests ran but were never counted. Confirm the
+runner's filter semantics before trusting a summed total; brief agents to run
+unfiltered or split by test class, and to quote per-chunk totals.
 
 **Fixer-authored conventions.** When a spec is silent a fixer will author a
 convention (which side a default falls on, where an annotation anchors, how a
 zero case renders). Treat each as a design act: a narrow, tightly-scoped
 adjudication either ratifies, relocates or replaces it; do not block on it and
-do not let it merge un-ruled. In one run two of three were ratified; one moved
-to the right section.
+do not let it merge un-ruled.
 
 **When leave-one-out names a RULE as the conflict, the menu always includes
 DEMOTING it.** The two obvious options — amend the rule's numbers, or re-author
@@ -655,45 +668,43 @@ Two things make it a discipline rather than a licence:
 
 - **Where the spec states its own cutting order, quote it.** Specs written by
   people who expected this often say what to cut first, in a risk or recovery
-  section, and then nobody reads that section under pressure. One spec's own
-  risk section named its rule set as the first thing to cut; over the
-  milestones that followed the set grew while the same defects were re-cut.
-  Quote the order into the menu and the operator is choosing within their own
-  plan, not against it.
+  section, and then nobody reads that section under pressure. Quote the order
+  into the menu and the operator is choosing within their own plan, not
+  against it.
 - **A rule kept at a tier the system cannot satisfy is worse than a demoted
-  one.** A specified, tested constraint that is never registered because
-  registering it makes the reference inputs infeasible is a rule the system
+  one.** A specified, tested constraint that is never enforced because
+  enforcing it makes the reference inputs infeasible is a rule the system
   does not check while the spec says it does. That gap is exactly the failure
   the rule existed to prevent, reintroduced by its own tier.
 
 So the menu the operator gets is: **demote / amend / re-author / park
-unposted**, each with a measured, rendered result where the domain has an
+disabled**, each with a measured, rendered result where the domain has an
 artifact to render — never one option, and never the strictest formulation
 alone.
 
 **When the named conflict is structural, a further option is to ship the rule
-issued but not posted.** Leave-one-out (SKILL.md's rule) sometimes names no
-defective rule and no defective design: on one card a specified constraint was
-unsatisfiable against the project's frozen acceptance inputs, because it and two
-sibling constraints were each individually valid and jointly unsatisfiable.
-Amending the constraint inside a fixer's diff would have been a spec change
-made by an implementer; re-authoring those inputs to fit was worse.
-What shipped was the constraint **complete and fully tested, with its
-registration disabled** — honest only under three
+complete but disabled.** Leave-one-out (SKILL.md's rule) sometimes names no
+defective rule and no defective design: a specified constraint can be
+unsatisfiable against the project's frozen acceptance inputs, because it and
+two sibling constraints are each individually valid and jointly unsatisfiable.
+Amending the constraint inside a fixer's diff would be a spec change made by an
+implementer; re-authoring those inputs to fit is worse.
+What ships is the constraint **complete and fully tested, with its
+enforcement disabled** — honest only under three
 conditions: the infeasibility is **measured** (the core named by leave-one-out,
 not asserted), the PR states the exit clause is not met rather than pretending
 it is, and a committed test **re-derives the infeasible core every run** so the
-card reds the day those inputs move and the rule becomes postable.
-The reviewer's job on such a PR is to prove that guard fires — this one did,
-by mutating those inputs until the infeasible core dissolved. Put the
-amend / re-author / park-unposted choice to the operator as a question, and
+card reds the day those inputs move and the rule can be enabled.
+The reviewer's job on such a PR is to prove that guard fires, by mutating those
+inputs until the infeasible core dissolves. Put the
+amend / re-author / park-disabled choice to the operator as a question, and
 ship the defensible option meanwhile rather than stalling on it.
 
-**Recorded-interaction retries** (only where the project records live
-interactions and replays them in tests). Re-recording until a take is usable and
+**Retried captures** (only where the project captures live external output and
+replays it in tests). Re-capturing until a capture is usable and
 keeping the last one is disclosed, not cherry-picked — and only when every
 discard was for validity. Discarding on content the brief never pinned is a
-selection the operator rules on, and the recording's provenance should carry an
+selection the operator rules on, and the capture's provenance should carry an
 attempt count. Route it to the deferred register, not to the reviewer.
 
 **The orchestrator's ceiling is not the fixer's: soft 200k, hard 500k.** Iron
@@ -703,9 +714,8 @@ A fixer re-derives a repo's history, a diff and a suite on every turn, so its
 turns are expensive and its ceiling is tight (~150k, hard ~200k). An
 orchestrator's turns are bookkeeping over a ledger that is already in a warm
 cache: cost per turn grows at the cache-read rate, roughly a tenth of the
-write rate. Held to the fixer's number, three consecutive orchestrator sessions
-in one measured run hit the ceiling inside an hour or two, before any
-substantial coordination had happened — and every handover costs a cold write
+write rate. Held to the fixer's number, an orchestrator hits the ceiling
+before any substantial coordination has happened — and every handover costs a cold write
 of the ledger plus a re-orientation. Re-orientation is not free bookkeeping
 either: it is where a lane seam gets lost, which is a defect the run then ships.
 
@@ -817,12 +827,21 @@ detail is in the report file the line points at, and a long line costs on every 
 
 ```bash
 python3 ~/.claude/skills/token-report/token_audit.py --since <run-start> --json \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin)["usd"])'
+  | python3 -c 'import json,sys
+d = json.load(sys.stdin)
+if d["root_missing"] or d["turns"] == 0:
+    sys.exit("token-report: no transcripts counted (check --root / --since); refusing to report $0")
+print(d["usd"])'
 ```
 
-Before the first wave, find the instrument's per-project view (`--view
-projects`) and record the command in the INTRO; a run on a shared machine that
-reads only the machine-wide total cannot apply this rule at all.
+A mistyped `--root` or a `--since` past the last transcript totals zero and would
+pass a bare `usd` check silently; the snippet fails instead. `--since` is
+day-granular — pass a plain `YYYY-MM-DD`.
+
+Before the first wave, find the instrument's per-project view
+(`token_audit.py --view projects`, from the `token-report` skill) and record the
+command in the INTRO; a run on a shared machine that reads only the
+machine-wide total cannot apply this rule at all.
 
 **The orchestrator's own context has a second instrument, and it is the one
 the stamp needs.** The command above measures spend; it says nothing about how
@@ -832,7 +851,7 @@ estimate it:
 
 ```bash
 python3 ~/.claude/skills/orchestrating-issue-runs/tools/context-size.py
-# → context current 142,300 · peak 168,900 · avg 97,400 over 64 turns · under-soft (soft 200k / hard 500k)
+# → context current 140,000 · peak 170,000 · avg 100,000 over 60 turns · under-soft (soft 200k / hard 500k)
 ```
 
 It sums, for every assistant turn in the session's own transcript,
@@ -843,13 +862,14 @@ main-loop transcript for the current project (`--transcript`, `--session` or
 2 for under-soft / past-soft / past-hard so a stamp can branch on it. Write its
 `current` into the ledger beside every progress stamp.
 
-Consult the spend report between waves and before each fix round after the
+Consult the spend report (`token_audit.py` from the `token-report` skill)
+between waves and before each fix round after the
 first, and record its figure in the ledger next to the wave line so the drain
 decision is made against a trend rather than one reading. The progress stamp's
 context figure comes from `context-size.py`, not from the spend report (Iron
-rule 9). `--view agents --top 40` shows which agents carry the cost and how
-large their contexts grew — that is the view that says whether the ceiling is
-being respected.
+rule 9). `token_audit.py --view agents --top 40` shows which agents carry the
+cost and how large their contexts grew — that is the view that says whether
+the ceiling is being respected.
 
 **An agent measured past twice its ceiling is an instrument failure, and it is
 fixed before the next dispatch.** Not a ledger note, not a line in the wrap.
@@ -859,8 +879,8 @@ unmeasured. Check the obvious causes in order — is the hook installed in the
 project's `.claude/settings.json` inside the top-level `"hooks"` object, was
 `AGENT_CEILING_SOFT` exported *before* the CLI started, does the throwaway
 probe still come back blocked — and re-verify by dispatching the probe, not by
-reading the settings file. One run found three fixers at four to five times the
-stated ceiling and recorded it; the next run reproduced it. (Needs the `token-report` skill
+reading the settings file. A past-ceiling reading that is recorded and not fixed
+is reproduced by the next run. (Needs the `token-report` skill
 installed; without it, say so in the report rather than estimating. A zero
 reading is a claim to check, not a result: the same `$0.00` comes from a
 mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
@@ -879,7 +899,7 @@ three shapes and each has a form that costs no turn:
 | a failure shape (stall, cold agent, vanished worktree) | the one persistent silent sweep `Monitor` below | 0 |
 
 Bound the background wait inside the orchestrator's own cache lifetime (about
-an hour here; fifty minutes is the bound that has held) so the wake reads the
+an hour; fifty minutes is the bound to use) so the wake reads the
 cache instead of rewriting it. The gated-fixer queue (Phase 1 → "Queue gated
 fixers") is the commonest instance: the `until` on the default branch runs in
 the background and the next card is dispatched on the notification, not on a
@@ -890,8 +910,8 @@ orchestrator's rule; dispatched agents keep theirs (Poll, do
 not block — their cache is minutes, not an hour).
 
 **Liveness sweep.** Agents die silently — weekly quota, mid-stream API errors,
-background-wait stalls — and the run reads as "still working" for hours
-otherwise; that is how one run's quota pause slipped by unnoticed. Detect it
+background-wait stalls — and the run reads as "still working"
+otherwise; a quota pause slips by unnoticed that way. Detect it
 **outside the orchestrator's context**: one sweep for the whole run, not a
 timer per agent. A per-agent timer pays a full orchestrator context read on
 every firing, for every agent, just to learn "still alive", and still finds a
@@ -903,8 +923,11 @@ the orchestrator is woken only when one looks dead:
 
 ```bash
 : "${SCRATCH:?set SCRATCH to the scratch directory for this run}"  # no silent no-op
+# Assumes: worktrees sit directly under $SCRATCH and are named wt-* (the Fixer
+# step's convention) — rename the glob below if yours differ — and GNU find
+# (-newermt with a relative date). On BSD/macOS find, use -mmin -$STALE_MIN.
 shopt -s nullglob
-STALE_MIN=30                 # 15 woke the orchestrator on every suite run; see below
+STALE_MIN=30                 # 15 wakes the orchestrator on healthy suite runs; see below
 GRACE=3                      # passes to allow before the first worktree exists
 armed=0; empty=0
 while true; do
@@ -937,8 +960,8 @@ Adapt the signals to the run — worktree mtimes as above, the agent transcript'
 mtime, `gh pr view` for a PR that should exist by now. **Add the cache signal
 too, at the same 30 minutes: an agent transcript not written to for that long
 is an agent that is dead or blocked**, not one that is running a suite. Say it
-once per agent (`COLD: <agent>`), not every pass. The thresholds are measured,
-not chosen: at 15 minutes on the worktree and 5 on the transcript, a sweep
+once per agent (`COLD: <agent>`), not every pass. The thresholds are not
+arbitrary: at 15 minutes on the worktree and 5 on the transcript, a sweep
 fires on healthy work — every line a suite run or a reviewer reading — and each
 wake is a full-context orchestrator turn. A sweep that fires on healthy work is the per-agent timer again. A
 transcript idle five minutes is still a brief violation (the agent's cache has
@@ -948,7 +971,7 @@ The shared status line reads the same thing off the same transcripts, as each
 live agent's TTL percentage: a reading at 100% on an agent that is meant to be
 polling says the same thing without waiting for the sweep. (`.git` is pruned on
 purpose: index churn from a stuck command is not progress, and leaving it in
-made the sweep report a hung agent as healthy the first time this was tested.)
+makes the sweep report a hung agent as healthy.)
 
 Two properties make it a gate rather than decoration: it is **silent while
 healthy** (otherwise it is the per-agent timer again, wearing a loop), and it
@@ -992,8 +1015,8 @@ armed timer or monitor" is for: parks, not dispatches.
 worktree, branch and PR state yourself first and hand those facts back in the
 message** — it stops the agent re-deriving them and stops it recreating a
 worktree that still exists. Include "recreate at a fresh path if it is gone".
-Causes seen: watchdog kill after idling on a background job, mid-stream API
-error, session quota limit. All three resumed and completed; none needed a
+Typical causes: watchdog kill after idling on a background job, mid-stream API
+error, session quota limit. All three resume from the transcript; none needs a
 fresh dispatch. **When the orchestrator's own session crashes, resume that same
 session rather than starting a fresh one** — agent handles are session-scoped,
 so only the resumed session can `SendMessage` its in-flight agents. A resumed
@@ -1021,8 +1044,8 @@ that gate yourself. You own it anyway; merge requires CI green *and* review
 clean, and the agent cannot merge.
 
 **Idle time at parallelism 1.** While the one in-flight agent runs, pre-write
-the next brief instead of waiting on it — this kept dispatch latency near zero
-across a whole run. The brief is finished when the agent returns — only the
+the next brief instead of waiting on it — this keeps dispatch latency near
+zero. The brief is finished when the agent returns — only the
 just-landed PR/branch facts get filled in before send.
 
 **Briefing rules.** Every brief: **the run's goal line**, role, ONE issue,
@@ -1085,24 +1108,23 @@ Give the agent the poll form, not just the ban — a bounded wait per call:
 the bound is a maximum, not an example: every poll call returns within about
 four minutes, whatever the command is expected to take.** The long Bash
 timeout is a ceiling for a runaway command, not a poll cadence. Briefed with
-the 230-second form and nothing about it being a limit, one fixer stretched its
+the 230-second form and nothing about it being a limit, a fixer can stretch its
 polls toward the Bash ceiling to save turns — detached, polling, correct by
-every other reading of the rule — and expired its cache on two polls in a row.
+every other reading of the rule — and expire its cache on consecutive polls.
 Each extra poll is one cache read; one bound past the lifetime is a full write,
 about ten reads' worth, so a longer bound never saves anything.
 **Put that line in every waiting role's brief**, not only the fixer's:
 reviewers re-measuring a suite, screenshot and recording agents, wrap and
 demo-capture agents.
 "No monitors" on its own is not enough: it reads as a Bash rule, and a fixer
-that took it that way still armed the Monitor tool and stalled on it. **Ban
-dispatching subagents in the same breath**: nothing said an agent could not
-fork, and a triage agent forked four helpers that wrote one shared output file
-and clobbered each other. A short default Bash timeout is what
-auto-backgrounds long suite runs and live CLI calls; six agents stalled that
-way in one run, each costing a nudge round-trip.
+that takes it that way still arms the Monitor tool and stalls on it. **Ban
+dispatching subagents in the same breath**: unless told otherwise an agent can
+fork, and forked helpers that write one shared output file clobber each other.
+A short default Bash timeout is what auto-backgrounds long suite runs and live
+CLI calls; agents stall that way, each costing a nudge round-trip.
 
 **Why it is a cache rule, in one paragraph** (the full reasoning and the
-runs that proved it: `reference/cache-warmth.md`). A subagent's prompt cache
+evidence behind it: `reference/cache-warmth.md`). A subagent's prompt cache
 expires after about five minutes idle; a command that blocks past that expires
 the whole cache and the next turn rewrites the context at the write rate, about
 ten reads' worth — at a mid-run fixer's context, a major cost. It binds **every role that waits** (fixer, reviewer re-measuring, capture,
@@ -1121,7 +1143,7 @@ carries:
   `VERDICT: APPROVED | CHANGES_REQUESTED`"* — in the posted body, not only in
   your return to the orchestrator.
 - *"Prove each new guard would fail if the thing it guards stopped being
-  true"* — vacuous assertions were found green three different ways in one run.
+  true"* — vacuous assertions pass green in more ways than one.
 - *"Review PR #N at head `<sha>`, base `<sha>` — these files. Open anything
   outside the diff only to verify a specific claim you are making."* Resolve
   the SHAs yourself and pin them; a shared clone moves under concurrent agents.
@@ -1130,9 +1152,10 @@ carries:
   a sink approved as "correct, not user-facing" was wired into nothing; a
   feature nobody reaches is not shipped.
 - *"For every comparison against a reference, confirm the reference's answer
-  is derivable from the input the compared variant receives"* — a rule scored
-  one variant's example against a reference recording whose value lived only
-  in the withheld input; no model could pass, and it decided the verdict.
+  is derivable from the input the compared variant receives"* — a check can
+  score one variant's output against a reference whose value lived only in an
+  input that variant was never given; no variant could pass, and it decided
+  the verdict.
 - For a **docs PR paired with a ruling**, add a `DOCS_PR_MATCH` section on
   top of the `VERDICT:` line, never instead of it: **check each clause of the
   docs PR against the ruling it implements and against the code that actually
@@ -1141,14 +1164,15 @@ carries:
   literal `VERDICT:` line.
 
 **Return contracts must force quoting, not self-assessment.** An agent asked "did you
-comply?" answers from intent — one returned `DEVIATIONS: none` having missed an
-explicit instruction. Ask it to **quote the line** (the closing keyword, the shipped
+comply?" answers from intent — an agent can return `DEVIATIONS: none` having
+missed an explicit instruction. Ask it to **quote the line** (the closing keyword, the shipped
 wording, the measured number) and it answers from the file instead.
 
-**Tell fixers an issue's factual claims are checkable, not givens.** One issue asserted
-a file documented a command a certain way; it documented no such thing — the claim came
-from the orchestrator's own failed invocation, generalised. The fixer read the file,
-found no defect to correct, verified real behaviour and documented that instead.
+**Tell fixers an issue's factual claims are checkable, not givens.** An issue can
+assert that a file documents a command a certain way when it documents no such
+thing — the claim generalised from the orchestrator's own failed invocation.
+The fixer should read the file, find no defect to correct, verify real
+behaviour and document that instead.
 **Inventing a defect to match an issue is worse than the issue being wrong.**
 `gh` comments with literal backticks: always `--body-file`, and write the file
 with a **quoted** heredoc (`<<'EOF'`) — `--body` runs command substitution, and
@@ -1157,24 +1181,23 @@ so does an *unquoted* heredoc, which is the same bug one step later.
 **The standing brief lines.** Each earned its place by catching something a
 brief without it missed:
 
-1. **"Re-measure the baseline yourself; do not carry a number across."** Two
-   agents in one run caught stale suite counts handed to them by the
-   orchestrator. Never state a number the agent can measure.
+1. **"Re-measure the baseline yourself; do not carry a number across."** Agents
+   catch stale suite counts handed to them by the orchestrator. Never state a
+   number the agent can measure.
 2. **"If any part of the ruling turns out wrong, or more expensive than it
-   looked, say so explicitly — do not quietly drop it."** Three agents deviated
-   and reported; all three were right, including one that corrected a ruling's
-   stated premise by measurement while still following the ruling.
+   looked, say so explicitly — do not quietly drop it."** A reported deviation
+   is usually the right call, including one that corrects a ruling's stated
+   premise by measurement while still following the ruling.
 3. **"Any sentence asserting something is impossible or cannot be tested is a
    hypothesis. Test it before you write it."** **The highest-yield line here, by a
-   wide margin.** One later run produced *five* false impossibility claims in a
-   single pull request — three refuted by a reviewer building the thing, and two
-   caught by the author in its own drafts because it ran the sabotage instead of
-   trusting the paragraph it had just written. All written honestly by strong agents.
-   The author's own diagnosis generalises: *"I reasoned about what a call does
-   instead of running it."*
+   wide margin.** A single pull request can carry several false impossibility
+   claims — some refuted by a reviewer building the thing, some caught by the
+   author in its own drafts because it ran the sabotage instead of trusting the
+   paragraph it had just written. All written honestly by strong agents. The
+   diagnosis generalises: reasoning about what a call does is not running it.
 
-   Carry the sharpened form into briefs as well, because it names the step all five
-   slid over: **when a claim rests on another component already doing the same work,
+   Carry the sharpened form into briefs as well, because it names the step they
+   all slid over: **when a claim rests on another component already doing the same work,
    the load-bearing question is whether that component carries the value forward or
    asks again.** Nothing usually requires two answers to agree.
 
@@ -1189,28 +1212,27 @@ brief without it missed:
    because the brief told it to run the mutation instead of trusting the plan.
 4. To a **fixer building a guard**: *"the first shape to test your guard against
    is the shape your own diff introduces."* Two more, learned the same way:
-   **pin it with a property over the whole set, never a count** — a fact asserting
-   "22 asks" stops discriminating the moment the code makes 23, whereas one
-   asserting "every ask, wherever it lands" can only be moved by placement; and
-   **ask what the new guard now covers besides the thing being guarded** — a guard
-   added so bad *data* fails one node had four lines of *engine* setup inside it,
-   which is the same inversion the guard existed to prevent, reintroduced by the
-   change implementing it.
+   **pin it with a property over the whole set, never a count** — a test asserting
+   "exactly N items" stops discriminating the moment the code makes N+1, whereas
+   one asserting "every item, wherever it lands" can only be moved by placement;
+   and **ask what the new guard now covers besides the thing being guarded** — a
+   guard added so bad *input* fails a check can have *infrastructure* setup
+   inside it, which is the same inversion the guard existed to prevent,
+   reintroduced by the change implementing it.
 5. To a **fixer receiving a reviewer's remedy**: *"verify it, do not copy it —
    a right finding can carry a wrong fix."*
 6. To a **fixer on any position- or orientation-sensitive card**: *"use an
    ASYMMETRIC fixture and a hand-typed candidate oracle from day one."*
-   Fixture-blindness repeats by axis. Two such cards in one wave shipped tests
-   green under mirror and transpose because the fixture was symmetric, and a
-   third passed a directional filter because the fixture had no variation on
-   the axis it filtered. The position-mutation review battery catches this, but
-   the fixture requirement catches it a round earlier — the one card briefed
-   this way came back with no finding on that axis.
+   Fixture-blindness repeats by axis. Tests stay green under a whole-fixture
+   transform because the fixture was symmetric, and a directional filter passes
+   because the fixture had no variation on the axis it filtered. The
+   position-mutation review battery catches this, but the fixture requirement
+   catches it a round earlier.
 
    **A rule about a relation between two objects needs a mutation that moves
-   only one of them.** Whole-thing transforms — mirror, transpose, shift,
-   rotate — move both, and on two separate cards every one of them left the
-   suite green while the rule under test was broken. Only a mutation that
+   only one of them.** Whole-thing transforms — shift, rotate, reflect — move
+   both, and every one of them can leave the suite green while the rule under
+   test is broken. Only a mutation that
    moves one of the two objects and leaves the other where it is discriminates
    a working rule from a broken one; no whole-thing transform can.
 7. To **any long-running dispatched agent**: *"when your context passes ~150k,
@@ -1232,7 +1254,7 @@ brief without it missed:
    a card.
 
 **Schema-change chain** (any ruling that adds/changes a persisted field):
-doc amendment PR (orchestrator-merged, paired with the engine PR — see
+doc amendment PR (orchestrator-merged, paired with the code PR — see
 Adjudication above) → field + version-constant bump → regenerate
 generated artifacts (schemas, contracts, pins) → companion PR in each
 consuming repo, lockstep → fixtures updated via their regen tool, never by
@@ -1241,7 +1263,7 @@ regen tool committed alongside them or every schema bump breaks them by hand.
 
 **A schema act on an AGENT-FACING record is a prompt change, and it is briefed
 as one.** Where a project has records a model reads or writes — a structured
-output schema, a tool result the model sees, a recorded interaction replayed in
+output schema, a tool result the model sees, a captured exchange replayed in
 tests — the schema *is* part of the prompt. Two consequences the ordinary chain
 does not cover:
 
@@ -1250,38 +1272,38 @@ does not cover:
   schema at all; documenting "leave this null" alongside it does not undo the
   invitation, and the model's compliance then varies by tier and by phrasing.
   Remove the field, or accept that it will be populated.
-- **Bump such a schema and the recordings go stale in a way tests may not
-  show.** The re-record is part of the same card, briefed together with the
+- **Bump such a schema and the captures go stale in a way tests may not
+  show.** The re-capture is part of the same card, briefed together with the
   schema change and with the prompt wording it implies — not a follow-up. If
-  the project pins prompt freshness by a hash, check *which* hash actually moves
-  when the prompt file changes: a composed-prompt hash that does not move on a
-  prompt edit is a freshness pin that pins nothing.
+  the project pins freshness by a hash, check that the hash actually moves when
+  the pinned input changes: a pin that does not move on an edit pins nothing.
 
-**Serialize schema-version acts; parallel PRs collide on the constant.** In
-one run two approved engine PRs both claimed the same next version in a single
-afternoon, and a third followed. Merge the smaller or further-along first,
+**Serialize schema-version acts; parallel PRs collide on the constant.** Two
+approved PRs can both claim the same next version, and a third can follow.
+Merge the smaller or further-along first,
 have the other rebase and re-run its own regen chain (the tools make that
 cheap); the consuming-repo pin moves last. **Declare the version constant a
 shared file surface in every parallel-mode brief.**
 
 **Then merge in ASCENDING version order and let the fixers correct themselves.**
-Three held versions against a `main` that moved four times is one reorder per
-merge if the orchestrator owns the numbering, and every reorder is a round trip
-to a fixer. What worked instead: merge lowest-claimed-version first so the
+Several held versions against a default branch that keeps moving is one
+reorder per merge if the orchestrator owns the numbering, and every reorder is
+a round trip to a fixer. Instead: merge lowest-claimed-version first so the
 constant only ever rises, and give every fixer the standing line **"re-read the
-constant on `main` immediately before you push, and take the next free number
-above it only if yours has been passed."** Gaps are usually harmless — check
-what the version tests actually assert (one suite asserted only a monotonicity
-bound, so a skipped version or two cost nothing), and renumbering a built PR
+constant on the default branch immediately before you push, and take the next
+free number above it only if yours has been passed."** Gaps are usually
+harmless — check what the version tests actually assert (a suite may assert
+only a monotonicity bound, in which case a skipped version costs nothing), and
+renumbering a built PR
 down to close a gap re-touches generated fixtures and merged doc text for
 cosmetics.
 
 **A merged validator with no live-fixture consumer is unverified in the
-pipeline.** One shipped blocking validator was inert for a day — an exact
-check that its own node's read never satisfied — and was found only by the
-next card's fixer reading neighbour code. When a review notes "zero live
-fixtures exercise this," treat end-to-end activation as unproven: **probe the
-validator through the real node at merge time**, not just at unit level.
+pipeline.** A blocking validator can ship inert — an exact check that its own
+stage's input never satisfies — and be found only by a later card's fixer
+reading neighbour code. When a review notes "zero live fixtures exercise
+this," treat end-to-end activation as unproven: **probe the validator through
+the real pipeline stage at merge time**, not just at unit level.
 
 **Clean-env rule.** Any shell script an agent writes gets verified in a
 clean environment (Docker `node:XX-bookworm`, or `env -i HOME=$(mktemp -d)`),
@@ -1291,14 +1313,17 @@ redirects (ENXIO on Linux when stderr is a pipe), ambient git
 identity/config. CI's first run on a repo WILL find this class — treat each
 find as its own issue assigned to the code's owning agent, not a drive-by.
 **"Deterministic" is a per-platform claim until it has been measured
-elsewhere.** A numeric computation diverged across two operating systems at
-its own accept/reject boundary inside the same deterministic budget — and a code
-comment claiming "reproducible on any machine" had already been cited as
-evidence by an adjudicator. The fix lands as its own correction-term file,
-never as a re-baseline of frozen evidence.
+elsewhere.** A computation that is deterministic on one platform can diverge
+on another at a threshold, and a code comment claiming "reproducible on any
+machine" is not evidence of it — measure on a second platform before an
+adjudicator cites it. The fix lands as its own correction, never as a
+re-baseline of frozen evidence.
 
 **Board/label hygiene.** State labels are flipped by the stage that owns the
-transition; the orchestrator runs the board-sync tool after every close. If
+transition; the orchestrator runs the project's board-sync tool (an optional,
+per-project piece — without one, set the board fields with `gh project
+item-edit` or leave the drift to the Phase 2 board-consistency sweep) after
+every close. If
 board status derives from labels with parked-outranks-lifecycle precedence,
 spent gating labels must come off at go time. **A keyword close (`Closes #N`
 on the push to the default branch) skips the stage that would flip labels**, so
@@ -1330,26 +1355,24 @@ goal line (iron rule 11) is the single item.
 
 **Run `date` for every single stamp, in the turn that emits it.** Not from
 memory, and above all not by adding the elapsed work to the last stamp — that
-is how one run's stamps ended up **77 minutes ahead** of the clock before the
-operator caught it, which also made every time in its ledger a label of unknown
-accuracy. This is a per-stamp instruction, not a per-ledger one; it was already
-written once as the latter and was read as advice. Emit it on meaningful
+is how stamps end up **ahead of the clock** unnoticed, which also makes every
+time in the ledger a label of unknown accuracy. This is a per-stamp
+instruction, not a per-ledger one. Emit it on meaningful
 completions, not on every notification or tool call. If the user asks for "just a number",
 give only the number.
 
 **The stamp must be the FINAL text of its turn — no tool call after it.** Text
-followed by tool calls in the same turn is not reliably rendered: one run
-emitted two stamps (17%, 24%) immediately before dispatching the next agent,
-and the user saw neither — the run looked silent for four hours while reporting
-diligently. Order of operations on a completion: token-report read (Budget
+followed by tool calls in the same turn is not reliably rendered: stamps
+emitted immediately before dispatching the next agent can go unseen, and the
+run looks silent while reporting diligently. Order of operations on a
+completion: spend read (`token_audit.py` from the `token-report` skill — Budget
 check) → ledger update, figure included → next dispatch → close the turn with
 the stamp. If work remains after the stamp is due, end the
 turn anyway and continue on the next event.
 
 **Fix the model once, at the first report, and keep using it.** Percentages
-drift upward otherwise — this skill's own run reported 76% and had to be
-corrected down to 71% mid-run, because approach work on unstarted issues was
-being over-credited. What worked:
+drift upward otherwise, because approach work on unstarted issues gets
+over-credited. What works:
 
 - weight each issue by **expected cost**, not by count (a heavy contract issue is
   worth three of a docs issue);
@@ -1362,7 +1385,8 @@ that only ever rises is not a measurement.
 ## Phase 2 — Wrap (in this order)
 
 1. **Demo evidence**: spike refresh (per the project's demo skill if one
-   exists), screenshots + capture log, honesty fences from the run's rulings.
+   exists — an optional per-project piece; without one, the wrap brief spells
+   out the refresh steps itself), screenshots + capture log, honesty fences from the run's rulings.
    **A card ruled into the milestone after capture has started does not
    restart the capture** — the capture is still valid evidence for the cards
    already closed, and the late card runs on its own track. Name, in the wrap
@@ -1377,9 +1401,9 @@ that only ever rises is not a measurement.
    report, follows the flow — and writes down every place the artifact is
    *present but wrong* for that user. The evidence census answers "did each
    promised noun ship?"; the walkthrough answers "would the user accept
-   this?" — they are different questions, and one run scored full marks on the
-   census while the operator's own walkthrough of the same artifact found dozens
-   of defects the census could not see. Findings go into the ledger's deferred
+   this?" — they are different questions, and a run can score full marks on the
+   census while a walkthrough of the same artifact finds many defects the census
+   could not see. Findings go into the ledger's deferred
    list as candidate cards — step 5 reads them from there, not from a close
    comment, because every card is already closed by now — and the demo
    document names them as known gaps under the honesty fences. **The
@@ -1394,13 +1418,17 @@ that only ever rises is not a measurement.
    it never carries a project's rubric.
 3. **Demo document**: assembled from the capture log's own captions (never
    invented claims), delivered to the user, and — **if the run's memory says
-   demos are published** — released the way that memory describes (which repo,
+   demos are published** (the memory file is optional; with none, ask the
+   operator once) — released the way that memory describes (which repo,
    which tag, the artifact as an asset, the milestone description PATCHed to
-   link it). Put it somewhere durable either way: two early runs lost their
-   demo documents to ephemeral scratchpads, which is why this step exists.
+   link it). Put it somewhere durable either way: ephemeral scratchpads lose
+   demo documents, which is why this step exists.
 4. **Close the milestone** (`gh api -X PATCH .../milestones/N -f
-   state=closed`) — auto-close does not exist; one run's milestone sat open
-   with every card in it closed until someone thought to check.
+   state=closed`) — **only the milestone this run opened or owns; read it back
+   first** (`gh api .../milestones/N`: title, open and closed counts) and close
+   it only if it is the one and its open count is zero. Auto-close does not
+   exist, and a milestone can sit open with every card in it closed until
+   someone thinks to check.
 5. **Deferred register → operator ruling → filing. Never agent → filing.**
    **First filter the register by the goal line**, before grouping: a finding
    that moves nothing on the goal is a close-comment line and is discharged
@@ -1412,29 +1440,27 @@ that only ever rises is not a measurement.
    now with no external resource — recommend folding into the card as one
    more sub-PR before the final merge; (b) needs a cloud call, eval budget, a
    UI, or data that does not exist yet — file, at most a few cards; (c) new
-   ideas — file only the top few. An operator asked for exactly that split
-   ("fold most, file 1–3 — controlled and closed soon") after being handed 25
-   flat items. A
+   ideas — file only the top few. An operator handed a long flat list will ask
+   for exactly that split: fold most, file few, keep it controlled and closed
+   soon. A
    register agent consolidates every deferred item out of the run's close
    comments **plus the domain walkthrough's findings from the ledger**,
    fold-checks each one against issues already open (a candidate
    that duplicates an open card is a fold, not a new card) **and against the
    PR bodies of the run's own merged cards** — a finding a PR already
-   disclosed and disposed of is discharged, not deferred; one filing agent
-   correctly declined four such sets on that ground — and groups the
-   survivors by kind — contract acts / engine / docs / tooling / fixture /
+   disclosed and disposed of is discharged, not deferred — and groups the
+   survivors by kind — contract acts / code / docs / tooling / fixture /
    decisions. The orchestrator turns that into a one-screen list with
    recommendations; **the operator rules**; only then does a filing agent
-   file. The fold-check is most of the value: in one run roughly 45 raw
-   candidates folded to 13 filed cards plus 9 edits to existing cards, and an
+   file. The fold-check is most of the value: a raw candidate list folds to
+   a fraction as many filed cards plus edits to existing cards, and an
    agent filing straight off the close comments skips it entirely. An
    adjudicator's "file the follow-up" does not bypass this gate either —
    briefs route filings to the operator, always.
    **Place each filed card by the target milestone's own Measure line, not by
-   "it comes next."** A contract act or a rules card does not default into the
-   next themed milestone merely because that milestone is up next; an operator
-   correction caught exactly that, where the next themed milestone had picked
-   up cards its theme did not need. Whatever the operator defers instead of
+   "it comes next."** A contract act or a tooling card does not default into the
+   next themed milestone merely because that milestone is up next — that is
+   how a milestone picks up cards its theme did not need. Whatever the operator defers instead of
    filing carries into the next run's Phase 0.
 6. **Board-consistency sweep, ALWAYS, as the run's last board action** (one
    subagent) — **it runs after filing, so it sees the new cards**: every open
@@ -1456,18 +1482,18 @@ round, then either merges (orchestrator gate on the merge SHA) or parks
 green with its rebase facts written on the issue (which base it was cut
 from, which numbers moved under measurement). A card whose only red is a
 defect it *exposed* files that defect as its gate, is labelled `blocked`, and
-parks. The demo publishes as a **pre-release** (`w0N-demo-prelim`): sheets
-from `main`, plus previews rendered from parked PRs in a labelled section
+parks. The demo publishes as a **pre-release** (`<wave>-demo-prelim`): the demo
+pages from the default branch, plus previews rendered from parked PRs in a labelled section
 that says why they are not merged; the milestone stays open. The deferred
 register → ruling → filing becomes the next session's first act, not a spend
 now. Then memory, ledger pause state, skill lessons.
 
-**Mechanics that bit (keep):** take every time you write — ledger line **and chat progress stamp**, and its date — from `date` in the same turn (a typed date or time drifts, across midnight included, and keeps drifting after a correction); a brief's poll call must state its own timeout explicitly (a harness default of two minutes auto-backgrounds a longer poll and the agent loses the wait); a permission classifier may deny a raw REST merge call while the CLI's own merge command with a pinned head SHA goes through — both are sanctioned, keep the second as the fallback; a classifier may also deny a push to a branch that deploys (production) even after the operator approved the merge in chat — do not retry or route around it, hand the operator the merge to make in the host's web UI (once handed over, the merge goes through within minutes); edit a
+**Mechanics that bit (keep):** take every time you write — ledger line **and chat progress stamp**, and its date — from `date` in the same turn (a typed date or time drifts, across midnight included, and keeps drifting after a correction); a brief's poll call must state its own timeout explicitly (a harness default of two minutes auto-backgrounds a longer poll and the agent loses the wait); a permission classifier may deny a raw REST merge call while the CLI's own merge command with a pinned head SHA goes through — both are sanctioned, keep the second as the fallback; a classifier may also deny a push to a branch that deploys (production) even after the operator approved the merge in chat — do not retry or route around it, hand the operator the merge to make in the host's web UI; edit a
 branch and verify in one shell call, merge in a **separate** call, and never
-`cd` into a worktree inside a script (`git -C` only) — `set -e` did not abort
-a failed anchor edit and the PR merged without it; a tmpfs `/tmp` fills with
-four built worktrees (Bash then returns exit 1 with no output) — worktrees go
-on disk under `~/.claude/jobs/<run>/tmp`.
+`cd` into a worktree inside a script (`git -C` only) — `set -e` can fail to
+abort a failed anchor edit and the PR then merges without it; a tmpfs `/tmp`
+fills with a few built worktrees (Bash then returns exit 1 with no output) —
+worktrees go on disk, in a scratch directory outside `/tmp`.
 
 ## Self-improvement (mandatory at Phase 2)
 
@@ -1487,7 +1513,7 @@ This skill learns from every run. At wrap, before the final summary:
    read-through.
    3a. **PRUNE: add a rule, retire or merge a rule.** This step only ever added,
    and a skill that only adds becomes a document nobody finishes — the red-flag
-   list reached fifty rows before anyone noticed that a fifty-row list is not a
+   list kept growing until nobody noticed that a list that long is not a
    checklist. So every pass that adds a rule either **retires** one the run
    proved wrong or subsumed, or **merges** the new one into an existing rule
    that was being read too narrowly. Prefer merging: a new rule beside an old

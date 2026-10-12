@@ -22,7 +22,10 @@ source template lives in this shared repo at `templates/handoff/SKILL.md`.
   doesn't want the last user/assistant messages written verbatim to a local
   (gitignored) file after every turn.
 - **Shared repo** — `SHARED="$(cat ~/.claude/claude-shared-repo 2>/dev/null || echo ~/projects/claude-shared)"`.
-  The template is at `$SHARED/templates/handoff/SKILL.md`.
+  The marker (written by `sync.sh`) records the real checkout and wins;
+  `~/projects/claude-shared` is only the conventional fallback — if neither exists,
+  ask where the repo was cloned. The template is at
+  `$SHARED/templates/handoff/SKILL.md`.
 
 Confirm the target is a git repo: `git -C "<target>" rev-parse --show-toplevel`.
 If it isn't, tell the user and ask whether to proceed anyway (the handoff doc
@@ -35,12 +38,14 @@ Run these against the target and record what you find:
 - **Repo root:** `git -C "<target>" rev-parse --show-toplevel`
 - **Submodules:** `git -C "<target>" submodule status` (or read `.gitmodules`).
   Capture the list of submodule paths, if any.
-- **Task/backlog doc:** look for a backlog the handoff should point at, e.g.
+- **Task/backlog doc:** look for a backlog the handoff should point at. These
+  paths are examples of common conventions, not a fixed list — look wherever this
+  repo keeps its backlog, e.g.
   `ls "<target>"/docs/tasks/*.md "<target>"/TASKS.md "<target>"/TODO.md 2>/dev/null`.
   Pick the most likely "current tasks" file, or conclude there's none.
-- **Test command:** how does this project self-check? Check for
-  `run-*-tests.sh` scripts, a `test-*` skill, `package.json` `scripts.test`,
-  a `Makefile` `test` target, etc. Record the command, or conclude there's none.
+- **Test command:** how does this project self-check? Examples of where to look:
+  a documented test script, a `test-*` skill, `package.json` `scripts.test`,
+  a `Makefile` `test` target, CI config. Record the command, or conclude there's none.
 
 **Show the user what you detected** (repo root, submodules, task doc, test cmd)
 and let them correct it before you write anything.
@@ -56,6 +61,10 @@ Read `$SHARED/templates/handoff/SKILL.md` and substitute every `{{TOKEN}}`:
 | `{{TASK_DOC_INTRO}}` | **If a task doc exists:** ` Task detail lives in the backlog it points to (\`<task-doc>\` is the current source of truth).` — **else:** empty string |
 | `{{TASK_DOC_RESUME}}` | **If a task doc exists:** ` in \`<task-doc>\` (the first \`(in progress)\` item, else the first \`(priority)\`, else the first unchecked)` — **else:** ` from the handoff's "Next up"` |
 | `{{TEST_BEFORE_PUSH}}` | **If a test cmd exists:** ` (run \`<test-cmd>\` first if code changed)` — **else:** empty string |
+
+In the `{{TASK_DOC_RESUME}}` fill, the `(in progress)` / `(priority)` / "unchecked"
+markers are an *example* task-file convention. If the task doc marks status some
+other way, describe it in that doc's own terms instead.
 
 ### Submodule tokens
 
@@ -78,7 +87,7 @@ template line, directly in front of existing text. So:
 | `{{NOTES_SUBMODULE}}` | empty string |
 | `{{COMMIT_DOC_LOCATION}}` | empty string |
 
-**If the repo HAS submodules** (let `SUBS` = space-separated submodule paths, e.g. `backend frontend edge`):
+**If the repo HAS submodules** (let `SUBS` = space-separated submodule paths, e.g. `api web`):
 
 - `{{SUBMODULE_RESUME}}` →
   ```
@@ -96,7 +105,21 @@ template line, directly in front of existing text. So:
 - `{{NOTES_SUBMODULE}}` → `- \`docs/HANDOFF.md\` is **parent-repo** content, not a submodule.` followed by a newline
 - `{{COMMIT_DOC_LOCATION}}` → ` (it lives in the **parent** repo)`
 
-After substituting, **scan the result for any leftover `{{...}}` or `<...>` placeholder — there must be none.**
+After substituting, **scan the result for any leftover `{{...}}` token or unfilled `<task-doc>` /
+`<test-cmd>` marker — there must be none.** The one `<…>` literal that is intentional
+in the template is `<repo>` (in the `git -C <repo> status -sb` example in WRAP-UP);
+it stays, so do not scan for arbitrary `<...>`. For example (`SKILL_MD` = the filled
+file; grep exits 0 = placeholder found, 1 = clean, 2 = error, which is not clean):
+
+```bash
+: "${SKILL_MD:?set SKILL_MD to the filled SKILL.md path}"
+grep -nE '\{\{[A-Z0-9_]+\}\}|<task-doc>|<test-cmd>' "$SKILL_MD"
+case $? in
+  0) echo "leftover placeholder(s) above — fix before finishing"; exit 1 ;;
+  1) echo "no leftover placeholders" ;;
+  *) echo "scan itself failed — do not treat the install as clean"; exit 2 ;;
+esac
+```
 
 ## 4. Write it
 
@@ -168,6 +191,9 @@ into `.claude/settings.json`, and locally ignore the autosave file.
 
 This writes the last user/assistant messages verbatim to a local, gitignored
 file after every turn (see the **Per-turn autosave** option in step 1).
+**Warning:** that file holds conversation text, which may contain secrets, and the
+`.git/info/exclude` entry is per-clone — another clone won't ignore it, so never
+commit it or copy it elsewhere.
 Skip this step only if the user opted out.
 
 ```bash

@@ -13,8 +13,11 @@ don't dump all the docs; ask, then act.
 ## 1. Orient (read current state first — don't ask what you can detect)
 
 - **Shared repo:** `SHARED="$(cat ~/.claude/claude-shared-repo 2>/dev/null || echo ~/projects/claude-shared)"`.
-  If the marker file is missing, this is likely a **fresh machine** — the repo
-  was cloned but never synced. Offer to run `"$SHARED/sync.sh"` first.
+  The marker file (written by `sync.sh`) records the real checkout and wins;
+  `~/projects/claude-shared` is just the conventional fallback — if neither
+  exists, ask where the repo was cloned. If the marker file is missing, this is
+  likely a **fresh machine** — the repo was cloned but never synced. Offer to run
+  `"$SHARED/sync.sh"` first.
 - **Status line:** is `~/.claude/statusline-command.sh` present and referenced by
   `statusLine.command` in `~/.claude/settings.json`?
 - **Core settings:** do `model` / `effortLevel` / `enabledPlugins` in
@@ -60,7 +63,10 @@ Run each selected action, then move to the next:
   the labels-vs-project mode choice, repo inspection, and template tailoring.
 - **Push a local change** → follow the "push" flow in the `sync-claude-env` skill
   (copy live files back into `$SHARED`, update `settings.shared.json` by hand for
-  changed keys, show the diff, then commit + push).
+  changed keys, show `git status` / `git diff`, stage only the named files —
+  never `add -A` — and commit). **Do not push without asking**: a diff shown is
+  not consent. If the repo is public, a push publishes the change, so check
+  `gh repo view --json visibility` first and tell the user what it returns.
 
 ## 4. Wrap up
 

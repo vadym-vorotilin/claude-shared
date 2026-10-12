@@ -104,6 +104,38 @@ scan_cmd() { extract_code_block "$(ADDER)" "FAIL if any placeholder survived" ba
   assert_equal "$status" 0
 }
 
+@test "placeholder scan flags a leftover token containing digits" {
+  d="$TEST_TMP/out"; mkdir -p "$d"
+  printf 'x {{GH_V2_FIELD}} y\n' > "$d/SKILL.md"
+  run bash -c "DEST='$d'; $(scan_cmd)"
+  assert_equal "$status" 1
+}
+
+@test "placeholder scan refuses to run with DEST unset (no silent pass)" {
+  # Run in a subshell and echo its exit code, so the shell's own :? abort is observed
+  # without tripping bats' "command not found" (127) warning.
+  run bash -c "( unset DEST; $(scan_cmd) ) >/dev/null 2>&1; echo rc=\$?"
+  refute_contains "$output" "rc=0"
+}
+
+@test "placeholder scan does not report clean when the directory is missing" {
+  run bash -c "DEST='$TEST_TMP/nope'; $(scan_cmd)"
+  [ "$status" -ne 0 ] || fail "scan passed on a nonexistent DEST"
+  refute_contains "$output" "no leftover placeholders"
+}
+
+@test "installer states one consistent Copilot round cap" {
+  body="$(cat "$(ADDER)")"
+  refute_contains "$body" "3 rounds"
+  assert_contains "$body" "2 rounds"
+}
+
+@test "worker branch step stops on a dirty tree instead of stashing or resetting" {
+  body="$(cat "$(TEMPLATE)")"
+  assert_contains "$body" "If the tree is dirty, STOP"
+  assert_contains "$body" "NOT stash, reset or clean"
+}
+
 # ----------------------------------------------------------------- LINT ----
 
 template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
@@ -116,9 +148,9 @@ template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
 
 @test "placeholder scan targets {{ }} install tokens, not <runtime> placeholders" {
   pat="$(grep -nE "grep -RnE" "$(ADDER)" | head -1)"
-  # The scan matches {{UPPER_SNAKE}} tokens (braces are backslash-escaped for grep -E,
-  # so check for the uppercase-token character class, which is unambiguous).
-  assert_contains "$pat" '[A-Z_]'
+  # The scan matches {{UPPER_SNAKE}} tokens, digits allowed (braces are backslash-escaped
+  # for grep -E, so check for the uppercase-token character class, which is unambiguous).
+  assert_contains "$pat" '[A-Z0-9_]'
   # It must NOT scan for lowercase <...>, which legitimately survive in the worker.
   refute_contains "$pat" '<[a-z]'
 }

@@ -16,12 +16,20 @@ The one thing that varies by repo is **how issue state is tracked**:
 
 The TDD worker is identical either way; only the *state adapter* differs.
 
+**Assumes:** the target repo is hosted on GitHub; the `gh` CLI is installed and
+authenticated (project mode also needs the `project` scope); `jq` is available for
+the ranking step; and the project has a runnable test command (the worker's TDD gate
+needs one).
+
 ## 1. Resolve inputs
 
 - **Target repo** — from the request, else ask. Expand `~`, make absolute. Confirm
   it is a git repo: `git -C "<target>" rev-parse --show-toplevel`.
 - **Shared repo** — `SHARED="$(cat ~/.claude/claude-shared-repo 2>/dev/null || echo ~/projects/claude-shared)"`.
-  Template at `$SHARED/templates/work-on-gh-issue/SKILL.md`.
+  The marker (written by `sync.sh`) records the real checkout and wins;
+  `~/projects/claude-shared` is only the conventional fallback — if neither exists,
+  ask where the repo was cloned. Template at
+  `$SHARED/templates/work-on-gh-issue/SKILL.md`.
 
 ## 2. Choose the mode
 
@@ -35,7 +43,7 @@ Run against the target and show what you find; let the user correct it:
 - **Default branch** (NOT the currently checked-out branch — the user may be on a
   feature branch during install): `git -C "<target>" symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@'`, falling back to `gh repo view <owner/repo> --json defaultBranchRef --jq .defaultBranchRef.name`, else `main`. Fills `{{DEFAULT_BRANCH}}`.
 - **Submodules:** `git -C "<target>" submodule status` (capture paths, if any).
-- **Test command:** how the project self-checks — `run-*-tests.sh`, `package.json` `scripts.test`, a `Makefile` `test` target, a project test skill, etc. Record it, or conclude there's none (and warn: the mandatory TDD gate needs a test runner).
+- **Test command:** how the project self-checks — a documented test script, `package.json` `scripts.test`, a `Makefile` `test` target, a project test skill, CI config, etc. Record it, or conclude there's none (and warn: the mandatory TDD gate needs a test runner).
 - **Copilot reviewer:** is `copilot-pull-request-reviewer` configured? (Ask; default the loop OFF if unknown.)
 
 ## 4. Gather config
@@ -55,10 +63,12 @@ Run against the target and show what you find; let the user correct it:
 - `{{ISSUE_REPO}}` = `owner/repo`.
 - `{{WORKSPACE}}` = `the current checkout (the repo you run this skill in)` by
   default; or, if the user wants isolation, a configured path with a refresh note.
-- `{{TEST_CMD}}` = the detected command; `{{TEST_ID_CONVENTION}}` = a sentence about
-  the repo's test-ID scheme **ending with a trailing space** (it is concatenated
-  directly before "The test(s) MUST…", so the trailing space keeps the spacing
-  clean), or the empty string.
+- `{{TEST_CMD}}` = the detected command.
+- `{{TEST_ID_CONVENTION}}` = **optional**; fill it only if the repo documents a
+  test-ID scheme (ask; don't invent one). Then it is a sentence describing that
+  scheme **ending with a trailing space** (it is concatenated directly before "The
+  test(s) MUST…", so the trailing space keeps the spacing clean). Otherwise fill it
+  with the empty string — the common case.
 - `{{DEFAULT_BRANCH}}` = the repo's default branch from §3 (e.g. `main`).
 - `{{DOMAIN_KNOWLEDGE}}` = a pointer to the repo's authoritative behavior docs,
   default ``the repo's `CLAUDE.md` (and any docs/specs it points to)``. If the user
@@ -148,10 +158,11 @@ for the target state:
 **`{{SUBMODULE_BRANCH}}`** — if the repo has submodules, fill with: ` Identify the
 affected repo (a submodule or the parent). Submodules start in detached HEAD at the
 parent's pinned commit — INSIDE the submodule, check out its OWN default branch and
-pull (\`git checkout <branch> && git pull\`; a submodule's default branch may not be
-\`main\` — derive it from the submodule's \`origin/HEAD\`) before branching, work and
-push ONLY in the submodule, and do NOT bump the parent pointer (the human does that at
-merge time). For a PARENT-repo fix, stage ONLY the
+pull (\`git checkout <branch> && git pull --ff-only\`; a submodule's default branch may
+not be \`main\` — derive it from the submodule's \`origin/HEAD\`) before branching —
+but if the submodule's tree is dirty, STOP and report; do not stash, reset or clean
+it. Work and push ONLY in the submodule, and do NOT bump the parent pointer (the
+human does that at merge time). For a PARENT-repo fix, stage ONLY the
 files you changed by explicit path (never \`git add -A\` / \`git add .\`) — the
 submodules sit at moved commits, so a blanket add would sweep a submodule-pointer bump
 into your PR.` — else empty string.
@@ -165,9 +176,8 @@ issue in **{{ELIGIBLE_STATE}}**.\n` — else empty string.
 
 **`{{COPILOT_LOOP}}`** — if the Copilot loop is enabled, fill with a `## Copilot
 review loop` section. The pre-PR self-review (worker §"Pre-PR self-review")
-front-loads the hygiene Copilot used to catch, so wave 1 is usually clean and a 3rd
-wave reliably finds nothing — cap at 2. Key discipline (a real bug came from getting
-this wrong):
+front-loads the hygiene Copilot would otherwise catch, so later waves tend to add
+little — cap at 2 rounds. Key discipline:
 - WAIT by ACTIVELY POLLING IN-SESSION — a blocking loop you run right now: repeat up
   to ~20 times: `sleep 30`, then `gh pr view <n> --repo <pr-repo> --json reviews`;
   break as soon as a Copilot review with `submittedAt` newer than the head commit
@@ -191,7 +201,7 @@ this wrong):
 label):
 - **loop enabled:** `Immediately after \`gh pr create\` succeeds, mark the PR in the
   automated loop: \`gh pr edit <n> --repo <pr-repo> --add-label {{PR_IN_AUTO_REVIEW_LABEL}}\`.
-  On Copilot-loop exit (no actionable comments, 3 rounds, or poll timeout) — and also
+  On Copilot-loop exit (no actionable comments, 2 rounds, or poll timeout) — and also
   on any hard stop that happens while the PR is already open (§6) — swap it:
   \`gh pr edit <n> --repo <pr-repo> --remove-label {{PR_IN_AUTO_REVIEW_LABEL}} --add-label {{PR_READY_FOR_HUMAN_LABEL}}\`.`
 - **loop disabled:** `Immediately after \`gh pr create\` succeeds, mark it ready for
@@ -204,6 +214,8 @@ label-create block below.
 ### Label-create helper (idempotent; per repo)
 
 ```bash
+# Set LABEL_REPO (owner/repo) to the ONE repo the labels belong in; run once per repo.
+: "${LABEL_REPO:?set LABEL_REPO to the owner/repo to create labels in}"
 # Create a label if absent (gh exits non-zero if it already exists — ignore that).
 for lbl in "$@"; do
   gh label create "$lbl" --repo "$LABEL_REPO" >/dev/null 2>&1 || true
@@ -220,14 +232,20 @@ Write the filled template to `<target>/.claude/skills/work-on-gh-issue/SKILL.md`
 After substituting, run the placeholder scan below — it must **FAIL if any placeholder survived** — and fix anything it flags:
 
 ```bash
-# Only install-time tokens use the {{UPPER_SNAKE}} form, so that is all we scan for.
-# Lowercase <runtime> placeholders (e.g. <n>, <short-slug>, <pr-repo>) are INTENTIONAL
-# in the installed worker — do NOT flag them.
-if grep -RnE '\{\{[A-Z_]+\}\}' "$DEST"; then
-  echo "leftover placeholder(s) above — fix before finishing"; exit 1
-fi
+# DEST = the directory you wrote the SKILL.md into; it must be set, not assumed.
+: "${DEST:?set DEST to the installed skill directory}"
+[ -d "$DEST" ] || { echo "DEST is not a directory: $DEST"; exit 2; }
+# Only install-time tokens use the {{UPPER_SNAKE}} form (digits allowed), so that is
+# all we scan for. Lowercase <runtime> placeholders (e.g. <n>, <short-slug>,
+# <pr-repo>) are INTENTIONAL in the installed worker — do NOT flag them.
+# grep exits 0 = match found, 1 = no match (clean), 2 = error (NOT clean).
+grep -RnE '\{\{[A-Z0-9_]+\}\}' "$DEST"
+case $? in
+  0) echo "leftover placeholder(s) above — fix before finishing"; exit 1 ;;
+  1) echo "no leftover placeholders" ;;
+  *) echo "placeholder scan itself failed — do not treat the install as clean"; exit 2 ;;
+esac
 ```
-(`DEST` = the directory you wrote the SKILL.md into.)
 
 ## 8. Report
 

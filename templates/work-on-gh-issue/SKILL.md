@@ -63,9 +63,11 @@ human can reconcile the issue with intended behavior.
 
 ## 3. Branch
 
-In {{WORKSPACE}}, ensure you are on an up-to-date `{{DEFAULT_BRANCH}}` with a clean
-tree, then create `{{BRANCH_PREFIX}}<issue#>-<short-slug>`. Never commit to
-`{{DEFAULT_BRANCH}}`.
+In {{WORKSPACE}}, ensure you are on an up-to-date `{{DEFAULT_BRANCH}}` (fast-forward
+only: `git pull --ff-only`) with a clean tree, then create
+`{{BRANCH_PREFIX}}<issue#>-<short-slug>`. If the tree is dirty, STOP and report it —
+do NOT stash, reset or clean it; those changes are not yours to discard. Never
+commit to `{{DEFAULT_BRANCH}}`.
 {{SUBMODULE_BRANCH}}
 
 ## 4. Implement via strict TDD (non-negotiable)
@@ -91,17 +93,20 @@ true independence, dispatch a SEPARATE read-only review subagent over the diff i
 can; otherwise self-review. Run `git diff {{DEFAULT_BRANCH}}...HEAD` in the affected
 repo and check each hunk against this checklist:
 
-- **Tests** — async/UI tests await a real data-dependent element (not a static
-  header) before asserting; any mock used to capture output is CONFIGURED (stubbed
-  return / callback), not merely invoked; no positional/index selectors.
-- **Correctness** — async callbacks in effects check a cancellation/still-mounted
-  guard before writing state; `||` vs `??` is right where empty string must fall
-  through; fire-and-forget promises have a `.catch()`; the code honors the invariant
-  its own adjacent comment states.
+- **Tests** — async tests wait on a real, data-dependent signal (not something
+  static that is already present before the data arrives) before asserting; any mock
+  used to capture output is CONFIGURED (stubbed return / callback), not merely
+  invoked; selectors/locators don't depend on position or index.
+- **Correctness** — async work checks for cancellation/teardown before writing
+  state; defaulting logic treats empty-but-valid values (empty string, `0`, `false`)
+  as intended; fire-and-forget async work has error handling; the code honors the
+  invariant its own adjacent comment states.
 - **DRY** — grep for an existing constant/util/mapping before adding a new one.
 - **Docs** — comments/docstrings don't over-claim behavior this path doesn't
-  guarantee; if you added test IDs, the index/header doc is updated.
-- **Conventions** — new tests follow the suite's documented id/location convention.
+  guarantee; if the repo keeps an index/header doc of tests and you added tests, it
+  is updated.
+- **Conventions** — if the repo documents a test id/location convention, new tests
+  follow it.
 
 For each BLOCKING finding, fix it with the SAME red→green TDD discipline (§4), re-run
 the FULL suite green, then re-review. Stop once the diff is clean or after **2
@@ -156,7 +161,8 @@ tolerate a label not existing (log and continue).
 
 If you cannot reproduce the finding (§4a), the full suite will not go green, the fix
 needs changes the issue did not approve, or anything is ambiguous: STOP, push your
-branch as-is (work preserved), and leave a comment explaining why (for
+feature branch as-is (work preserved; never `{{DEFAULT_BRANCH}}`), and leave a
+comment explaining why (for
 non-reproduction, begin with "could not reproduce: "). What happens to the issue
 depends on whether a PR is already open:
 

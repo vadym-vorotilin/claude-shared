@@ -7,3 +7,7 @@ __pycache__/
 # this repo is public, so they never live here.
 skills/*/project.md
 skills/*/project/
+
+# Editor state
+.obsidian/
+.vscode/

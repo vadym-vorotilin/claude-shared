@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Token/cost audit over Claude Code transcripts.
 
-Raw token counts are misleading: ~97% of them are cache reads. This weights
-every token by its real per-MTok price so you see quota burn, not volume.
+Raw token counts are misleading: typically a large majority of them are cache
+reads. This weights every token by its real per-MTok price so you see quota
+burn, not volume.
 
   ./token_audit.py                     # last 7 days, full report
   ./token_audit.py --since YYYY-MM-DD --until YYYY-MM-DD  # one run window
@@ -15,8 +16,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 # $/MTok (input, output). cache write 5m = 1.25x in, 1h = 2x in, cache read = 0.1x in.
-# Rates as of 2026-06; hand-maintained. A model priced after this date is not
-# here, and rates() deliberately over-reports it rather than guessing low.
+# Hand-maintained; verify against the current pricing page before relying on it.
+# A model priced after this table was last edited is not here, and rates()
+# deliberately falls back to the dearest known rate rather than guessing low.
 BASE = {
     "claude-fable-5": (10.0, 50.0), "claude-mythos-5": (10.0, 50.0),
     "claude-opus-5": (5.0, 25.0), "claude-opus-4-8": (5.0, 25.0),
@@ -71,7 +73,7 @@ def load_rows(root, since, until):
     # One API call = one requestId, but it is split across several assistant
     # records whose usage snapshots differ: the first may carry output_tokens=1
     # while the last carries the cumulative total. Keep the max-output record
-    # per requestId — keeping the first silently drops ~half of output cost.
+    # per requestId — keeping the first silently drops a large share of output cost.
     best = {}
     for path in glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True):
         # <root>/<project>/<session-uuid>/subagents/agent-*.jsonl -- climb two

@@ -130,6 +130,35 @@ stop_hook_count() { # settings_file
   assert_equal "$(stop_hook_count "$target/.claude/settings.json")" 1
 }
 
+# Extract and run the leftover-placeholder scan block from section 3.
+run_scan() { # file
+  local script="$TEST_TMP/scan.sh"
+  extract_code_block "$REPO/skills/add-handoff/SKILL.md" "scan the result for any leftover" bash > "$script"
+  SKILL_MD="$1" run bash "$script"
+}
+
+@test "handoff placeholder scan flags a leftover {{TOKEN}} or <task-doc>" {
+  printf 'a\n{{HANDOFF_DOC}}\n' > "$TEST_TMP/f.md"
+  run_scan "$TEST_TMP/f.md"
+  assert_equal "$status" 1
+  printf 'see <task-doc> here\n' > "$TEST_TMP/g.md"
+  run_scan "$TEST_TMP/g.md"
+  assert_equal "$status" 1
+}
+
+@test "handoff placeholder scan passes a filled file that keeps the <repo> literal" {
+  printf 'git -C <repo> status -sb\nno tokens\n' > "$TEST_TMP/f.md"
+  run_scan "$TEST_TMP/f.md"
+  assert_equal "$status" 0
+}
+
+@test "handoff placeholder scan does not pass silently on a missing file or unset path" {
+  run_scan "$TEST_TMP/does-not-exist.md"
+  [ "$status" -ne 0 ] || fail "scan passed on a missing file"
+  run_scan ""
+  [ "$status" -ne 0 ] || fail "scan passed with SKILL_MD unset/empty"
+}
+
 @test "the autosave install is documented as opt-out, matching auto-resume (4b)" {
   doc="$REPO/skills/add-handoff/SKILL.md"
   body="$(cat "$doc")"
@@ -137,4 +166,10 @@ stop_hook_count() { # settings_file
   assert_contains "$body" "Per-turn autosave"
   # both 4b and 4c carry the same skip clause (auto-resume + autosave)
   assert_equal "$(count_occurrences "$doc" "Skip this step only if the user opted out")" 2
+}
+
+@test "the autosave install warns that the file may hold secrets and the exclude is per-clone" {
+  body="$(cat "$REPO/skills/add-handoff/SKILL.md")"
+  assert_contains "$body" "may contain secrets"
+  assert_contains "$body" "per-clone"
 }

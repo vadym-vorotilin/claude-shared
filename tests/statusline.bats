@@ -317,9 +317,9 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   assert_equal "$(agent_line "$out")" "H/20%/10% · S/25%/10%"
 }
 
-# A single tool result can run past the tail the script scans — a big file
-# read lands as one 400 KB line — and then the tail holds no assistant turn at
-# all. The agent must not lose its readings to that; scan further back.
+# A single tool result can run past the tail the script scans — a large file
+# read lands as one very long line — and then the tail holds no assistant turn
+# at all. The agent must not lose its readings to that; scan further back.
 @test "still reads an agent whose last transcript line outruns the scanned tail" {
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 Explore claude-haiku-4-5-20251001 20000
@@ -351,9 +351,8 @@ agent_line() { plain "$(line_n "$1" 3)"; }
   assert_equal "$(count_lines "$out")" 3
 }
 
-# A running agent goes quiet for minutes waiting on a long tool call — 1% of
-# the gaps between a running agent's own entries run past 170s — so silence is
-# not evidence that it finished.
+# A running agent can go quiet for minutes waiting on a long tool call, so
+# silence is not evidence that it finished.
 @test "keeps a subagent that has gone quiet mid-run" {
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
@@ -395,7 +394,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
 }
 
 # The notification does not always land as a turn. When the session is
-# mid-turn it is enqueued and then removed from the queue, absorbed into the
+# mid-turn it can be enqueued and then removed from the queue, absorbed into the
 # turn in flight, and the transcript holds only those queue entries for it.
 # They carry the notification text, so they retire the agent just the same.
 @test "drops a background subagent whose notification was queued but never delivered" {
@@ -420,7 +419,8 @@ agent_line() { plain "$(line_n "$1" 3)"; }
 # Queueing it a message writes entries naming it, and an agent idling on that
 # queued message has by definition not written since — so the mention lands
 # after its last entry and looks exactly like a result. Reading it as one
-# retired agents in mid-run, which is the shape this rule must never get wrong.
+# would retire a live agent mid-run, which is the shape this rule must never
+# get wrong.
 @test "keeps a subagent that only had a message queued for it" {
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 general-purpose claude-haiku-4-5 20000
@@ -531,7 +531,7 @@ agent_line() { plain "$(line_n "$1" 3)"; }
 
 @test "measures an agent on the session's model against the harness's window size" {
   tp="$TEST_TMP/sess.jsonl"
-  make_subagent "$tp" a1 general-purpose claude-fable-5-1 227678
+  make_subagent "$tp" a1 general-purpose claude-fable-5-1 230000
   json="$(jq -n --arg c /tmp --arg tp "$tp" \
     '{cwd:$c, transcript_path:$tp, model:{id:"claude-fable-5-1", display_name:"Fable 5.1"},
       context_window:{used_percentage:14, context_window_size:1000000}}')"
@@ -561,13 +561,13 @@ agent_line() { plain "$(line_n "$1" 3)"; }
 # reading past 200k is proof a model it doesn't know was given a bigger one.
 @test "infers a large window for an unknown model past the 200k default" {
   tp="$TEST_TMP/sess.jsonl"
-  make_subagent "$tp" a1 general-purpose claude-sonnet-9 227678
+  make_subagent "$tp" a1 general-purpose claude-sonnet-9 230000
   out="$(statusline "$(session_json "$tp")")"
   assert_equal "$(agent_line "$out")" "S/23%/10%"
 }
 
-# Sonnet and Opus crossed to 1M at 5 and 4.7; reading them against 200k put a
-# perfectly healthy agent at 64%.
+# Sonnet and Opus crossed to 1M at 5 and 4.7; reading them against 200k would
+# overstate a healthy agent's context several times over.
 @test "measures the 1M generation of Sonnet and Opus against a million tokens" {
   tp="$TEST_TMP/sess.jsonl"
   make_subagent "$tp" a1 Explore claude-sonnet-5 250000

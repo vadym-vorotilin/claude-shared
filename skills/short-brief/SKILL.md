@@ -28,14 +28,15 @@ Four sections, in this order. Drop any that is empty — never pad.
 
 ## Rules
 
-**State, not narrative.** "881 tests, 0 failed" — not "the suite was brought to
+**State, not narrative.** "30 tests, 0 failed" — not "the suite was brought to
 a healthy state". Nothing about process: no agents, no review rounds, no
 dispatches, no token costs, no how-long-it-took. The user is not paying
 attention to the machinery and does not need to.
 
 **Numbers over adjectives.** Every claim that has a number gets its number.
-"Solves 36% against 44%" beats "somewhat worse". Adjectives without numbers are
-the main way a brief becomes unfalsifiable padding.
+"Option A solves 20% against Option B's 30%" beats "somewhat worse".
+Adjectives without numbers are the main way a brief becomes unfalsifiable
+padding.
 
 **One screen.** Roughly 40 lines. If it does not fit, the cut is always more
 detail per item, never fewer items — a missing open question is a failure, a
@@ -67,33 +68,35 @@ is a whole finding.
 
 ## Calibration example
 
+A fictional project — every name, number and issue below is invented for
+illustration.
+
 ```markdown
 # Where things stand
 
-**Shipped.** `svc-ingest` main `a1b2c3d`, **412 tests**, 0 failed. Queue reader,
-two storage backends, schema versioning, replay fixtures. Issues #41, #44, #52
+**Shipped.** `acme-notes` main `abc1234`, **30 tests**, 0 failed. Sync queue,
+two storage backends, schema versioning, replay fixtures. Issues #121, #122
 closed.
 
-**Parser chosen: the streaming one.** Frozen and enforced by a test.
+**Merge strategy chosen: Option A.** Frozen and enforced by a test.
 
 ## What the experiments found
 
-**Streaming was kept, not won.** Streaming 4/9 clean parses, batch **5/8** —
-batch led. Retained on the memory ceiling. Live question, not settled.
+**Option A was kept, not won.** Option A 4/10 clean merges, Option B **5/10** —
+B led. Retained on the memory ceiling. Live question, not settled.
 
-**The third backend is unreliable, not incapable.** Dropped writes on ~73% of
-runs — that is what disqualifies it. When it commits, it does so at 36% of the
-throughput of the chosen one against 44%. My earlier "too slow architecturally"
-was wrong.
+**The third backend is unreliable, not incapable.** Dropped writes on ~20% of
+runs — that is what disqualifies it. When it commits, it sustains 20 writes/s
+against 30 for the chosen one. My earlier "too slow architecturally" was wrong.
 
-**Two claims died on re-running them.** A per-fixture cell of 5 runs cannot
-carry a claim: `0/5` and `3/5` on an identical setup are both ordinary draws.
+**Two claims died on re-running them.** A per-case sample of 10 runs cannot
+carry a claim: `2/10` and `5/10` on an identical setup are both ordinary draws.
 
 ## Waiting on you
 
-- **#58** — four decisions (retention, the backfill gap, sourcing, regions)
-- **`svc-docs` #17** — held draft
-- **#202**, **#181**, **#140**, **#37/#38**
+- **#123** — two decisions (retention window, conflict policy)
+- **`acme-docs` #124** — held draft
+- **#125**, **#126**, **#127/#128**
 ```
 
 Note what is absent: how many review rounds ran, which agents did what, what

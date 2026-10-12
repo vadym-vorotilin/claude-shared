@@ -45,9 +45,16 @@ template_tokens() { grep -oE '\{\{[A-Z_]+\}\}' "$(TEMPLATE)" | sort -u; }
   done
 }
 
-@test "the leftover-placeholder scan also covers <...> placeholders" {
+@test "the leftover-placeholder scan covers {{...}} tokens and unfilled <fill-in> markers" {
   scan="$(grep -i 'leftover' "$(ADDH)")"
   assert_contains "$scan" '{{'
-  # BUG: the scan only looks for {{ }}, so literal <task-doc>/<test-cmd> fills can survive.
-  assert_contains "$scan" '<'
+  # The fill tables use <task-doc>/<test-cmd> as fill-in markers that must not survive.
+  assert_contains "$scan" '<task-doc>'
+}
+
+@test "the only <...> literal intentionally left in the handoff template is <repo>" {
+  # The scan in add-handoff must be satisfiable: it allows exactly these literals.
+  lits="$(grep -oE '<[^>]+>' "$(TEMPLATE)" | sort -u)"
+  assert_equal "$lits" "<repo>"
+  grep -qF '<repo>' "$(ADDH)" || fail "add-handoff does not list <repo> as an allowed literal"
 }

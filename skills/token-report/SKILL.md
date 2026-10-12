@@ -5,9 +5,9 @@ description: Measure where Claude Code token spend actually goes across this mac
 
 # Token report
 
-Raw token counts lie. On a typical orchestration run **~97% of raw tokens are
-cache reads** — the context being re-read on every turn. Counting tokens tells
-you almost nothing; counting *weighted* tokens tells you everything.
+Raw token counts lie. On a typical orchestration run **a large majority of raw
+tokens are cache reads** — the context being re-read on every turn. Counting
+tokens tells you almost nothing; counting *weighted* tokens tells you far more.
 
 This skill wraps `token_audit.py`, which walks `~/.claude/projects/**/*.jsonl`,
 deduplicates by `requestId` (resumed and forked transcripts replay history
@@ -25,11 +25,12 @@ per-MTok rates.
   that does not exist says so rather than reporting an empty window.
 - **Local transcripts only.** It measures this machine. Work done in another
   checkout, another machine, or the web app is not in the total.
-- **A hand-maintained price table** (`BASE` in `token_audit.py`, dated in a
-  comment). A model released after that date is not in it; `rates()` falls back
-  to the dearest known rate in its family, so an unknown model is over-reported
-  rather than silently under-reported. Update the table from Anthropic's
-  published pricing when the numbers matter — never from memory.
+- **A hand-maintained price table** (`BASE` in `token_audit.py`). A model
+  released after the table was last edited is not in it; `rates()` falls back
+  to the dearest known rate in its family, so an unknown model is generally
+  over-reported rather than silently under-reported. Verify the table against
+  Anthropic's current published pricing before relying on it — never from
+  memory.
 - **Dollar figures are an equivalence, not an invoice.** They price raw usage at
   list rates; a subscription plan, discounts, or free tiers are not modelled.
 
@@ -53,8 +54,11 @@ prices against.
 - **WHERE THE MONEY GOES** — if `cache_read` dominates, the problem is context
   *size × turns*, not the work being done. Chasing verbose tool output or
   chatty agents will not help.
-- **COST BY CONTEXT SIZE** — the `$/turn` column is the real diagnostic. A turn
-  at 600k context costs ~10× the same turn at 50k. Identical work, 10× price.
+- **COST BY CONTEXT SIZE** — the `$/turn` column is the real diagnostic. Every
+  turn re-reads its whole context at the cache-read rate, so the read cost of a
+  turn scales linearly with context size: at 600k it is 12× the read cost of the
+  same turn at 50k (arithmetic, not an observation). Identical work, a much
+  higher price.
 - **LANE** — sidechain vs main loop. Heavy sidechain spend means subagent
   design is the lever; heavy main-loop spend means the orchestrator's own
   context is.
@@ -93,20 +97,36 @@ context saves more than halving its turn count.
 So: **long-lived agents are the expensive failure mode, not chatty ones.** When
 an agent passes ~150k context, have it write a handoff note (files touched,
 decisions made, work remaining, branch/PR/SHA) and continue in a fresh agent.
-A fresh agent starts near 30k; a dispatch brief costs ~1k tokens. Resuming is
-cheap below ~150k and the dominant cost driver above it.
+A fresh agent starts with a sizeable fixed prefix (system prompt, tool
+definitions, project instructions), but a dispatch brief itself is small next to
+a context that has grown. Resuming is cheap while the context is small and the
+dominant cost driver once it is large; ~150k is a rule of thumb, not a measured
+threshold — tune it with `--ctx-cap` and the `leaks` view.
 
 ## Budget gate
 
 To make a token target enforceable rather than aspirational:
 
 ```bash
-python3 $S --since <run-start> --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["usd"])'
+python3 $S --since <run-start> --json | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+if d["root_missing"] or d["turns"] == 0:
+    sys.exit("token-report: no transcripts counted (check --root / --since); refusing to report $0")
+print(d["usd"])'
 ```
 
 Check it between waves; stop starting new work when it crosses the target.
 
 `--json` always emits an object, including for an empty window (`usd: 0`) — the
 gate reads a number rather than dying on empty stdin at the moment it is meant
-to speak. Read `root_missing` alongside `usd`: a mistyped `--since` and a
-mistyped `--root` both total zero, and only that flag tells them apart.
+to speak. A mistyped `--root` and a `--since` after the last transcript both
+total zero and would pass a bare `usd` check silently, so the snippet above
+also fails on `root_missing` or `turns == 0`.
+
+`--since` is **day-granular**: it compares the date part of each turn's
+timestamp, so a mid-day run start also counts any earlier spend from that same
+day. The gate therefore over-reports by whatever was spent earlier that day;
+for a tighter figure, subtract the total taken at run start. Pass a plain
+`YYYY-MM-DD`: a full timestamp string sorts after its own date and would drop
+that whole day instead.

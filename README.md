@@ -16,12 +16,20 @@ environment matches the others — after which you can manage everything from in
 Claude Code via the `/claude-shared` skill. See **What `sync.sh` writes** below for
 the exact set of changes it makes.
 
+**Read the shared settings before you sync.** The keys in
+`claude/settings.shared.json` (`model`, `effortLevel`, `enabledPlugins`) are the
+maintainer's personal preferences, and `sync.sh` copies them onto every machine
+that runs it — over whatever you had set. Fork the repo and edit that file to
+your own taste before running it. `settings.json` is backed up before the merge;
+`CLAUDE.md` is not (only the text between the managed-block markers changes, but
+there is no copy to restore from).
+
 ## What's shared
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
 | `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| ctx% \| cache TTL \| 5h%` + a live subagent line |
-| `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins`, `statusLine` |
+| `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see below) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
 | — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
@@ -34,6 +42,8 @@ backs up `settings.json` before merging:
 1. Copies the status line script to `~/.claude/statusline-command.sh`.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
+   The shared keys win on conflict, so a local `model` or `effortLevel` is
+   overwritten.
 3. Symlinks **every** `skills/*/` directory into `~/.claude/skills/` — the whole
    set listed under **Shared skills** below, not just one. A real (non-symlink)
    directory already at that name is left untouched, so an existing local copy of
@@ -42,7 +52,8 @@ backs up `settings.json` before merging:
    `/claude-shared`. The block is delimited by `<!-- >>> claude-shared … -->` /
    `<!-- <<< claude-shared <<< -->` markers; **only the text between those markers
    is ever changed** — the rest of your `CLAUDE.md` is left alone. If you don't
-   have a `CLAUDE.md`, one is created with just that block.
+   have a `CLAUDE.md`, one is created with just that block. Unlike
+   `settings.json`, `CLAUDE.md` is not backed up first.
 5. Writes `~/.claude/claude-shared-repo` recording this checkout's path.
 
 ### Shared skills
@@ -71,7 +82,8 @@ backs up `settings.json` before merging:
   comments). It **publishes to the PR**, so read *What this assumes* in
   `skills/review-pr/SKILL.md` first — it needs a `gh` token that can write
   reviews, and it echoes the target for your go-ahead before every post. Optional
-  section for asset-based projects (Unity prefab/scene/GUID wiring). Re-reviews
+  section for serialized asset/scene wiring checks (e.g. a game engine's
+  prefab/scene references). Re-reviews
   follow-up pushes, but never posts APPROVE / REQUEST_CHANGES on its own — the
   verdict stays yours.
 - **`/token-report`** — measure where token spend actually goes across this
@@ -144,10 +156,16 @@ get it?
 ```bash
 cp ~/.claude/statusline-command.sh claude/statusline-command.sh
 # for settings: hand-edit claude/settings.shared.json to match the changed keys
-git add -A && git commit -m "update shared claude env" && git push
+git status                                   # confirm only the files you meant to change
+git add claude/statusline-command.sh claude/settings.shared.json
+git commit -m "update shared claude env"
 ```
 
-Then run `./sync.sh --pull` (or `/sync-claude-env`) on the other machines.
+Pushing is a separate decision: look at `git diff --cached` first, and push only
+when you are happy with it. The repo may be public, so nothing that identifies a
+private project, path or machine belongs in it.
+
+Then, once the change is pushed, run `./sync.sh --pull` (or `/sync-claude-env`) on the other machines.
 
 ## How the merge works
 
@@ -198,14 +216,11 @@ reshuffled the line about once a second.
 
 Which agents are live is decided by what has *finished*, not by what has
 written recently. A running agent goes quiet for minutes waiting on a long tool
-call — 1% of the gaps between a running agent's own transcript entries run past
-170s — so a window tight enough to retire finished agents promptly drops live
+call, so a window tight enough to retire finished agents promptly drops live
 ones instead. When an agent finishes, the session collects its result and the
 session transcript names that agent again, after the agent's own last entry;
-that ordering is the signal, and it held for 169 of 173 agents measured, the
-four exceptions being the ones still running. `STATUSLINE_AGENT_WINDOW`
-(seconds, default 900) remains only as a backstop for an agent whose result
-never lands.
+that ordering is the signal. `STATUSLINE_AGENT_WINDOW` (seconds, default 900)
+remains only as a backstop for an agent whose result never lands.
 
 Two kinds of entry say "done", and each covers a case the other misses:
 
@@ -215,12 +230,15 @@ Two kinds of entry say "done", and each covers a case the other misses:
   session receives when a background agent reports its task complete. A
   background agent's tool result lands back at *spawn* ("launched
   successfully"), long before it finishes, so nothing else ever retires one.
+  When the session is mid-turn that notification may be queued and absorbed
+  rather than written as a turn; the queued entries carry the same
+  `<task-id>` tag and count the same.
 
 Nothing else counts. A session names an agent for other reasons: queueing a
 message for one writes a `queue-operation` and an `attachment` naming it, and an
 agent idling on that queued message has by definition not written since, so the
 mention lands after its last entry and is indistinguishable from a result by
-timestamp alone. Counting those would retire live agents mid-run — the one
+timestamp alone. Counting those would retire a live agent mid-run — the one
 shape this rule must never get wrong, since an agent wrongly kept on the line
 is a stale reading you can see, while one wrongly dropped is invisible while it
 burns context. An agent given more work writes past its own notification and

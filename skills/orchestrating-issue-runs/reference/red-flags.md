@@ -5,8 +5,9 @@ here, and none has been deleted. Read this file once at run start, and again at
 any wave boundary where the run has changed shape — a new lane, a scope change,
 an operator ruling.
 
-Each row is something that was actually done, in a real run, by an agent that
-believed it was following the flow.
+Each row is a representative paraphrase of a failure pattern — illustrative,
+not a quote — of the kind an agent falls into while believing it is following
+the flow.
 
 ## Scope and authority
 
@@ -66,7 +67,7 @@ believed it was following the flow.
 - Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
 - Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
 - A brief that says "no monitors" without naming the Monitor tool and *unpolled* `run_in_background`
-- A brief that does not ban the agent dispatching its own subagents — one forked four helpers that clobbered each other's single output file
+- A brief that does not ban the agent dispatching its own subagents — forked helpers can clobber each other's single output file
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
 - A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
 - Resuming a cold agent that is already over the ceiling — that is a continuation from its handoff note, not a resume
@@ -75,17 +76,17 @@ believed it was following the flow.
 
 ## Dispatch and briefing
 
-- Handing an agent a suite count, baseline or hash you didn't make it re-measure — or proposing a gate change whose baseline was measured before the interface it samples from changed, or ruling on a failing variant before asking whether the evaluation harness assumes the old one (e.g. replays inputs recorded against it)
+- Handing an agent a suite count, baseline or hash you didn't make it re-measure — or proposing a gate change whose baseline was measured before the interface it samples from changed, or ruling on a failing variant before asking whether the evaluation harness still assumes the old interface
 - Handing a fixer an issue's factual claim about a file as a given rather than as checkable
 - An agent reading a shared clone at all — FETCH_HEAD, a submodule checkout, a file on disk — brief it to pin every read to a resolved SHA in its own worktree
-- A scratch filename shared between cards — one PR body overwrote another's, twice
+- A scratch filename shared between cards — one card's PR body overwrites another's
 - Summing a runner's filtered chunks and calling it the suite — an exact-match filter drops everything nested below the named level
 - Handing a fixer an adjudicator's cited number as settled fact rather than a hypothesis to verify
 - A reviewer brief that names no diff and no resolved SHA — the reviewer will read the whole repo instead of the change
 
 ## Review, guards and evidence
 
-- A reviewer brief on a position-sensitive card that doesn't require mutating **position** (mirror, transpose, shift, bracket both sides)
+- A reviewer brief on a position-sensitive card that doesn't require mutating **position** (move one element, shift it, bracket both sides)
 - Accepting a compile-only red as TDD evidence
 - Two issues splitting one convention and neither owning the parent document
 - A new guard whose first test case isn't the shape your own diff introduces
@@ -95,10 +96,10 @@ believed it was following the flow.
 - Treating an adjudicator's "not gated on" as clearance to run two issues on one file
 - A new guard pinned by a **count** rather than by a property asserted over the whole set
 - Adding a guard and not asking what it now covers **besides** the thing being guarded
-- Releasing a demo whose evidence census is all-Met and nobody has used the
+- Releasing a demo whose evidence checklist is all-Met and nobody has used the
   artifact as the end user would — presence is not acceptance
 - A third review of a content-identical rebase — diff-of-diffs is the orchestrator's check
-- A new clip/filter merged with no test that actually walks its path — green proves nothing about code no case exercises
+- A new filter merged with no test that actually walks its path — green proves nothing about code no case exercises
 - A reviewer brief that does not quote the card's Exit clause — the deliverable may be correct and composed into nothing
 - An acceptance property like "byte-identical except the version" handed to a fixer without checking what the serializer actually emits for an absent member
 
@@ -111,19 +112,19 @@ believed it was following the flow.
 - A progress stamp with a tool call after it — the stamp ends the turn, always
 - Squash-merging `main` into an integration branch — main's closing keywords ride along
 - A deferred register handed over flat instead of grouped by what can close in-branch now
-- A ledger time or progress stamp extrapolated from the previous one instead of read from `date` in that same turn — one run's stamps drifted 77 minutes ahead of the clock
-- Editing a branch and merging it in the same shell call — a failed edit that `set -e` did not catch merged twice
+- A ledger time or progress stamp extrapolated from the previous one instead of read from `date` in that same turn — reckoned stamps drift from the clock
+- Editing a branch and merging it in the same shell call — a failed edit that `set -e` does not catch gets merged
 
 ## Rules, specs and model-facing records
 
 - A fixer-authored convention ("the spec is silent here, so I chose…") heading to merge without a ruling
-- Escalating a fixer's "the requested design is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule was the defect, not the design, both times it happened
+- Escalating a fixer's "the requested design is infeasible" before the conflict is **named** (leave-one-out over the constraint set) — the rule is often the defect, not the design
 - A leave-one-out that names a **rule** as the conflict, and a menu with no
   DEMOTE option — hard → soft, or soft → advisory, is always on the menu, and
   where the spec states its own cutting order, that order is quoted
-- A field advertised in a model's output schema that the model is supposed to
-  leave empty — advertising it is an invitation to fill it; remove the field
-- A schema act on an agent-facing record shipped without re-briefing the
-  recording — the record is part of the prompt, so the act is a prompt change
+- A field in a record a model fills that the model is supposed to leave
+  empty — showing it is an invitation to fill it; remove the field
+- A schema change to an agent-facing record shipped without re-briefing the
+  recording — the record is part of the prompt, so the change is a prompt change
 - A `sleep`, `until`, `tail -f`, `--watch` or task-output call in the orchestrator's OWN turn — a poll turn at full context; the wait belongs in a background `until` or the sweep (runbook → "The orchestrator never takes a turn to wait")
 - A fresh orchestrator past ~80k before its first dispatch, or a Read of the ledger, the runbook or a brief it wrote (runbook → "The resume packet")

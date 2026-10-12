@@ -12,14 +12,16 @@ a set of core `settings.json` keys (`model`, `effortLevel`, `enabledPlugins`,
 
 ## Locate the repo
 
-The repo path is recorded at `~/.claude/claude-shared-repo`. Read it:
+The repo path is recorded at `~/.claude/claude-shared-repo` (written by
+`sync.sh`, so it always wins over any assumed location). Read it:
 
 ```bash
 REPO="$(cat ~/.claude/claude-shared-repo 2>/dev/null || echo ~/projects/claude-shared)"
 ```
 
-If that file does not exist and the default path is missing, ask the user where
-they cloned `claude-shared`.
+`~/projects/claude-shared` is only a convention — the fallback when the marker
+is absent, not a requirement. If the marker does not exist and the default path
+is missing, ask the user where they cloned `claude-shared`.
 
 ## Pull the latest and apply (the common case)
 
@@ -47,10 +49,20 @@ other machines to get it:
    `$REPO/claude/settings.shared.json` — update that file by hand (or with `jq`)
    to reflect the changed values; do **not** copy the whole local
    `settings.json`, which may contain machine-specific keys.
-2. Show the user the diff, then commit and push:
+2. Show the user what changed, stage only the files you meant to change (never
+   `add -A`, which would sweep in unrelated local edits), and commit:
    ```bash
-   git -C "$REPO" add -A && git -C "$REPO" commit -m "update shared claude env" && git -C "$REPO" push
+   git -C "$REPO" status --short
+   git -C "$REPO" diff -- claude/statusline-command.sh claude/settings.shared.json
+   git -C "$REPO" add -- claude/statusline-command.sh claude/settings.shared.json
+   git -C "$REPO" commit -m "update shared claude env"
    ```
+   Stage by explicit path, naming only the files you actually edited.
+3. **Ask before pushing.** A diff the user has seen is not consent to push. If
+   the repo is public, a push publishes the change (and anything in it) to the
+   world, so check first: `gh repo view --json visibility` (run from inside
+   `"$REPO"`), tell the user what it returns, and push
+   (`git -C "$REPO" push`) only on their explicit go-ahead.
 
 ## First-time setup on a new machine
 

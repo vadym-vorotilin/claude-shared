@@ -22,6 +22,23 @@ root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 autosave="$root/${HANDOFF_DOC%.md}.autosave.md"
 mkdir -p "$(dirname "$autosave")" 2>/dev/null || exit 0
 
+# Locally ignore the autosave BEFORE writing it, so the file (which holds
+# conversation text) is never present in the tree un-ignored, even for one turn.
+# Per-clone; never touches tracked .gitignore.
+# rev-parse --git-path resolves info/exclude correctly even in linked worktrees.
+rel="${autosave#"$root"/}"
+exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)"
+case "$exclude" in
+  /*) : ;;                       # already absolute
+  *)  exclude="$root/$exclude" ;;# make relative git-path absolute
+esac
+if [ -n "$exclude" ]; then
+  mkdir -p "$(dirname "$exclude")" 2>/dev/null || true
+  if ! grep -qxF "$rel" "$exclude" 2>/dev/null; then
+    printf '%s\n' "$rel" >> "$exclude" 2>/dev/null || true
+  fi
+fi
+
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 head="$(git -C "$root" rev-parse --short HEAD 2>/dev/null)"
 tracking="$(git -C "$root" status -sb 2>/dev/null | head -1)"
@@ -66,20 +83,5 @@ fi
   printf '## Last user message\n\n%s\n\n' "$last_user"
   printf '## Last assistant message\n\n%s\n' "$last_assistant"
 } > "$autosave" 2>/dev/null || exit 0
-
-# Locally ignore the autosave (per-clone; never touches tracked .gitignore).
-# rev-parse --git-path resolves info/exclude correctly even in linked worktrees.
-rel="${autosave#"$root"/}"
-exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)"
-case "$exclude" in
-  /*) : ;;                       # already absolute
-  *)  exclude="$root/$exclude" ;;# make relative git-path absolute
-esac
-if [ -n "$exclude" ]; then
-  mkdir -p "$(dirname "$exclude")" 2>/dev/null || true
-  if ! grep -qxF "$rel" "$exclude" 2>/dev/null; then
-    printf '%s\n' "$rel" >> "$exclude" 2>/dev/null || true
-  fi
-fi
 
 exit 0
