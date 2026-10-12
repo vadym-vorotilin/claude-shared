@@ -156,9 +156,9 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    reader cannot trust is worse than none. **Exit items first, card cost second**: the percentage
    measures spend consumed, and a run can consume most of its cards without
    moving a single Exit item. Weight the percentage by expected issue cost,
-   never by count; unmerged is not done. Read the token report in the same turn
-   and record it in the ledger — that is the orchestrator's own context
-   instrument (rule 9). See runbook.md → Reports.
+   never by count; unmerged is not done. Read `tools/context-size.py` in the
+   same turn and record its `current` in the ledger — that is the orchestrator's
+   own context instrument (rule 9). See runbook.md → Reports.
 9. **Context is a budget, and the orchestrator's is not the fixer's.** An agent
    re-reads its whole context every turn, so cost grows with context × turns
    and the expensive failure mode is the long-lived agent, not the chatty one.

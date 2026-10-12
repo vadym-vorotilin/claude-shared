@@ -1,6 +1,6 @@
 # Why "poll, do not block" is a prompt-cache rule
 
-Moved out of `runbook.md` ( of Self-improvement: the rule and its form stay inline; this is the evidence and the reasoning behind it). Read it when an agent argues the rule does not apply to its role.
+Moved out of `runbook.md` under step 3a of its Self-improvement section, which sends long material to `reference/` beside the skill: the rule and its form stay inline; this is the evidence and the reasoning behind it. Read it when an agent argues the rule does not apply to its role.
 
 **But a blocking wait has its own price, and it is the larger one. This is a
 PROMPT-CACHE rule, not a timeout rule.** A subagent's prompt cache expires

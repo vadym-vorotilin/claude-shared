@@ -427,8 +427,8 @@ uninstall the skill, remove the settings entry first.
 
 **It cannot see the orchestrator at all.** The hook exempts the main loop by
 construction, so the orchestrator's own soft-200k / hard-500k ceiling has no
-enforcement behind it and is read from the token report at each progress stamp
-instead (Iron rule 9; "The orchestrator's ceiling is not the fixer's", below).
+enforcement behind it and is read from `tools/context-size.py` at each
+progress stamp instead (Iron rule 9; "The orchestrator's ceiling is not the fixer's", below).
 Do not raise these thresholds because the orchestrator's number went up — they
 bind dispatched agents, whose number did not change.
 
@@ -717,10 +717,10 @@ ruling — and keeps running until the operator answers or the boundary arrives.
 **The orchestrator's number has no hook, so it needs an instrument.** The
 ceiling hook exempts the main loop by construction (below), and `--view agents`
 excludes the orchestrator because that view is built from subagent rows. So
-**read the token report at each progress stamp** and write the figure into the
-ledger beside the stamp. Without it the soft ceiling is decoration — iron rule
-10 applies to the orchestrator's own threshold before it applies to anyone
-else's, and the run milestones alone ("second wave boundary") tell you nothing
+**read `tools/context-size.py` at each progress stamp** (Budget check, below)
+and write its `current` figure into the ledger beside the stamp. Without it the
+soft ceiling is decoration — iron rule 10 applies to the orchestrator's own
+threshold before it applies to anyone else's, and the run milestones alone ("second wave boundary") tell you nothing
 about which side of 200k or 500k you are on.
 
 **The ledger is the orchestrator's own handoff note.** When the instrument says
@@ -843,13 +843,13 @@ main-loop transcript for the current project (`--transcript`, `--session` or
 2 for under-soft / past-soft / past-hard so a stamp can branch on it. Write its
 `current` into the ledger beside every progress stamp.
 
-Consult it between waves, before each fix round after the first, **and at each
-progress stamp** — that last one is also the orchestrator's own context
-instrument (Iron rule 9), which has no hook behind it. Record the figure in the
-ledger next to the wave line so the drain decision is made against a trend
-rather than one reading. `--view agents --top 40` shows which agents carry the
-cost and how large their contexts grew — that is the view that says whether the
-ceiling is being respected.
+Consult the spend report between waves and before each fix round after the
+first, and record its figure in the ledger next to the wave line so the drain
+decision is made against a trend rather than one reading. The progress stamp's
+context figure comes from `context-size.py`, not from the spend report (Iron
+rule 9). `--view agents --top 40` shows which agents carry the cost and how
+large their contexts grew — that is the view that says whether the ceiling is
+being respected.
 
 **An agent measured past twice its ceiling is an instrument failure, and it is
 fixed before the next dispatch.** Not a ledger note, not a line in the wrap.
