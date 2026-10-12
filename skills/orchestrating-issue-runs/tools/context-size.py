@@ -33,7 +33,11 @@ def newest_main_transcript(pdir):
     return max(cands, key=os.path.getmtime)
 
 def measure(path):
-    rows = []
+    # One assistant turn is written as one JSONL line per content block, each
+    # repeating the turn's usage. Count each turn once, keyed by its request
+    # (or message) id, in first-appearance order; a line with neither id is
+    # its own turn.
+    rows, seen = [], set()
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             try:
@@ -46,6 +50,11 @@ def measure(path):
             ctx = (u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
                    + u.get("cache_creation_input_tokens", 0))
             if ctx:
+                key = d.get("requestId") or (d.get("message") or {}).get("id")
+                if key:
+                    if key in seen:
+                        continue
+                    seen.add(key)
                 rows.append((d.get("timestamp", ""), ctx, u.get("output_tokens", 0)))
     return rows
 

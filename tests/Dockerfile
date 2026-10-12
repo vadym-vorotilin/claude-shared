@@ -10,6 +10,7 @@ RUN apt-get update \
       jq \
       git \
       gawk \
+      python3 \
       coreutils \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
