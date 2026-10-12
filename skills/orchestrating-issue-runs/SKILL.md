@@ -185,8 +185,8 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    does not split, so a reviewer may not hand off mid-review; it gets a **turn
    budget** instead and reports what it could not cover. A review that runs many times its
    budget has stopped judging a diff and started re-doing the work, and its
-   length is a larger lever on cost than the tier it runs on. Keep reviewers on
-   the stronger tier the work calls for and bound their length. The thresholds
+   length is a larger lever on cost than the tier it runs on. So keep reviewers on
+   the stronger tier and bound their length — save on length, not on tier. The thresholds
    are defaults to tune after a wave (runbook → Handoff note).
 10. **A threshold ships with the instrument that reads it.** No agent can see
     its own context size: the harness does not report it and `/context` belongs

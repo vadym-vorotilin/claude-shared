@@ -1016,8 +1016,8 @@ worktree, branch and PR state yourself first and hand those facts back in the
 message** — it stops the agent re-deriving them and stops it recreating a
 worktree that still exists. Include "recreate at a fresh path if it is gone".
 Typical causes: watchdog kill after idling on a background job, mid-stream API
-error, session quota limit. All three resume from the transcript; none needs a
-fresh dispatch. **When the orchestrator's own session crashes, resume that same
+error, session quota limit. All three usually resume from the transcript; re-dispatch
+fresh only when the resume itself fails. **When the orchestrator's own session crashes, resume that same
 session rather than starting a fresh one** — agent handles are session-scoped,
 so only the resumed session can `SendMessage` its in-flight agents. A resumed
 session can find a reviewer mid-suite and an agent with uncommitted work, and
@@ -1306,7 +1306,7 @@ this," treat end-to-end activation as unproven: **probe the validator through
 the real pipeline stage at merge time**, not just at unit level.
 
 **Clean-env rule.** Any shell script an agent writes gets verified in a
-clean environment (Docker `node:XX-bookworm`, or `env -i HOME=$(mktemp -d)`),
+clean environment (a clean container image, or `env -i HOME=$(mktemp -d)`),
 not just the dev machine. The three bug families that only reproduce on
 clean/fast runners: second-granularity timestamp collisions, `/dev/stderr`
 redirects (ENXIO on Linux when stderr is a pipe), ambient git
@@ -1384,7 +1384,7 @@ that only ever rises is not a measurement.
 
 ## Phase 2 — Wrap (in this order)
 
-1. **Demo evidence**: spike refresh (per the project's demo skill if one
+1. **Demo evidence**: refresh the demo against the merged work (per the project's demo skill if one
    exists — an optional per-project piece; without one, the wrap brief spells
    out the refresh steps itself), screenshots + capture log, honesty fences from the run's rulings.
    **A card ruled into the milestone after capture has started does not
