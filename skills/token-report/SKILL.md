@@ -60,6 +60,30 @@ prices against.
   context is.
 - **LEAKS** — per-agent dollars recoverable by holding context under the cap.
 
+## Decompose one session's context
+
+`token_audit.py` says which session is expensive; `ctx_decompose.py` says why.
+Use it when one session's context grew faster than its work explains — an
+orchestrator that crossed its ceiling early, a fixer that started heavy:
+
+```bash
+D=~/.claude/skills/token-report/ctx_decompose.py
+
+python3 $D 3f9a                       # session whose id starts with 3f9a
+python3 $D 3f9a 7c21 --out ctx.md     # several sessions, report to a file
+python3 $D 3f9a --project-dir DIR     # transcripts outside the cwd's project
+```
+
+For each session it writes a Markdown report: context size at key points, what
+was read before the first subagent dispatch, tool-result volume by tool and by
+file or command, the share of turns spent polling, and context growth per turn.
+
+- **`SESSION_PREFIX…`** — leading characters of a session id; each must match
+  exactly one transcript in the project directory.
+- **`--project-dir`** — where the `.jsonl` transcripts are; defaults to the
+  Claude Code project directory for the current working directory.
+- **`--out`** — write the report to a file instead of stdout.
+
 ## The one rule this exists to enforce
 
 Cost is **quadratic in agent lifetime**: an agent whose context grows to C over
