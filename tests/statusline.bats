@@ -40,8 +40,9 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
 
 @test "omits effort segment when the harness sends none" {
   json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}}')"
-  out="$(statusline "$json")"
-  refute_contains "$out" "effort"
+  out="$(statusline "$json" | sed $'s/\033\\[[0-9;]*m//g')"
+  # No dangling separator: the model line is the model name alone.
+  assert_equal "$(line_n "$out" 2)" "M"
 }
 
 @test "shortens \$HOME to a literal ~" {
