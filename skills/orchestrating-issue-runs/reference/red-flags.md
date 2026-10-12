@@ -30,7 +30,8 @@ believed it was following the flow.
   close-comment line, not a card
 - A run past its filing budget and still filing, with no operator ruling
 - Asking the operator to rule on a question no probe has been run against —
-  one probe per card comes first
+  one probe per card comes first, and a time or budget question gets a
+  full-length run, never a shortened probe's extrapolated ratio
 - Writing a durable design record (an ADR or equivalent) for a question that
   does not change the milestone's Exit
 - A progress stamp that leads with card cost instead of Exit items met / total
@@ -74,7 +75,7 @@ believed it was following the flow.
 
 ## Dispatch and briefing
 
-- Handing an agent a suite count, baseline or hash you didn't make it re-measure
+- Handing an agent a suite count, baseline or hash you didn't make it re-measure — or proposing a gate change whose baseline was measured before the interface it samples from changed, or ruling on a failing variant before asking whether the evaluation harness assumes the old one (e.g. replays inputs recorded against it)
 - Handing a fixer an issue's factual claim about a file as a given rather than as checkable
 - An agent reading a shared clone at all — FETCH_HEAD, a submodule checkout, a file on disk — brief it to pin every read to a resolved SHA in its own worktree
 - A scratch filename shared between cards — one PR body overwrote another's, twice
@@ -124,3 +125,5 @@ believed it was following the flow.
   leave empty — advertising it is an invitation to fill it; remove the field
 - A schema act on an agent-facing record shipped without re-briefing the
   recording — the record is part of the prompt, so the act is a prompt change
+- A `sleep`, `until`, `tail -f`, `--watch` or task-output call in the orchestrator's OWN turn — a poll turn at full context; the wait belongs in a background `until` or the sweep (runbook → "The orchestrator never takes a turn to wait")
+- A fresh orchestrator past ~80k before its first dispatch, or a Read of the ledger, the runbook or a brief it wrote (runbook → "The resume packet")

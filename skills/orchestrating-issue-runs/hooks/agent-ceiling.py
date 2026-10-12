@@ -34,9 +34,27 @@ def main():
     except Exception:
         return 0
     tp = payload.get("transcript_path") or ""
-    # Only dispatched agents. The orchestrator's budget is the ledger's job,
-    # and a main-loop transcript does not sit under a subagents/ directory.
-    if not tp or "/subagents/" not in tp or not os.path.isfile(tp):
+    agent_id = payload.get("agent_id") or ""
+    # Only dispatched agents. The orchestrator's budget is the ledger's job.
+    # Two signals say "this is a dispatched agent": the CLI's own hook input
+    # documents `agent_id` ("present only when the hook fires from within a
+    # subagent"), and a subagent transcript sits under a subagents/ directory.
+    # Accept either. Gating on the path shape alone never fired live for
+    # over-ceiling agents, while the same file run by hand against their
+    # transcripts blocked.
+    if not tp:
+        return 0
+    if agent_id and "/subagents/" not in tp:
+        # The payload may carry the MAIN transcript with the agent id beside
+        # it. Never measure the orchestrator and charge it to the agent:
+        # resolve the agent's own transcript, or stay quiet.
+        session = os.path.basename(tp).removesuffix(".jsonl")
+        candidate = os.path.join(os.path.dirname(tp), session, "subagents",
+                                 "agent-" + agent_id + ".jsonl")
+        if not os.path.isfile(candidate):
+            return 0
+        tp = candidate
+    if "/subagents/" not in tp or not os.path.isfile(tp):
         return 0
 
     name = os.path.basename(tp).removesuffix(".jsonl")

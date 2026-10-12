@@ -65,6 +65,16 @@ a sentiment:
    not change the Exit, one probe per card before the operator is asked
    anything (Adjudication).
 
+**An Exit item is measured, and the measurement is reproducible:** it needs an
+offline reproduction path before review, and if that path is keyed on a live
+corpus it needs a pinned snapshot or a tolerant mode, or it breaks when the corpus changes. **Where the claim is determinism, pin the
+expected value from an earlier, independent run and assert it** — a check that
+only compares a run with itself cannot see drift. A rerun that matches pins set by earlier independent runs is
+evidence of reproducibility; one that matches only itself is assertion. **A measured build output
+(size, count, hash of an artefact) comes from a clean build**: an incremental build can hand back an artefact from before the change,
+so a size recorded from one is stale.
+Clean the target first, and name the clean in the recorded command.
+
 ### Is this run the right run at all? — the lineage check
 
 A follow-on milestone is the case where the goal line is most likely to be
@@ -133,7 +143,14 @@ presenting the scope doc — whether to publish it as a release**, and SAVE the
 answer to project memory so later runs read it instead of re-asking. Re-ask
 only if memory holds no answer. The run's memory is also what says *how* demos
 are published: which repo, which tag scheme, whether the milestone description
-links the asset.
+links the asset. **Build a demo page self-contained** — images inline as data
+URIs, no sibling files: sandboxed page hosts block sibling-file loads (a page can render with every figure missing), and one
+self-contained file is also what attaches cleanly as a release asset.
+**Before a demo page goes to the operator, the orchestrator reads its claims
+against this run's measurements** and rewrites any it cannot trace — "X is
+unchanged" is the usual one, carried from an earlier run by an agent that never
+re-ran X. A page can state a reference result is unchanged when it was never re-run;
+rewrite it to what was measured ("inputs untouched, not re-run") before publishing.
 
 Produce the scope doc (posted as a message, not a file the user must open):
 
@@ -187,8 +204,13 @@ Produce the scope doc (posted as a message, not a file the user must open):
    file none until the user approves the list.**
 7. **Held-for-human list** — spec/contract freezes (including any doc
    amendment that would edit one), anything installing or changing the
-   operator's machine, external data only the operator has, gates named by the
-   project's own workflow docs. **A gate the operator delegates back runs as a
+   operator's machine, external data only the operator has, **publishing
+   evidence captured from the operator's machine** (screenshots, logs,
+   recordings — into the repo, a release or an issue), gates named by the
+   project's own workflow docs. The capture item holds even when a plan's file
+   surface lists the file: a plan that says "commit the screenshot" was written
+   before anyone looked at it, and an operator may rule such a capture internal the moment it is shown. Show it, keep it outside the repo, and record
+   "seen by the operator" in its place. **A gate the operator delegates back runs as a
    two-mind protocol**: the implementer decides with citations, and the
    reviewer independently re-decides. Two convergent minds stood in for the
    operator cleanly twice in one run; divergence escalates.
@@ -241,7 +263,11 @@ the next report, not silently absorbed.
 a concrete approach as an issue comment (files, tests, fixture, exit
 assertion), flips the triage label. Returns "DESIGN QUESTIONS: none | list
 with recommendations". Approach agents for sibling issues run in parallel but
-must be told about each other's file surfaces.
+must be told about each other's file surfaces. When operator rulings during the
+run have overtaken a card's own pass rule, the approach states the conflict,
+the go-ask names it as its own question, and the milestone's Goal/Demo lines
+are amended with a dated outcome at close — otherwise the closing card
+certifies against text nobody still holds.
 
 **Go-gate** (orchestrator). Clean approach → flip to go and dispatch the
 fixer. Design questions → adjudicator first. Strip any "needs human
@@ -260,7 +286,14 @@ of the adjudicator, both cheap:
   unmerged at the wrap, for a milestone whose visible output was cosmetic.
 - **Has one probe been run?** One throwaway measurement per card before the
   operator is asked anything. Most questions that look like design questions
-  are answered by running the thing once.
+  are answered by running the thing once. **Probe the mechanism, at the length
+  the question needs.** When a learned or emergent behaviour fails, measure what
+  the underlying system physically allows before theorising about the learner —
+  such a probe can turn "the learner hasn't improved" into "the system's
+  limits don't allow it", which changes the ruling. A time or cost budget
+  question gets **one full-length run**: a shortened probe's ratio does not
+  extrapolate — a probe at a small fraction of the length can predict a
+  slowdown the full run does not show, and a ruling built on it cuts the wrong thing.
 
 **Rulings per merged card is a spec-health metric, and it belongs in the ledger
 spend block.** Above roughly **two per merged card**, the specs are not merely
@@ -295,6 +328,23 @@ census count, a measured dimension and an exception type all moved when the fixe
 checked them. The fixer verifies before building on the figure, and posts any
 correction as a follow-up comment after merge rather than absorbing it
 silently.
+**So is a ruling that sets or moves a gate — the orchestrator's own
+recommendation included.** Before a bar or baseline change goes to the
+operator, check four things every gate silently assumes. **The scored artefact
+is the one that ships**: a gate that scores a different artefact than the one
+shipped (a reduced or averaged form of it) can tune in the wrong direction —
+what helps the shipped one may hurt the scored one. **A bar relative to a
+baseline moves whenever the space the baseline samples from changes**: a
+random baseline given a new option stops failing, and a recommendation to
+redefine it can be wrong within the hour. **Best-of-N on the gating set is
+optimistic there**: selection over many trials on validation drops by about the
+selection margin on the held-out set, so the gate reads held-out data. **The
+harness is neutral between the things it compares**: a harness built around
+inputs recorded against one variant drives every other variant off-distribution,
+and the new variants look wrong because of the replay, not the variant. When a
+new variant fails, ask what the harness assumes about the old one before
+concluding about the new one, and put a visual of the runs in front of someone
+early.
 
 **Fixer.** TDD (red recorded, then green), in a fresh worktree
 (`git -C <repo> fetch origin && git worktree add <scratch>/wt-<issue> -b
@@ -402,7 +452,12 @@ the handoff note (below).* An agent re-reads its whole context on every turn,
 so a long fixer's last turns are its most expensive ones while a continuation
 starts near a fifth of that size.
 Mid-card is a fine place to stop: the note, the branch and the worktree carry
-the state.
+the state. **Make it cheap by construction: a card the plan says is large is
+briefed as parts from the start (A, B, then a finisher), and every part
+commits and pushes after each plan step.** The handoff note then reduces to
+"head, steps done, the one open question", and the continuation starts from a
+pushed head rather than from a transcript. A part that still reaches the ceiling costs one
+short handover brief and no lost work.
 
 **The ceiling is a checkpoint, not a guillotine.** Writing the note is
 unconditional — it is cheap, and it is what survives if the agent dies.
@@ -418,6 +473,15 @@ Returning is not:
   feeling: the suite is already green, one named deliverable remains (the PR
   body, a last assertion, a rename), and no decision is open. Hard stop at
   ~200k: past that, return the note whatever the state.
+- **A job that outlasts the agent → launch it detached and return `running`.**
+  A multi-hour job (a long run, a render) is not something an agent should
+  stay alive across: split the card into implement → launch → return, then a
+  finisher dispatched when the orchestrator's background wait sees the done
+  marker. The `running` return names the log path, the done marker and the
+  job's PID **verified against `/proc/<pid>/exe`** — `$!` is often the wrapper
+  shell or build tool, which exits or lingers independently of the job, and a
+  liveness check on the wrong PID reads a live run as dead or a dead one as
+  live.
 
 **Review.** Independent agent, never the implementer. Gets the issue, the
 approach + rulings, the spec sections, the PR. Posts a GitHub review with an
@@ -441,7 +505,16 @@ downgrading it is small next to what it catches.
 
 **Fix rounds.** Findings go back to the SAME fixer via message (resume), not
 a fresh agent — rounds 1–3, while it is under the ceiling. Round 4–5: fresh
-agent, one tier up, briefed from the fixer's handoff note. Cap 5, then
+agent, one tier up, briefed from the fixer's handoff note. **A fresh agent
+on an existing branch collides with the old agent's worktree**, which still
+holds that branch after the old agent finishes (it is locked, and git refuses
+a second checkout). Before the dispatch, either remove it —
+only after confirming the old agent has finished and `git -C <path> status
+--porcelain` is empty, then `git worktree remove -f -f <path>`; a non-empty
+status means uncommitted work, so do not remove it — or brief the new agent to
+work on `checkout -B <local> origin/<branch>` and push with
+`<local>:<branch>` once it has confirmed the remote head is unchanged. Without that, the new agent
+spends turns on the lock. Cap 5, then
 adjudicate open findings: park with a ruling or stop. **The real cap is the
 budget, not the count**: before each round after the first, check the run's
 spend (Budget check, below) against what the round is worth. A late round on a
@@ -550,10 +623,11 @@ outputs reports "identical" — a gate that licenses skipping review must never
 pass by producing nothing. Merge on the verified-identical result plus the
 fixer's suite line **from the rebased head**.
 
-Queue gated fixers with a blocking `until` poll on `origin/main` so the next
-card branches promptly after a merge. Bound the poll well inside the brief's
-Bash timeout and have it exit non-zero on expiry, so a slow merge surfaces as a
-failed step rather than a killed shell.
+Queue gated fixers with an `until` poll on `origin/main` **run in the
+background** (Protocols → "The orchestrator never takes a turn to wait") so the
+next card is dispatched on the notification, not on a poll turn. Bound it
+inside the orchestrator's cache lifetime and have it exit non-zero on expiry,
+so a slow merge surfaces as a failed step rather than a killed shell.
 
 **Test-runner filters.** A runner's path or namespace filter may be exact-match:
 summing folder-level chunks then silently drops everything nested below them —
@@ -712,12 +786,62 @@ Treat the first wave that uses one as a pilot: read the note before dispatching
 the continuation, and if the continuation had to re-derive something, add the
 missing heading to this template.
 
+**The resume packet is what a fresh orchestrator reads before its first
+dispatch, and it is bounded.** What a fresh orchestrator reads before its first dispatch is carried on every
+turn that follows, so it reads little: the system prompt and instructions are a
+large fixed base, and the overlay, this runbook Read whole, ledger greps and
+directory listings only add to it. Cost per unit of
+work goes as (base + cap) / (cap − base): with a large base a handover at the soft ceiling is
+dearer per unit of work than running to the hard one, which is why long
+sessions felt right; with a small base both are cheap. So the packet, in order and nothing else:
+(1) the project's handoff file and the run's INTRO — self-sufficient, under
+~4k tokens: mains, open PRs by number and head, what is in flight, the NEXT
+list, budgets, ceilings; if it needs a second file to be understood, the last
+wrap was lossy and the fix is the INTRO, at your own wrap; (2) the ledger's
+last stamp by `tail`, never the ledger — **the ledger is append-only for the
+orchestrator**, grepped by issue when a card names one; (3) live state from
+the tracker as field-selecting one-liners. The overlay is loaded by the skill;
+this runbook is opened by section; prior briefs, registers and earlier runs'
+ledgers are not read at start. **The first dispatch is the leg whose brief
+already exists with no placeholder left** — a brief that still needs writing
+is written after that dispatch, not before it, so a finished brief never waits
+behind one being built. **Stamp
+the ready point** — the context at the first dispatch — on that dispatch's
+ledger line; past ~80k, name the file that did it. Turn 1 alone is already the stable prefix plus the INTRO, the
+memory index, the instructions file and the skill listing, so the ready point
+is never zero; a ready point well past that floor means work was done before
+the first dispatch. Keep the ledger tail to 20 lines and a ledger line to 300 characters — the
+detail is in the report file the line points at, and a long line costs on every turn.
+
 **Budget check.** Iron rule 7 needs a number, not a feeling:
 
 ```bash
 python3 ~/.claude/skills/token-report/token_audit.py --since <run-start> --json \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["usd"])'
 ```
+
+Before the first wave, find the instrument's per-project view (`--view
+projects`) and record the command in the INTRO; a run on a shared machine that
+reads only the machine-wide total cannot apply this rule at all.
+
+**The orchestrator's own context has a second instrument, and it is the one
+the stamp needs.** The command above measures spend; it says nothing about how
+large the orchestrator's context is, and a guessed stamp can sit far from the number the
+transcript gives. Read the number, never
+estimate it:
+
+```bash
+python3 ~/.claude/skills/orchestrating-issue-runs/tools/context-size.py
+# → context current 142,300 · peak 168,900 · avg 97,400 over 64 turns · under-soft (soft 200k / hard 500k)
+```
+
+It sums, for every assistant turn in the session's own transcript,
+`input_tokens + cache_read_input_tokens + cache_creation_input_tokens` — the
+prompt the model was actually given, which is the context. It picks the newest
+main-loop transcript for the current project (`--transcript`, `--session` or
+`--project-dir` to point elsewhere; `--json` for the ledger), and exits 0 / 1 /
+2 for under-soft / past-soft / past-hard so a stamp can branch on it. Write its
+`current` into the ledger beside every progress stamp.
 
 Consult it between waves, before each fix round after the first, **and at each
 progress stamp** — that last one is also the orchestrator's own context
@@ -742,6 +866,29 @@ reading is a claim to check, not a result: the same `$0.00` comes from a
 mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
 flag is what separates them.)
 
+**The orchestrator never takes a turn to wait.** Its own polls are the
+expensive kind: a foreground `until … sleep`, `tail`, `gh pr checks`
+or task-output call is one full context read to learn "not yet", and because
+polls fire late in a run they are read at the largest context. Waiting has
+three shapes and each has a form that costs no turn:
+
+| Waiting for | Form | Turns |
+|---|---|---|
+| a dispatched agent | nothing — its completion wakes you | 0 |
+| a condition on the world (the default branch moved, a PR merged, a check landed, a log marker, a lock freed) | Bash with `run_in_background: true` running `timeout <bound> bash -c 'until <check>; do sleep 30; done'` — one notification when it exits; exit non-zero on expiry so a slow condition surfaces as a failed step | 0 |
+| a failure shape (stall, cold agent, vanished worktree) | the one persistent silent sweep `Monitor` below | 0 |
+
+Bound the background wait inside the orchestrator's own cache lifetime (about
+an hour here; fifty minutes is the bound that has held) so the wake reads the
+cache instead of rewriting it. The gated-fixer queue (Phase 1 → "Queue gated
+fixers") is the commonest instance: the `until` on the default branch runs in
+the background and the next card is dispatched on the notification, not on a
+poll. **On expiry:** one field-selecting read of the cause (the PR's state, the
+check's status), then re-arm the same wait once; a second expiry is a stall —
+a ledger line and an operator question, not a third wait. This is the
+orchestrator's rule; dispatched agents keep theirs (Poll, do
+not block — their cache is minutes, not an hour).
+
 **Liveness sweep.** Agents die silently — weekly quota, mid-stream API errors,
 background-wait stalls — and the run reads as "still working" for hours
 otherwise; that is how one run's quota pause slipped by unnoticed. Detect it
@@ -757,7 +904,7 @@ the orchestrator is woken only when one looks dead:
 ```bash
 : "${SCRATCH:?set SCRATCH to the scratch directory for this run}"  # no silent no-op
 shopt -s nullglob
-STALE_MIN=15
+STALE_MIN=30                 # 15 woke the orchestrator on every suite run; see below
 GRACE=3                      # passes to allow before the first worktree exists
 armed=0; empty=0
 while true; do
@@ -788,11 +935,15 @@ done
 
 Adapt the signals to the run — worktree mtimes as above, the agent transcript's
 mtime, `gh pr view` for a PR that should exist by now. **Add the cache signal
-too: an agent transcript not written to for five minutes is an agent whose
-cache has expired**, a live one that is polling with too long a bound or not at
-all. Say it once per agent (`COLD: <agent>`), not every pass — it is a brief
-violation to correct with a queued one-line message ("every poll call returns
-within four minutes"), and a line for the self-improvement pass, not a rescue.
+too, at the same 30 minutes: an agent transcript not written to for that long
+is an agent that is dead or blocked**, not one that is running a suite. Say it
+once per agent (`COLD: <agent>`), not every pass. The thresholds are measured,
+not chosen: at 15 minutes on the worktree and 5 on the transcript, a sweep
+fires on healthy work — every line a suite run or a reviewer reading — and each
+wake is a full-context orchestrator turn. A sweep that fires on healthy work is the per-agent timer again. A
+transcript idle five minutes is still a brief violation (the agent's cache has
+expired); it is a line for the self-improvement pass, read off the transcripts
+at the wrap, not a wake-up.
 The shared status line reads the same thing off the same transcripts, as each
 live agent's TTL percentage: a reading at 100% on an agent that is meant to be
 polling says the same thing without waiting for the sweep. (`.git` is pruned on
@@ -843,7 +994,11 @@ message** — it stops the agent re-deriving them and stops it recreating a
 worktree that still exists. Include "recreate at a fresh path if it is gone".
 Causes seen: watchdog kill after idling on a background job, mid-stream API
 error, session quota limit. All three resumed and completed; none needed a
-fresh dispatch.
+fresh dispatch. **When the orchestrator's own session crashes, resume that same
+session rather than starting a fresh one** — agent handles are session-scoped,
+so only the resumed session can `SendMessage` its in-flight agents. A resumed
+session can find a reviewer mid-suite and an agent with uncommitted work, and
+resume both from their transcripts without repeating work.
 
 **Resume under the ceiling; continue above it.** A resume restores the agent's
 whole context and re-reads it every turn afterwards. If the dead agent was
@@ -873,7 +1028,38 @@ just-landed PR/branch facts get filled in before send.
 **Briefing rules.** Every brief: **the run's goal line**, role, ONE issue,
 binding comments listed by name, repo + worktree instructions, concurrent-agent
 file surfaces to avoid, the return contract (data for the orchestrator, incl. a
-STATUS line).
+STATUS line). **A ban goes in every brief it binds, not only in a shared
+preamble the brief points at** — a shared preamble can ban a destructive git
+command and a short fix round use it anyway; the orchestrator's post-merge
+check (the command's own list is empty) is what makes it harmless. Repeat the
+bans verbatim in each brief and check their trace after each return.
+
+**The return contract has a shape, and it is short.** A return is at most
+about 40 lines: STATUS, GOAL, the quoted numbers (suite line, counts, SHAs), PR
+number and head, DEVIATIONS, DESIGN_QUESTIONS, and one path to a report file in
+the run's scratch directory that holds everything else. The orchestrator greps
+the report for a named question and does not read it; a 200-line return is
+read at whatever context the orchestrator has reached, on every later turn.
+**What the orchestrator reads itself is small.** It reads a return, a grep of
+a report, a field-selecting tracker one-liner, a file of at most about 200
+lines. A brief it wrote is already in its context (the file is the agent's
+copy); a raw tracker view, a transcript, a diff and an image are read by a
+**reader leg** at the cheapest tier that returns at most ten lines — the
+verdict and the one fact the decision needs. A capture leg's own return says
+what each capture shows. An image it opens itself stays in its context on every later turn.
+**Small is for scanning, not for concluding an absence.** A truncated line
+(`cut -c`, `head -c`, a column-limited view) can drop exactly the token being
+looked for. Before briefing a fix for something *missing* from an output, read
+that one line in full — a fix round briefed for a "missing" status tag can be
+a truncation artefact, and the agent finds no defect.
+
+**A return is handled in two turns.** Turn one: read the return in the
+notification and, if it names a question, grep the report file for that
+question. Turn two: the ledger line, the handoff-file edit and the next
+dispatch (or the merge line) as parallel tool calls in the same turn. Done serially, the
+return-to-next-dispatch chain is four turns — a ledger turn, a handoff turn, a
+state-check turn and a dispatch turn — each a full context read.
+The state check that the dispatch depends on goes in turn one, with the grep.
 
 **The goal line goes in the brief and comes back in the return contract.** Add
 a line to every return contract — *"GOAL: what your deliverable moved on the
@@ -915,56 +1101,18 @@ and clobbered each other. A short default Bash timeout is what
 auto-backgrounds long suite runs and live CLI calls; six agents stalled that
 way in one run, each costing a nudge round-trip.
 
-**But a blocking wait has its own price, and it is the larger one. This is a
-PROMPT-CACHE rule, not a timeout rule.** A subagent's prompt cache expires
-after roughly **five minutes idle** — far shorter than the orchestrator's — and
-a command that blocks past that lifetime expires the agent's whole cache, so
-the next turn rewrites the entire context at the cache-**write** rate instead of
-reading it. A cache read costs on the order of a tenth of a write. At the
-context a fixer reaches mid-run that is the difference between a rounding error
-and the largest line item in the bill — which is exactly what it was, measured
-over one run.
-
-Read as a timeout rule it gets applied only where a timeout would bite, and
-that is how it keeps being missed. **It binds every role that waits**: a fixer
-on a cold build or a suite, a reviewer re-measuring a suite, a screenshot agent
-driving a browser, a recording agent capturing takes, a wrap or demo-capture
-agent rendering. None of them is exempt for being short-lived; the cost is paid
-by whoever is idle when the cache dies.
-
-**The orchestrator's cache is longer-lived — on the order of an hour — and that
-sets its own cadence.** Its liveness sweep and any wake-up while agents are in
-flight run **under** that hour, so the orchestrator is reading its cache rather
-than rewriting it. A sweep interval longer than the cache lifetime pays the
-rewrite the sweep exists to save.
-
-**It is the waiting, not the test suite.** The suite is the commonest instance
-and not the majority of the cost: in the same measurement, builds, worktree
-checkouts on a large repo, and other ordinary multi-minute commands together
-cost more than the full suite did. So do not read this as advice about testing
-and conclude it misses you because your suite is fast. Any command that outlasts
-the cache costs the same rewrite, whatever it was doing, and the agents in that
-run were already disciplined about test scope — they ran more than twice as many
-targeted tests as full ones, and still paid it.
-
-That also rules out the fix that first suggests itself. **Verifying less is not
-the answer**, and neither is moving the slow command into a second agent: the
-first agent still has to wait for the result, and waiting is the thing that
-costs. An agent that kept taking turns across a long run paid none of it, which
-is what makes this a briefing choice rather than a fact of life.
-
-So the rule is **poll, do not block**: anything expected to outlast the cache
-runs detached and is polled on a short cadence, and anything shorter blocks as
-before. A poll turn costs one cache read; a blocked wait costs a full rewrite,
-which is more than an order of magnitude dearer at the context a fixer reaches
-mid-run. Polling also detects the stall the ban was written to prevent — a
-poll that stops coming back is a stall, visible in minutes rather than at the
-next nudge — so this does not reopen the hole. What stays banned is
-**unpolled** backgrounding: firing a long job and then waiting on it blind.
-**That ban applies to ANY dispatched agent** — wrap, demo-capture, board and
-post-run agents included,
-not just Phase-1 fixers and reviewers. The one that proved it was a post-run
-capture agent whose ad-hoc brief omitted the line and stalled identically.
+**Why it is a cache rule, in one paragraph** (the full reasoning and the
+runs that proved it: `reference/cache-warmth.md`). A subagent's prompt cache
+expires after about five minutes idle; a command that blocks past that expires
+the whole cache and the next turn rewrites the context at the write rate, about
+ten reads' worth — at a mid-run fixer's context, a major cost. It binds **every role that waits** (fixer, reviewer re-measuring, capture,
+recording, wrap, board and post-run agents), it is about the waiting and not
+the suite (builds, checkouts and renders cost more than the suite did), and
+verifying less does not fix it. The orchestrator's cache is about an hour and
+sets its own cadence: sweep and wake-ups run under the hour. The rule is
+**poll, do not block**: anything that outlasts the cache runs detached and is
+polled with every call returning inside about four minutes; what stays banned
+is unpolled backgrounding.
 
 **Reviewer brief template.** On top of the rules above, every reviewer brief
 carries:
@@ -1033,6 +1181,12 @@ brief without it missed:
    And when a claim survives a round because the evidence fits it: **a wrong story
    that predicts the observation correctly is not falsified by that observation.**
    An exception type is evidence; a stack frame is the measurement.
+
+   **The plan's own claims are hypotheses of the same kind** — "this test goes
+   red under that mutation", "the size stays flat". Brief the implementer to
+   run the named mutation, and when the plan's test stays green, to add a test
+   that does go red rather than ship the plan's. Plans are wrong this way often enough that the agent catches it only
+   because the brief told it to run the mutation instead of trusting the plan.
 4. To a **fixer building a guard**: *"the first shape to test your guard against
    is the shape your own diff introduces."* Two more, learned the same way:
    **pin it with a property over the whole set, never a count** — a fact asserting
@@ -1146,7 +1300,10 @@ never as a re-baseline of frozen evidence.
 **Board/label hygiene.** State labels are flipped by the stage that owns the
 transition; the orchestrator runs the board-sync tool after every close. If
 board status derives from labels with parked-outranks-lifecycle precedence,
-spent gating labels must come off at go time.
+spent gating labels must come off at go time. **A keyword close (`Closes #N`
+on the push to the default branch) skips the stage that would flip labels**, so
+the close step strips every state label itself — in-progress, in-review,
+blocked, go, needs-human, spent gate labels. A wrap sweep finds closed cards still carrying them.
 
 **Reports.** One message per issue closed (what merged, what was deferred),
 plus a wave summary. During quota pause: record everything, say what's
@@ -1225,7 +1382,12 @@ that only ever rises is not a measurement.
    of defects the census could not see. Findings go into the ledger's deferred
    list as candidate cards — step 5 reads them from there, not from a close
    comment, because every card is already closed by now — and the demo
-   document names them as known gaps under the honesty fences. **What the walkthrough checks is project knowledge**:
+   document names them as known gaps under the honesty fences. **The
+   walkthrough runs on the operator's machine, so "a fresh user" means an
+   isolated environment, and that means isolating every directory the tool
+   chain writes to, not only HOME:** its caches, tool and data directories,
+   and credential helpers too. A walkthrough that isolates HOME and the XDG
+   directories can still write into the real package-manager cache on a failed first install. Name those variables in the brief. **What the walkthrough checks is project knowledge**:
    the rubric (whatever the domain's own objects and forms are) lives in the
    project's own repo — a demo skill, a docs file, a brief template — and the
    wrap brief points at it. This runbook only says *that* the review runs;
@@ -1282,7 +1444,11 @@ that only ever rises is not a measurement.
    after the run's filings (they go stale silently). Report-don't-guess
    anything ambiguous.
 7. Run summary to the user, memory update (wave-complete entry replaces any
-   paused entry; the user's owed items get their own entry), ledger closed.
+   paused entry; the user's owed items get their own entry), ledger closed,
+   **and the next session's first brief finished — no placeholder left — named
+   as the INTRO's first dispatch.** The next session's turn after its packet
+   is then a dispatch, not a Write: a session that has to write its first
+   brief spends turns on it before dispatching.
 
 **Quota wind-down (the operator calls it; Phase 2 in miniature).** Start no
 new card. Let in-flight agents finish; each open PR gets at most one review
@@ -1296,7 +1462,7 @@ that says why they are not merged; the milestone stays open. The deferred
 register → ruling → filing becomes the next session's first act, not a spend
 now. Then memory, ledger pause state, skill lessons.
 
-**Mechanics that bit (keep):** take every ledger time from `date`; edit a
+**Mechanics that bit (keep):** take every time you write — ledger line **and chat progress stamp**, and its date — from `date` in the same turn (a typed date or time drifts, across midnight included, and keeps drifting after a correction); a brief's poll call must state its own timeout explicitly (a harness default of two minutes auto-backgrounds a longer poll and the agent loses the wait); a permission classifier may deny a raw REST merge call while the CLI's own merge command with a pinned head SHA goes through — both are sanctioned, keep the second as the fallback; a classifier may also deny a push to a branch that deploys (production) even after the operator approved the merge in chat — do not retry or route around it, hand the operator the merge to make in the host's web UI (once handed over, the merge goes through within minutes); edit a
 branch and verify in one shell call, merge in a **separate** call, and never
 `cd` into a worktree inside a script (`git -C` only) — `set -e` did not abort
 a failed anchor edit and the PR merged without it; a tmpfs `/tmp` fills with

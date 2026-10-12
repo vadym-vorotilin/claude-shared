@@ -65,6 +65,10 @@ and reviewing what it returns are already paid at the session's own tier.
 
 **REQUIRED READING before the first dispatch:** [runbook.md](runbook.md) —
 phase mechanics, briefing templates, and the protocols below in full.
+Open it **by section** — list the headings, then read the range you need. A
+session that Reads it whole carries all of it on every later turn; the
+resume packet rule (runbook → "The resume packet") bounds what a fresh
+orchestrator reads before its first dispatch.
 
 ## The flow
 
@@ -147,7 +151,9 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
    (runbook → Budget check). A budget rule with no instrument is a wish.
 8. **Report progress after every substantial agent completion** — a stamped
    `**<date and time> - Progress: Exit <met>/<total> · N%**` line plus one line
-   of what happened. **Exit items first, card cost second**: the percentage
+   of what happened. **The time comes from `date` in that same turn, never
+   from reckoning** — an estimated stamp drifts from the clock, and a stamp the
+   reader cannot trust is worse than none. **Exit items first, card cost second**: the percentage
    measures spend consumed, and a run can consume most of its cards without
    moving a single Exit item. Weight the percentage by expected issue cost,
    never by count; unmerged is not done. Read the token report in the same turn
@@ -170,9 +176,10 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
      re-orientation, and re-orientation is where lane seams get lost.
    - **The orchestrator's number has no hook and so needs an instrument.** The
      ceiling hook exempts the main loop by construction, and `--view agents`
-     excludes the orchestrator because it is built from subagent rows. Read the
-     token report **at each progress stamp** and put the figure in the ledger,
-     or the soft ceiling is decoration (rule 10).
+     excludes the orchestrator because it is built from subagent rows. Read
+     `tools/context-size.py` **at each progress stamp** and put its `current`
+     figure in the ledger, or the soft ceiling is decoration (rule 10) — an estimate
+     drifts and nothing flags it.
 
    **Reviewers are exempt from the ceiling but not from a budget** — a verdict
    does not split, so a reviewer may not hand off mid-review; it gets a **turn
@@ -228,7 +235,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 
 ## Red flags — stop, you are about to violate the flow
 
-**The full set is [reference/red-flags.md](reference/red-flags.md)** — 70 rows,
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 72 rows,
 grouped, none deleted. Read it once at run start and again at any wave boundary
 where the run changed shape. These ten fire the most often:
 
