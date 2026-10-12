@@ -32,6 +32,18 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   assert_contains "$out" "/tmp/proj"
 }
 
+@test "renders effort level between model and context" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}, effort:{level:"high"}, context_window:{used_percentage:5}}')"
+  out="$(statusline "$json" | sed $'s/\033\\[[0-9;]*m//g')"
+  assert_contains "$out" "M | high | ctx: 5%"
+}
+
+@test "omits effort segment when the harness sends none" {
+  json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}}')"
+  out="$(statusline "$json")"
+  refute_contains "$out" "effort"
+}
+
 @test "shortens \$HOME to a literal ~" {
   json="$(jq -n --arg c "$HOME/foo" --arg m M '{cwd:$c, model:{display_name:$m}}')"
   out="$(statusline "$json")"

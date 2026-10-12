@@ -5,6 +5,8 @@ input=$(cat)
 
 cwd=$(echo "$input" | jq -r '.cwd // .workspace.current_dir // ""')
 model=$(echo "$input" | jq -r '.model.display_name // ""')
+# Absent when the model has no effort setting, so the segment drops out.
+effort=$(echo "$input" | jq -r '.effort.level // empty')
 
 # Shorten home directory to ~
 # (Note: ${cwd/#$home/~} can't be used — bash tilde-expands the replacement
@@ -85,6 +87,7 @@ YELLOW=$'\033[33m'
 RED=$'\033[31m'
 WHITE=$'\033[37m'
 GRAY=$'\033[90m'
+DKYELLOW=$'\033[38;5;136m'
 RESET=$'\033[0m'
 SEP="${RESET} | "
 
@@ -483,6 +486,9 @@ EOF
 fi
 
 printf "%s%s%s" "$MAGENTA" "$model" "$RESET"
+if [ -n "$effort" ]; then
+  printf "%s%s%s" "${SEP}${DKYELLOW}" "$effort" "$RESET"
+fi
 if [ -n "$used" ]; then
   printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
 fi
