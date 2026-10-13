@@ -66,6 +66,7 @@ the flow.
   not an observation
 - Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
 - Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
+- A dispatch with no 50-minute heartbeat armed in the same turn, or a heartbeat still re-arming after an unattended run's wrap
 - A brief that says "no monitors" without naming the Monitor tool and *unpolled* `run_in_background`
 - A brief that does not ban the agent dispatching its own subagents — forked helpers can clobber each other's single output file
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release

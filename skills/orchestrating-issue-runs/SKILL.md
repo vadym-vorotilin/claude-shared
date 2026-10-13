@@ -103,6 +103,23 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
                     skill self-update (runbook.md → Self-improvement)
 ```
 
+## Unattended mode
+
+When the operator says "unattended", run until nothing more can be done without
+them, or until a ceiling is reached (the soft context ceiling, or the token
+budget). Then **wrap automatically**: drain the agents in flight, write the
+ledger's RESUME PACKET, run the project's handoff wrap, **stop re-arming the
+heartbeat**, and send one final message that names exactly what waits on the
+operator. Scope approval and the overlay's human gates still hold. An
+operator-only question parks its card, not the run. The details are in runbook
+→ "Unattended mode".
+
+**Heartbeat, attended or not:** in the same turn as the first dispatch, arm a
+one-shot 50-minute timer (`sleep 3000` in background Bash). Re-arm it each time
+it fires, until the wrap. Completion notifications alone let a wait longer than
+an hour expire the orchestrator's cache. Do not use cron, whose gaps are uneven,
+or `Monitor`, which is capped at 30 minutes. See runbook → "Heartbeat".
+
 ## Iron rules
 
 1. **No dispatch of run work before scope approval.** "The user said

@@ -894,7 +894,7 @@ three shapes and each has a form that costs no turn:
 
 | Waiting for | Form | Turns |
 |---|---|---|
-| a dispatched agent | nothing — its completion wakes you | 0 |
+| a dispatched agent | its completion wakes you, **plus the heartbeat below**, so that a wait longer than the cache does not expire it | 1 per 50 min |
 | a condition on the world (the default branch moved, a PR merged, a check landed, a log marker, a lock freed) | Bash with `run_in_background: true` running `timeout <bound> bash -c 'until <check>; do sleep 30; done'` — one notification when it exits; exit non-zero on expiry so a slow condition surfaces as a failed step | 0 |
 | a failure shape (stall, cold agent, vanished worktree) | the one persistent silent sweep `Monitor` below | 0 |
 
@@ -1005,10 +1005,63 @@ processes) and rescue it if it is genuinely dead. **Never re-dispatch a live
 agent because the sweep fired** — a long agent is not a dead one, and the sweep
 is a hint, not a verdict. `TaskStop` it when the run ends.
 
-**Warm-ping only for a genuine park.** When the run is deliberately paused —
-quota drain, waiting on an operator gate — arm a timer that wakes the
-orchestrator before its own cache goes cold. That is what "a pause needs an
-armed timer or monitor" is for: parks, not dispatches.
+**Heartbeat: from the first dispatch until the wrap.** An agent's run routinely
+outlasts the orchestrator's one-hour cache: a recording plus a claims check, or a
+fixer with a continuation. A wait that relies only on completion notifications
+then wakes on a cold cache, and the orchestrator rewrites its whole context at
+the write rate. So **in the same turn as the first dispatch**, arm a one-shot
+50-minute timer:
+
+    Bash run_in_background: sleep 3000; echo "HEARTBEAT $(date +%H:%M)"
+
+When it fires, re-arm it first. Then run the liveness check: the agents'
+output-file mtimes and `pgrep` on their processes, never a transcript read. If
+nothing moved, reply with one line. Keep the timer through every wait: agents in
+flight, a world condition, or a park at an operator gate (a quota drain, a human
+gate). Stop re-arming it only at the wrap (see "Unattended mode → the stop"), and
+say in the final message that it is off.
+
+The form is chosen against these alternatives:
+- **cron:** it fires at wall-clock minutes, so `7,47` gives uneven 20- and
+  40-minute gaps, which wake too often;
+- **`Monitor`:** it is capped at 30 minutes, so a 50-minute timer cannot be one;
+- **`ScheduleWakeup`:** it works only inside `/loop`.
+
+Fifty minutes is the same bound as the background wait above, and the two can
+share one timer. A run with a background `until` wait already pending need not
+arm a second timer.
+
+**Unattended mode.** The operator says "unattended" (or "continue unattended",
+or "run until you need me"): run until nothing more can be done without the
+operator, or until a ceiling is reached; then wrap automatically and stop.
+- **Still gated:** scope approval (iron rule 1) and every human gate in the
+  overlay. Unattended means no mid-run questions, not no gates.
+- **What continues:** every card whose next step is the orchestrator's or an
+  agent's. A design question goes to the adjudicator (iron rule 4), not to the
+  operator. An operator-only question on one card parks that card (label
+  `needs-human`, a ledger line, an item on the held list) while the rest of the
+  wave keeps going.
+- **When to stop.** Stop at the first of these:
+  1. every remaining card, gate or wrap step needs the operator: a human gate,
+     a release, a deferred-register ruling, or a held amendment;
+  2. the orchestrator's soft context ceiling (overlay, or 200k), read with
+     `tools/context-size.py`, at the next natural boundary. In attended mode,
+     passing this ceiling means offering a handover. Unattended, it means taking
+     the handover;
+  3. the token budget (iron rule 7): drain, then stop;
+  4. a stall that survived one rescue.
+- **The stop.** In one turn, in this order:
+  1. let in-flight agents finish (drain; start nothing new);
+  2. commit and push the ledger with a RESUME PACKET;
+  3. run the project's handoff wrap (`/handoff wrap`, or rewrite its handoff
+     doc) and commit it;
+  4. stop re-arming the heartbeat. A parked unattended run does not keep its
+     cache warm: the next session is a fresh one, and it starts from the handoff;
+  5. send the final message: what is done, the Exit line, exactly what waits on
+     the operator (each gate with the decision it needs), and the heartbeat
+     marked as off.
+  Any extra task the operator attached to the unattended run (a report, an
+  analysis) comes after the wrap, in that same final message.
 
 **Rescue.** Agent killed by limits/crash: `SendMessage` to the same agent id
 — it resumes from its transcript with the worktree state intact. **Verify
