@@ -18,11 +18,12 @@ freezes, machine changes, external data, plan changes). Everything else runs in
 the agent loop. **The orchestrator coordinates and decides; it never
 implements and never reviews code itself.**
 
-**Run on the top standard tier (Opus-class); low or medium effort is enough**,
-because every hard call is dispatched. The orchestrator cannot switch its own
-model or effort: on a pricier tier or a higher effort, ask the operator to run
-`/model opus` and `/effort low` (or `medium`) before the scope dispatch. A call
-no rule here plainly settles goes to an adjudicator — never reason it out alone.
+**Run on the top standard tier (Opus-class) at medium effort.** Hard calls are
+dispatched, but the orchestrator's own plans still need care: at low effort
+they keep the right decision and drop edge cases, order and concrete detail.
+It cannot switch its own model or effort: otherwise, ask the operator to run
+`/model opus` and `/effort medium` before the scope dispatch. A call no rule
+here plainly settles goes to an adjudicator — never reason it out alone.
 
 ## Which file to read, and when
 
