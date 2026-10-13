@@ -75,12 +75,17 @@ backs up `settings.json` before merging:
   fix → independent review → fix rounds → merge, per issue. Merges and closes
   issues autonomously once the scope is approved, so read
   `skills/orchestrating-issue-runs/runbook.md` → *What this assumes* first.
+- **`/unattended-run`** — run a long task without you there, solo or with its
+  own helper agents: you approve the goal, the plan and what it may do alone
+  (push, merge, deploy…) before it starts; it decides what it can, parks what it
+  can't, stamps progress, watches its helpers with one silent sweep, and stops
+  with one message listing exactly what waits on you.
 - **`/cache-warmth`** — keep prompt caches warm while a session or its
   subagents wait: subagents poll instead of blocking (their cache lasts minutes),
   the main session never spends a turn waiting and keeps a 50-minute heartbeat
   (its cache lasts about an hour). Its `brief.md` is the block to paste into any
-  subagent brief. `/orchestrating-issue-runs` depends on it, and on
-  `/context-ceiling`.
+  subagent brief. `/orchestrating-issue-runs` depends on it, on
+  `/context-ceiling` and on `/unattended-run`.
 - **`/context-ceiling`** — bound how large a session's or a subagent's context
   grows. Dispatched agents stop at ~150k and return a checkpoint note a fresh
   agent continues from; the main session reads its own size with

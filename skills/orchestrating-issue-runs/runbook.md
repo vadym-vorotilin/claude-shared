@@ -24,6 +24,8 @@ Check these before Phase 0; the skill will mislead you where they do not hold.
   skill:** a board-sync tool, a demo skill, a run memory file. Where one is
   absent, the step that mentions it says what to do instead; none is required
   for the run to work.
+- **The `unattended-run` skill beside it too** — the sweep, rescue, stamps,
+  budget read and the unattended stop.
 - **The `context-ceiling` skill beside it too**, with its hook installed on
   the project by `/add-context-ceiling`; without the hook a fixer's ceiling is a
   brief line only.
@@ -685,20 +687,9 @@ is never zero; a ready point well past that floor means work was done before
 the first dispatch. Keep the ledger tail to 20 lines and a ledger line to 300 characters — the
 detail is in the report file the line points at, and a long line costs on every turn.
 
-**Budget check.** Iron rule 7 needs a number, not a feeling:
-
-```bash
-python3 ~/.claude/skills/token-report/token_audit.py --since <run-start> --json \
-  | python3 -c 'import json,sys
-d = json.load(sys.stdin)
-if d["root_missing"] or d["turns"] == 0:
-    sys.exit("token-report: no transcripts counted (check --root / --since); refusing to report $0")
-print(d["usd"])'
-```
-
-A mistyped `--root` or a `--since` past the last transcript totals zero and would
-pass a bare `usd` check silently; the snippet fails instead. `--since` is
-day-granular — pass a plain `YYYY-MM-DD`.
+**Budget check.** Iron rule 7 needs a number, not a feeling: the
+`unattended-run` skill's budget read (§5), which refuses to report `$0` from a
+mistyped window or root.
 
 Before the first wave, find the instrument's per-project view
 (`token_audit.py --view projects`, from the `token-report` skill) and record the
@@ -722,11 +713,7 @@ the ceiling is being respected.
 
 **An agent measured past twice its ceiling is an instrument failure, and it is
 fixed before the next dispatch** — not a ledger note. The checks, in order, are
-in the `context-ceiling` skill. (Needs the `token-report` skill
-installed; without it, say so in the report rather than estimating. A zero
-reading is a claim to check, not a result: the same `$0.00` comes from a
-mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
-flag is what separates them.)
+in the `context-ceiling` skill. 
 
 **The orchestrator never takes a turn to wait.** The forms — the wait table,
 the 50-minute bound on background waits, the expiry rule, the heartbeat — are
@@ -741,101 +728,16 @@ read that section at the first dispatch. What is the orchestrator's own:
 - Dispatched agents keep the subagent rule (poll, do not block); their cache is
   minutes, not an hour.
 
-**Liveness sweep.** Agents die silently — weekly quota, mid-stream API errors,
-background-wait stalls — and the run reads as "still working"
-otherwise; a quota pause slips by unnoticed that way. Detect it
-**outside the orchestrator's context**: one sweep for the whole run, not a
-timer per agent. A per-agent timer pays a full orchestrator context read on
-every firing, for every agent, just to learn "still alive", and still finds a
-stall up to its interval late.
-
-Arm one persistent `Monitor` at the first dispatch that polls the cheap signals
-for every in-flight agent and **prints nothing while they look healthy**, so
-the orchestrator is woken only when one looks dead:
-
-```bash
-: "${SCRATCH:?set SCRATCH to the scratch directory for this run}"  # no silent no-op
-# Assumes: worktrees sit directly under $SCRATCH and are named wt-* (the Fixer
-# step's convention) — rename the glob below if yours differ — and GNU find
-# (-newermt with a relative date). On BSD/macOS find, use -mmin -$STALE_MIN.
-shopt -s nullglob
-STALE_MIN=30                 # 15 wakes the orchestrator on healthy suite runs; see below
-GRACE=3                      # passes to allow before the first worktree exists
-armed=0; empty=0
-while true; do
-  wts=("$SCRATCH"/wt-*/)
-  if [ ${#wts[@]} -eq 0 ]; then
-    empty=$((empty + 1))
-    # Speak once the sweep has ever seen a worktree (they vanished), or once
-    # the grace period is up (it was armed on the wrong path) — then STOP.
-    # Never go quiet, and never natter: a sweep watching nothing has nothing
-    # to watch, and a line every two minutes is the per-agent timer again.
-    if [ $armed -eq 1 ] || [ $empty -gt $GRACE ]; then
-      echo "SWEEP DOWN: no worktrees under $SCRATCH — not watching anything"
-      exit 1
-    fi
-    sleep 120; continue
-  fi
-  armed=1; empty=0
-  for wt in "${wts[@]}"; do
-    if find "$wt" -name .git -prune -o -newermt "-${STALE_MIN} minutes" \
-         -print -quit 2>/dev/null | grep -q .; then
-      continue                      # something changed recently: healthy
-    fi
-    echo "STALL: $(basename "$wt") — nothing written for ${STALE_MIN}m"
-  done
-  sleep 120
-done
-```
-
-Adapt the signals to the run — worktree mtimes as above, the agent transcript's
-mtime, `gh pr view` for a PR that should exist by now. **Add the cache signal
-too, at the same 30 minutes: an agent transcript not written to for that long
-is an agent that is dead or blocked**, not one that is running a suite. Say it
-once per agent (`COLD: <agent>`), not every pass. The thresholds are not
-arbitrary: at 15 minutes on the worktree and 5 on the transcript, a sweep
-fires on healthy work — every line a suite run or a reviewer reading — and each
-wake is a full-context orchestrator turn. A sweep that fires on healthy work is the per-agent timer again. A
-transcript idle five minutes is still a brief violation (the agent's cache has
-expired); it is a line for the self-improvement pass, read off the transcripts
-at the wrap, not a wake-up.
-The shared status line reads the same thing off the same transcripts, as each
-live agent's TTL percentage: a reading at 100% on an agent that is meant to be
-polling says the same thing without waiting for the sweep. (`.git` is pruned on
-purpose: index churn from a stuck command is not progress, and leaving it in
-makes the sweep report a hung agent as healthy.)
-
-Two properties make it a gate rather than decoration: it is **silent while
-healthy** (otherwise it is the per-agent timer again, wearing a loop), and it
-**speaks on every failure shape you would act on**, including "the agent said
-it opened a PR and there is none".
-
-The empty glob is one of those failure shapes, and it is the one a sweep gets
-wrong by default. Arming at first dispatch is normal — the fixer has usually
-not created its worktree yet — so the loop tolerates an empty `$SCRATCH` for a
-few passes and then says so, and it says so **immediately** once it has seen a
-worktree and they later vanish (pruned, moved, renamed mid-run). Without that
-second case the sweep watches nothing and reports nothing for the rest of the
-run: a gate that silently always passes is worse than no gate.
-
-It says it **once and exits**, and that is the other half of the rule. A sweep
-that repeats "I am watching nothing" every two minutes wakes the orchestrator
-into a full context read for a fact it already has — the exact cost that killed
-the per-agent timer two paragraphs up. Speaking once and dying is louder and
-cheaper than a running commentary, and it cannot be tuned out.
-
-So `SWEEP DOWN` is an action, not a notification: fix what it names — usually
-`$SCRATCH` pointing at the wrong path, or worktrees pruned while the run was
-still live — verify the in-flight agents by hand once, and **arm a new sweep**.
-Until you do, nothing is watching, and the run's silence means nothing.
-Confirm at arm time that it names live worktrees rather than assuming the
-silence is health.
-
-On a `STALL` line, verify with cheap read-only commands (worktree commit time,
-`git status`, PR existence, transcript last-write time, running build
-processes) and rescue it if it is genuinely dead. **Never re-dispatch a live
-agent because the sweep fired** — a long agent is not a dead one, and the sweep
-is a hint, not a verdict. `TaskStop` it when the run ends.
+**Liveness sweep.** Arm the `unattended-run` skill's sweep (§6, "The liveness
+sweep") as one persistent `Monitor` at the first dispatch, attended or not —
+the dead-agent problem does not depend on whether the operator is watching. Its
+default `WATCH` glob, `wt-*/` under `$SCRATCH`, matches the Fixer step's
+worktree naming. Add the orchestrator's own failure shape to it: **"the agent
+said it opened a PR and there is none"** (`gh pr view` for a PR that should
+exist by now). The shared status line shows each live agent's cache TTL; a
+reading at 100% on an agent meant to be polling says the same as a `COLD` line,
+sooner. A transcript idle five minutes is a brief violation for the
+self-improvement pass, not a wake-up.
 
 **Heartbeat: from the first dispatch until the wrap.** Arm the cache-warmth
 skill's 50-minute heartbeat **in the same turn as the first dispatch**. When it
@@ -845,67 +747,31 @@ line if nothing moved. Keep it through every park at an operator gate or a
 quota drain. Stop re-arming it only at the wrap (see "Unattended mode → the
 stop"), and say in the final message that it is off.
 
-**Unattended mode.** The operator says "unattended" (or "continue unattended",
-or "run until you need me"): run until nothing more can be done without the
-operator, or until a ceiling is reached; then wrap automatically and stop.
+**Unattended mode.** The `unattended-run` skill holds the contract, when to
+stop and the stop sequence. The orchestrator's specifics:
 - **Still gated:** scope approval (iron rule 1) and every human gate in the
-  overlay. Unattended means no mid-run questions, not no gates.
+  overlay — together they are the run's authority.
 - **What continues:** every card whose next step is the orchestrator's or an
-  agent's. A design question goes to the adjudicator (iron rule 4), not to the
-  operator. An operator-only question on one card parks that card (label
-  `needs-human`, a ledger line, an item on the held list) while the rest of the
-  wave keeps going.
-- **When to stop.** Stop at the first of these:
-  1. every remaining card, gate or wrap step needs the operator: a human gate,
-     a release, a deferred-register ruling, or a held amendment;
-  2. the orchestrator's soft context ceiling (overlay, or 200k), read with
-     `../context-ceiling/tools/context-size.py`, at the next natural boundary. In attended mode,
-     passing this ceiling means offering a handover. Unattended, it means taking
-     the handover;
-  3. the token budget (iron rule 7): drain, then stop;
-  4. a stall that survived one rescue.
-- **The stop.** In one turn, in this order:
-  1. let in-flight agents finish (drain; start nothing new);
-  2. commit and push the ledger with a RESUME PACKET;
-  3. run the project's handoff wrap (`/handoff wrap`, or rewrite its handoff
-     doc) and commit it;
-  4. stop re-arming the heartbeat. A parked unattended run does not keep its
-     cache warm: the next session is a fresh one, and it starts from the handoff;
-  5. send the final message: what is done, the Exit line, exactly what waits on
-     the operator (each gate with the decision it needs), and the heartbeat
-     marked as off.
-  Any extra task the operator attached to the unattended run (a report, an
-  analysis) comes after the wrap, in that same final message.
+  agent's. A design question goes to the adjudicator (iron rule 4). An
+  operator-only question parks that card (label `needs-human`, a ledger line,
+  an item on the held list).
+- **Stop conditions** add the orchestrator's: every remaining card, gate or wrap
+  step needs the operator — a human gate, a release, a deferred-register
+  ruling, a held amendment. The context ceiling is the orchestrator's soft one
+  (overlay, or 200k).
+- **The stop** writes the ledger's RESUME PACKET and runs the project's handoff
+  wrap (`/handoff wrap`, or its handoff doc); the ledger is pushed only if the
+  overlay or the operator granted pushing.
 
-**Rescue.** Agent killed by limits/crash: `SendMessage` to the same agent id
-— it resumes from its transcript with the worktree state intact. **Verify
-worktree, branch and PR state yourself first and hand those facts back in the
-message** — it stops the agent re-deriving them and stops it recreating a
-worktree that still exists. Include "recreate at a fresh path if it is gone".
-Typical causes: watchdog kill after idling on a background job, mid-stream API
-error, session quota limit. All three usually resume from the transcript; re-dispatch
-fresh only when the resume itself fails. **When the orchestrator's own session crashes, resume that same
-session rather than starting a fresh one** — agent handles are session-scoped,
-so only the resumed session can `SendMessage` its in-flight agents. A resumed
-session can find a reviewer mid-suite and an agent with uncommitted work, and
-resume both from their transcripts without repeating work.
-
-**Resume under the ceiling; continue above it** — the `context-ceiling`
-skill's rule. Above ~150k, or cold with a large context, dispatch a
-continuation from the agent's last checkpoint note, or failing that from the
-ledger plus the worktree, branch and PR facts you verified.
-
-**Stall nudge.** Agents stop with "waiting for the monitor/background task".
-Nudge with: use a BLOCKING wait (`until <check>; do sleep 10; done`, or
-`gh pr checks --watch`), then finish and return the report. Put this in every
-brief preemptively.
-
-**When the nudge fails, remove the dependency.** If the thing the agent is
-waiting on **has not started** — a queued CI run, a job with no runner — a
-better blocking wait stalls it again, because there is nothing to observe. Take
-the gate off the agent: tell it to return the report with `CI: queued`, and own
-that gate yourself. You own it anyway; merge requires CI green *and* review
-clean, and the agent cannot merge.
+**Rescue, stall nudge, removing the dependency** — the `unattended-run`
+skill's helper rules (§6), attended or not: resume a dead agent with
+`SendMessage` after verifying its worktree, branch and PR yourself; continue
+from its checkpoint note above the ceiling (`context-ceiling`); resume the
+orchestrator's own crashed session rather than starting fresh, since only it can
+message its agents. When the agent waits on something that has not started — a
+queued CI run — have it return with `CI: queued` and own that gate: you own it
+anyway, since merge needs CI green *and* review clean, and the agent cannot
+merge.
 
 **Idle time at parallelism 1.** While the one in-flight agent runs, pre-write
 the next brief instead of waiting on it — this keeps dispatch latency near
@@ -1160,53 +1026,26 @@ blocked, go, needs-human, spent gate labels. A wrap sweep finds closed cards sti
 plus a wave summary. During quota pause: record everything, say what's
 running, say what's queued; on resume, rescue first, then fill the pipe.
 
-**Progress line.** A long run goes quiet for tens of minutes at a time, and the
-user should never have to ask where it is. **After a subagent finishes a
-substantial chunk** — a PR opened, a review verdict, a fix round landed, a merge
-— emit exactly:
+**Progress line.** The stamp's rules — its form, `date` in the same turn, the
+stamp as the final text of its turn, goal items before percentage — are the
+`unattended-run` skill's (§4), and hold attended or not. The orchestrator's
+version of it:
 
 ```
 **<date and time> - Progress: Exit <met>/<total> · N%**
 <one line about what just happened>
 ```
 
-**Exit items met / total comes FIRST; the percentage is second.** The
-percentage measures card cost consumed, which is a measure of spend, not of
-progress — and a run can consume most of its cards while moving no Exit item at
-all. That is the divergence this whole skill keeps re-learning, and the stamp is
-where it becomes visible early enough to act on. Take the Exit items from the
-milestone's own Exit / Measure / Demo line, count them once at Phase 0, and
-never re-cut the denominator mid-run. If the milestone has no Exit line, the
-goal line (iron rule 11) is the single item.
-
-**Run `date` for every single stamp, in the turn that emits it.** Not from
-memory, and above all not by adding the elapsed work to the last stamp — that
-is how stamps end up **ahead of the clock** unnoticed, which also makes every
-time in the ledger a label of unknown accuracy. This is a per-stamp
-instruction, not a per-ledger one. Emit it on meaningful
-completions, not on every notification or tool call. If the user asks for "just a number",
-give only the number.
-
-**The stamp must be the FINAL text of its turn — no tool call after it.** Text
-followed by tool calls in the same turn is not reliably rendered: stamps
-emitted immediately before dispatching the next agent can go unseen, and the
-run looks silent while reporting diligently. Order of operations on a
-completion: spend read (`token_audit.py` from the `token-report` skill — Budget
-check) → ledger update, figure included → next dispatch → close the turn with
-the stamp. If work remains after the stamp is due, end the
-turn anyway and continue on the next event.
-
-**Fix the model once, at the first report, and keep using it.** Percentages
-drift upward otherwise, because approach work on unstarted issues gets
-over-credited. What works:
-
-- weight each issue by **expected cost**, not by count (a heavy contract issue is
-  worth three of a docs issue);
-- within an issue: approach 20, fixer 45, review 25, merge 10;
-- **unmerged is not done.** An approved PR that cannot merge is 90%, not 100%.
-
-A correction downward is fine and should be stated in the same line — a number
-that only ever rises is not a measurement.
+- **Emit it after a subagent finishes a substantial chunk** — a PR opened, a
+  review verdict, a fix round landed, a merge — not on every notification.
+- **The Exit items come from the milestone's own Exit / Measure / Demo line**,
+  counted once at Phase 0; with no Exit line, the goal line (iron rule 11) is
+  the single item.
+- **Order on a completion:** spend read (Budget check) → ledger update, figure
+  included → next dispatch → the stamp, closing the turn.
+- **The weighting**, fixed at the first report: each issue by expected cost,
+  not by count; within an issue, approach 20, fixer 45, review 25, merge 10;
+  an approved PR that cannot merge is 90%, not 100%.
 
 ## Phase 2 — Wrap (in this order)
 

@@ -27,8 +27,9 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 > symlinks the first two alone leaves those pointers dangling in exactly the
 > way nobody notices. Put every local difference in `project.md`, which stays
 > with the project. Install the **`cache-warmth`** skill beside it too
-> (symlinked the same way), and **`context-ceiling`**: the runbook's briefs
-> `cat` their `brief.md` files. The ceiling hook is not installed by any
+> (symlinked the same way), with **`context-ceiling`** and **`unattended-run`**:
+> the runbook's briefs `cat` their `brief.md` files, and its sweep, stamps and
+> stop live in `unattended-run`. The ceiling hook is not installed by any
 > symlink — run **`/add-context-ceiling`** on the project.
 >
 > **Verify the overlay actually loaded before the first dispatch** — ask the
@@ -106,14 +107,17 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
 
 ## Unattended mode
 
-When the operator says "unattended", run until nothing more can be done without
-them, or until a ceiling is reached (the soft context ceiling, or the token
-budget). Then **wrap automatically**: drain the agents in flight, write the
-ledger's RESUME PACKET, run the project's handoff wrap, **stop re-arming the
-heartbeat**, and send one final message that names exactly what waits on the
-operator. Scope approval and the overlay's human gates still hold. An
-operator-only question parks its card, not the run. The details are in runbook
-→ "Unattended mode".
+When the operator says "unattended", the run follows the **`unattended-run`**
+skill: run until nothing more can be done without the operator or a ceiling is
+reached, then stop with one message naming exactly what waits on them. How it
+maps onto this skill:
+- **Approval before going dark is the scope approval** (iron rule 1); the
+  **authority** is the scope doc plus the overlay's human gates.
+- **A design question goes to the adjudicator** (iron rule 4), not to the
+  operator. **An operator-only question parks its card** (label `needs-human`,
+  a ledger line, the held list); the rest of the wave keeps going.
+- **The record is the ledger**; the stop runs the project's handoff wrap. See
+  runbook → "Unattended mode".
 
 **Waiting, attended or not, follows the `cache-warmth` skill.** The
 orchestrator never takes a turn to wait, and it arms that skill's 50-minute
@@ -238,9 +242,10 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
 
 ## Red flags — stop, you are about to violate the flow
 
-**The full set is [reference/red-flags.md](reference/red-flags.md)** — 61 rows,
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 55 rows,
 grouped, none deleted; the waiting and cache rows are in the `cache-warmth`
-skill, the ceiling rows in `context-ceiling`. Read it once at run start and again at any wave boundary
+skill, the ceiling rows in `context-ceiling`, the stamp, sweep and quota rows
+in `unattended-run`. Read it once at run start and again at any wave boundary
 where the run changed shape. These ten fire the most often:
 
 - About to dispatch a fixer and the user hasn't approved a scope doc
@@ -271,8 +276,9 @@ where the run changed shape. These ten fire the most often:
 ## Common rationalizations
 
 **The full set is [reference/rationalizations.md](reference/rationalizations.md)**
-— 53 rows, none deleted; the waiting and cache rows are in the `cache-warmth`
-skill, the ceiling rows in `context-ceiling`. These ten fire the most often:
+— 49 rows, none deleted; the waiting and cache rows are in the `cache-warmth`
+skill, the ceiling rows in `context-ceiling`, the unattended rows in
+`unattended-run`. These ten fire the most often:
 
 | Excuse | Reality |
 |---|---|

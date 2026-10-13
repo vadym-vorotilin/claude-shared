@@ -2,8 +2,8 @@
 
 The full set. SKILL.md keeps the ten that fire most often; every other row is
 here, and none has been deleted. Rows about waiting and the prompt cache
-moved to the `cache-warmth` skill, and rows about the context ceiling to the
-`context-ceiling` skill.
+moved to the `cache-warmth` skill, rows about the context ceiling to the
+`context-ceiling` skill, and rows about unattended operation to `unattended-run`.
 
 Each left-hand column is a representative paraphrase — illustrative, not a
 quote — of the sentence an agent tends to reach for on its way to the mistake
@@ -14,7 +14,6 @@ fine.
 
 | Excuse | Reality |
 |---|---|
-| "User said unattended, so start now" | Unattended = no mid-run questions, not no scope gate. Present scope first. |
 | "These two issues are coupled, share the checkout" | Two agents in one tree corrupt each other's work. Worktrees + merge order. |
 | "Review was clean, the reviewer can merge" | Verdict ≠ decision. Gates (human labels, groups, freezes) live above the reviewer. |
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
@@ -28,7 +27,6 @@ fine.
 | "The reviewer told me how to fix it" | A remedy that covers most shapes of a defect can be not merely vacuous but **false at the correct value**, and ship red. Measure it before adopting it; a right finding can carry a wrong fix. |
 | "That's the fifth hole, I'll patch it too" | Most holes in one path are one mistake. Ship an invariant with a named outside, not enumeration N+1. |
 | "The adjudicator says they're independent" | Independent contracts, same file, same function. Re-check file surfaces yourself. |
-| "It's still queued, I'll nudge it to wait properly" | Nothing has started. A better nudge stalls it again — take the gate off the agent. |
 | "The suite count was right last I looked" | It moves whenever a sibling merges. Make every agent re-measure rather than quote a count. |
 | "CI is red, the branch is broken" | A red can be a cancelled job or a CI outage at setup. `gh api .../jobs` before believing a red. |
 | "The agent didn't follow my instruction" | Check whether it was right. A deviation is often correct, and reported up front. The same holds in reverse: a reviewer may retract its own finding — even a blocking one — in the review body after measuring. "You were right and I was wrong" is the gate working, not a reviewer to distrust. |
@@ -51,14 +49,12 @@ fine.
 | "It's a rebase, the review stands" | It stands only if the content is identical — prove it with diff-of-diffs, then merge without a third review. |
 | "The spec is silent, so the fixer's convention is fine" | It is a design act. A short adjudication is the cheap way to ratify it or relocate it. |
 | "The suite is the sum of the filtered chunks" | Some runners' filters are exact-match and silently drop everything nested below the named level. Run unfiltered, or split by test class. |
-| "I stamped the progress, then dispatched the next agent" | Text before tool calls may never render, so a run can look silent while reporting diligently. Stamp last. |
 | "The checklist says every item is Met, the demo is done" | Met means the noun shipped. An operator walking the same artifact can find defects the checklist cannot see. Walk it as the user first. |
 | "The constraint check says the requested design is infeasible, so the design must change" | Name the conflict first (drop one constraint at a time). Often the named rule is the defect — an assumption baked into the constraint set — and the design stands. Escalate the *rule*, with options, not the design. |
 | "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: a difference that factors cleanly (a per-item weight times a count) says one input differed between the two measurements. A reconciled number is a fact; two numbers are a question. |
 | "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
 | "The source data says X, the requested design says Y — one correction" | Check the whole frame: which parts match. A single reported mismatch often hides several wrong input fields; each correction moves a different downstream number. |
 | "Round 5 is just another round" | A late round on a resumed agent costs a multiple of round 1 for a same-sized fix. Price the round before spending it; when the budget says stop, adjudicate the open findings instead. |
-| "The check-up timer is cheap insurance" | Per agent, on a fixed interval, it re-reads the entire orchestrator context to learn "still alive" — and still finds a stall up to a full interval late. One silent sweep is cheaper and faster. |
 | "I made the edit, so it is in the diff" | Not if you later ran `git checkout -- <that file>` in a mutation-revert loop on it. A fixer can report a corrected paragraph as landed when its own revert has eaten it. Commit the edit before you start mutating that file, or re-read it from `git diff` — never from the edit. |
 | "Two cards decided the same question opposite ways, one of them is wrong" | Look for the experiment that distinguishes them first. Run the one neither card had — restore the removed input, re-run, diff — and a single rule may explain both outcomes; neither card was inconsistent. |
 

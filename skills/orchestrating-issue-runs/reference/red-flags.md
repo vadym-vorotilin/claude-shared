@@ -35,7 +35,6 @@ the flow.
   full-length run, never a shortened probe's extrapolated ratio
 - Writing a durable design record (an ADR or equivalent) for a question that
   does not change the milestone's Exit
-- A progress stamp that leads with card cost instead of Exit items met / total
 - A follow-on milestone most of whose cards descend from its predecessor's —
   that is a stop signal, not a backlog; the direction question goes to the
   operator before dispatch
@@ -49,13 +48,11 @@ the flow.
 ## Waiting, cache and context
 
 Rows about waiting and the prompt cache moved to the `cache-warmth` skill's
-Red flags, and rows about the context ceiling to the `context-ceiling` skill's;
-none was deleted.
+Red flags, rows about the context ceiling to the `context-ceiling` skill's, and
+rows about stamps, the sweep, stalls and the quota to the `unattended-run`
+skill's; none was deleted.
 
-- Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
 - A brief that does not ban the agent dispatching its own subagents — forked helpers can clobber each other's single output file
-- Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
-- Arming a check-up timer per agent — one silent sweep covers every in-flight agent and wakes you only on a stall
 - Starting a wave or a fix round without checking the run's spend against the target
 
 ## Dispatch and briefing
@@ -93,10 +90,8 @@ none was deleted.
 - Treating the post-merge issue-state read as a gate — that read is racy; read the commit body
 - Merging two green PRs that both touch one counted set — per-branch gates don't compose; serialise or rebase-and-rerun
 - Merging a squash-stacked PR's parent and assuming the child survives it — rebase `--onto`, then re-check the review
-- A progress stamp with a tool call after it — the stamp ends the turn, always
 - Squash-merging `main` into an integration branch — main's closing keywords ride along
 - A deferred register handed over flat instead of grouped by what can close in-branch now
-- A ledger time or progress stamp extrapolated from the previous one instead of read from `date` in that same turn — reckoned stamps drift from the clock
 - Editing a branch and merging it in the same shell call — a failed edit that `set -e` does not catch gets merged
 
 ## Rules, specs and model-facing records
