@@ -151,7 +151,8 @@ fresh agent "one tier up" also goes one effort level up.
 
 | Work | Tier | Effort |
 |---|---|---|
-| Approaches, mechanical fixes, re-reviews | cheap/mid (Sonnet-class) | low |
+| Mechanical fixes, re-reviews | cheap/mid (Sonnet-class) | low |
+| Approaches — a wrong one costs every leg after it | cheap/mid (Sonnet-class) | high |
 | Standard reviews | cheap/mid (Sonnet-class) | medium |
 | Load-bearing implement/review: core types, schema, cache/graph logic, anything running unattended with write access | top standard (Opus-class) | high |
 | Design adjudication, contract/freeze drafts, Phase 0 scope | strongest available | xhigh |
