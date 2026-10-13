@@ -113,6 +113,14 @@ jq '.hooks.PreToolUse |= [ .[]? | select( any(.hooks[]?; (.command // "") | cont
 rm -f .claude/hooks/agent-ceiling.py
 ```
 
+## Migrating an older install
+
+Installs made before this skill existed link to
+`orchestrating-issue-runs/hooks/agent-ceiling.py`. That path is kept as a
+symlink to this hook, so they keep working; re-running step 2 moves a project
+to the new path and to `settings.local.json`. Remove the old entry from the
+project's `.claude/settings.json` afterwards, or the hook runs twice.
+
 ## 6. Report
 
 Tell the user: where the link and the settings entry were written, that both

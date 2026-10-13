@@ -32,3 +32,14 @@ hook() { # payload-json
   [ "$status" -eq 0 ]
   assert_contains "$(cat "$TEST_TMP/stderr")" "agent-ceiling: skipped"
 }
+
+@test "the pre-move hook and tool paths still resolve (installed links point there)" {
+  # Projects installed before the context-ceiling skill existed link to the
+  # orchestrator's copy; if that path dangles, the [ -r ] guard turns the hook
+  # off silently.
+  old="$REPO/skills/orchestrating-issue-runs"
+  [ "$(readlink -f "$old/hooks/agent-ceiling.py")" = "$(readlink -f "$HOOK")" ] \
+    || fail "old hook path does not resolve to the hook"
+  [ "$(readlink -f "$old/tools/context-size.py")" = "$(readlink -f "$REPO/skills/context-ceiling/tools/context-size.py")" ] \
+    || fail "old context-size path does not resolve to the tool"
+}
