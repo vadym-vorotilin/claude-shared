@@ -51,15 +51,16 @@ into briefs below.
 
 ## Run state
 
-One directory per run in the repo: `RUN=<repo>/.orchestration/<run>` (`<run>`
-= a short name for the milestone or wave). It holds `ledger.md`, `INTRO.md`,
-`briefs/` (every assembled brief and its spec part) and `reports/` (agent
-reports; each brief names its absolute `$RUN/reports/<issue>-<role>.md`).
-**Local by default:** before the first write, append `.orchestration/` to
-`$(git rev-parse --git-path info/exclude)` unless the overlay opts into
-tracking (INSTALL.md → "Run state"). If `git ls-files .orchestration` prints
-anything and the overlay is silent, stop and ask the operator: an exclude does
-not untrack. Worktrees and experiments go in `$SCRATCH`, **outside** the repo.
+One directory per run: `RUN=<repo>/.orchestration/<run>` (`<run>` = a short
+name for the milestone or wave; tracked mode moves it, INSTALL.md → "Run
+state"). It holds `ledger.md`, `INTRO.md`, `briefs/` (every assembled brief and
+its spec part) and `reports/`: each brief names its absolute
+`$RUN/reports/<leg>.md`, `<leg>` = `<issue>-<role>-<n>` (`n` counts that role's
+dispatches on the issue — rounds, parts) or the role's name for a run-wide leg.
+**Before the first write, always** append `.orchestration/` to
+`$(git rev-parse --git-path info/exclude)`. If `git ls-files .orchestration`
+prints anything and the overlay does not say `run state: tracked`, stop and
+ask the operator: an exclude does not untrack. Worktrees and experiments go in `$SCRATCH`, **outside** the repo.
 
 ## Briefs
 

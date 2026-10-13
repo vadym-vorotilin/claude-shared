@@ -200,7 +200,7 @@ PY
     grep -qF 'git rev-parse --git-path info/exclude' "$f" || fail "$f: exclude not via --git-path"
     grep -qF 'git ls-files .orchestration' "$f" || fail "$f: no check for an already-tracked folder"
   done
-  ! grep -rnE '(append|add)[^.]*`\.git/info/exclude`' "$O" --include=*.md --exclude-dir=full \
+  ! grep -rnE '\b(append|add)s?\b[^—]{0,60}\.git/info/exclude' "$O" --include=*.md --exclude-dir=full \
     || fail "an instruction writes the literal .git/info/exclude"
 }
 
@@ -208,7 +208,9 @@ PY
   # A report written relative to a worktree is deleted with the worktree.
   O="$REPO/skills/orchestrating-issue-runs"
   grep -qF 'absolute path your brief names' "$O/briefs/common.md" || fail "common.md: report path not absolute"
-  grep -qF '$RUN/reports/<issue>-<role>.md' "$O/phase1-loop.md" || fail "the spec part does not name the report path"
+  grep -qF '$RUN/reports/<leg>.md' "$O/phase1-loop.md" || fail "the spec part does not name the report path"
+  # one report per dispatch: a fix round or a part must not overwrite the last one
+  grep -qF '`<leg>` = `<issue>-<role>-<n>`' "$O/SKILL.md" || fail "report names do not count dispatches"
   ! grep -rniE "(scratch(pad)? (file|directory)[^.]*(ledger|report)|(ledger|report)[^.]*scratch(pad)? (file|directory))" \
       "$REPO/skills" --include=*.md --exclude-dir=full || fail "run state still placed in a scratch file or directory"
 }

@@ -49,7 +49,7 @@ need only name `<run>` for a fresh orchestrator to find the ledger, and two
 projects never invent two layouts. Brief templates have no slot here: standing rules live in this
 skill's `briefs/` blocks, a project's own standing text in `project.md`.
 
-- **Local by default.** Before its first write the orchestrator appends
+- **Local by default, and the exclude is always written.** Before its first write the orchestrator appends
   `.orchestration/` to `$(git rev-parse --git-path info/exclude)` — the shared
   exclude file, which a literal `.git/info/exclude` is not from a linked
   worktree. Briefs quote issues, rulings and specs, so tracking the folder in
@@ -58,12 +58,20 @@ skill's `briefs/` blocks, a project's own standing text in `project.md`.
   anything and the overlay does not say `run state: tracked`, the orchestrator
   stops and asks: either the overlay opts in, or the operator untracks it.
 - **Tracking is the overlay's call.** A `project.md` that says `run state:
-  tracked` gets `.orchestration/*/reports/` in `.gitignore` instead (reports
-  are bulky and live only while a card is open), and names a **dedicated state
-  branch, never the default branch**, committed from its own worktree under
-  `$SCRATCH`. On the default branch the state would move the base under every
-  open PR at each stamp, and reach every fixer's worktree, where it could ride
-  in a PR.
+  tracked` names a **dedicated state branch, never the default branch** — there
+  the state would move the base under every open PR at each stamp, and reach
+  every fixer's worktree, where it could ride in a PR. The state branch gets its
+  own worktree and `RUN` moves into it; the main checkout stays excluded:
+
+  ```bash
+  git worktree add "$SCRATCH/state" <state-branch>   # first run: add -b <state-branch>
+  RUN="$SCRATCH/state/.orchestration/<run>"
+  # commit named paths only, -f because the shared exclude hides the folder;
+  # never reports/ — bulky, and live only while a card is open
+  git -C "$SCRATCH/state" add -f ".orchestration/<run>/ledger.md" \
+    ".orchestration/<run>/INTRO.md" ".orchestration/<run>/briefs"
+  git -C "$SCRATCH/state" commit -m "run state: <run>"
+  ```
 - **Nothing that builds goes here.** Worktrees, probes and experiment crates
   live in `$SCRATCH`, outside the repo: inside it they are picked up by test
   runners, `grep` and indexers, and their build output gets committed.

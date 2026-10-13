@@ -144,7 +144,7 @@ and pushed only if pushing was granted.
 
 **The specific part** you write (`$RUN/briefs/spec-<issue>-<role>.md`): **the
 goal line**, the role, ONE issue, binding comments by name, repo and worktree
-instructions, **the absolute report path `$RUN/reports/<issue>-<role>.md`**,
+instructions, **the absolute report path `$RUN/reports/<leg>.md`** (SKILL.md → "Run state"),
 the file surfaces to avoid — in parallel mode **the version
 constant is one** — and any return fields to add. A reviewer's adds the PR and
 the SHAs you resolved, the files, and a turn budget. Never state a number the
