@@ -142,7 +142,7 @@ and pushed only if pushing was granted.
 
 ## Briefs
 
-**The specific part** you write (`$RUN/briefs/spec-<issue>-<role>.md`): **the
+**The specific part** you write (`$RUN/briefs/spec-<leg>.md`): **the
 goal line**, the role, ONE issue, binding comments by name, repo and worktree
 instructions, **the absolute report path `$RUN/reports/<leg>.md`** (SKILL.md → "Run state"),
 the file surfaces to avoid — in parallel mode **the version

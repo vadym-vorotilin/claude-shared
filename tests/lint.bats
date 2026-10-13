@@ -182,7 +182,7 @@ PY
   # A fixed place is what lets a fresh orchestrator find the ledger; a worktree
   # inside the repo gets built, grepped and committed.
   O="$REPO/skills/orchestrating-issue-runs"
-  run grep -ohE '[^ "`(]*(brief|spec)-<issue>[^ "`)]*' "$O/SKILL.md" "$O"/phase*.md
+  run grep -ohE '[^ "`(]*(brief|spec)-<leg>[^ "`)]*' "$O/SKILL.md" "$O"/phase*.md
   [ -n "$output" ] || fail "no brief/spec path found to check"
   while IFS= read -r path; do
     [[ "$path" == '$RUN/briefs/'* ]] || fail "brief or spec part outside \$RUN/briefs: $path"
@@ -211,6 +211,12 @@ PY
   grep -qF '$RUN/reports/<leg>.md' "$O/phase1-loop.md" || fail "the spec part does not name the report path"
   # one report per dispatch: a fix round or a part must not overwrite the last one
   grep -qF '`<leg>` = `<issue>-<role>-<n>`' "$O/SKILL.md" || fail "report names do not count dispatches"
+  # tracked mode commits named paths only: a blanket add would commit reports/
+  block="$(sed -n '/run state: tracked/,/^  ```$/p' "$O/INSTALL.md")"
+  assert_contains "$block" 'add -f ".orchestration/<run>/ledger.md"'
+  code="$(grep -vE '^\s*(#|- )' <<< "$block")"   # the commands, not the prose or comments
+  ! grep -qE 'add (-f )?(-A|\.|--all)\b|reports' <<< "$code" \
+    || fail "the tracked-mode commit adds more than named paths"
   ! grep -rniE "(scratch(pad)? (file|directory)[^.]*(ledger|report)|(ledger|report)[^.]*scratch(pad)? (file|directory))" \
       "$REPO/skills" --include=*.md --exclude-dir=full || fail "run state still placed in a scratch file or directory"
 }

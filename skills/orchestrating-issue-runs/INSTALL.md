@@ -64,15 +64,16 @@ skill's `briefs/` blocks, a project's own standing text in `project.md`.
   own worktree and `RUN` moves into it; the main checkout stays excluded:
 
   ```bash
-  git worktree add "$SCRATCH/state" <state-branch>   # first run: add -b <state-branch>
-  RUN="$SCRATCH/state/.orchestration/<run>"
+  git worktree add "$SCRATCH/state-<repo>" <state-branch>   # first run: add -b <state-branch>
+  RUN="$SCRATCH/state-<repo>/.orchestration/<run>"
   # commit named paths only, -f because the shared exclude hides the folder;
-  # never reports/ — bulky, and live only while a card is open
-  git -C "$SCRATCH/state" add -f ".orchestration/<run>/ledger.md" \
+  # never reports/ — bulky, live only while a card is open, and deleted with
+  # the state worktree
+  git -C "$SCRATCH/state-<repo>" add -f ".orchestration/<run>/ledger.md" \
     ".orchestration/<run>/INTRO.md" ".orchestration/<run>/briefs"
-  git -C "$SCRATCH/state" commit -m "run state: <run>"
+  git -C "$SCRATCH/state-<repo>" commit -m "run state: <run>"
   ```
-- **Nothing that builds goes here.** Worktrees, probes and experiment crates
+- **Nothing that builds goes here.** Worktrees, probes and experiment builds
   live in `$SCRATCH`, outside the repo: inside it they are picked up by test
   runners, `grep` and indexers, and their build output gets committed.
 

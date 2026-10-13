@@ -53,14 +53,15 @@ into briefs below.
 
 One directory per run: `RUN=<repo>/.orchestration/<run>` (`<run>` = a short
 name for the milestone or wave; tracked mode moves it, INSTALL.md → "Run
-state"). It holds `ledger.md`, `INTRO.md`, `briefs/` (every assembled brief and
-its spec part) and `reports/`: each brief names its absolute
+state"). It holds `ledger.md`, `INTRO.md`, `briefs/` (each leg's assembled
+brief and its spec part) and `reports/`: each brief names its absolute
 `$RUN/reports/<leg>.md`, `<leg>` = `<issue>-<role>-<n>` (`n` counts that role's
 dispatches on the issue — rounds, parts) or the role's name for a run-wide leg.
 **Before the first write, always** append `.orchestration/` to
 `$(git rev-parse --git-path info/exclude)`. If `git ls-files .orchestration`
 prints anything and the overlay does not say `run state: tracked`, stop and
-ask the operator: an exclude does not untrack. Worktrees and experiments go in `$SCRATCH`, **outside** the repo.
+ask the operator: an exclude does not untrack. Worktrees and experiments go
+in `$SCRATCH`, **outside** the repo.
 
 ## Briefs
 
@@ -76,9 +77,9 @@ brief() { # brief <out> <block>... — refuses a missing or empty block; never l
   for f in "$@"; do [ -s "$f" ] || { echo "brief: missing or empty block $f" >&2; return 1; }; done
   for f in "$@"; do cat "$f"; echo; done > "$out"
 }
-brief "$RUN/briefs/brief-<issue>-fixer.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
+brief "$RUN/briefs/brief-<leg>.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
   "$S/../cache-warmth/brief.md" "$S/../context-ceiling/brief.md" "$S/briefs/fixer.md" \
-  "$RUN/briefs/spec-<issue>-fixer.md" || echo "STOP: fix the brief before dispatching"
+  "$RUN/briefs/spec-<leg>.md" || echo "STOP: fix the brief before dispatching"
 ```
 
 | Role | Blocks after `briefs/common.md` and `../cache-warmth/brief.md` |
