@@ -251,7 +251,7 @@ or `Monitor`, which is capped at 30 minutes. See runbook → "Heartbeat".
 
 ## Red flags — stop, you are about to violate the flow
 
-**The full set is [reference/red-flags.md](reference/red-flags.md)** — 72 rows,
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 73 rows,
 grouped, none deleted. Read it once at run start and again at any wave boundary
 where the run changed shape. These ten fire the most often:
 
