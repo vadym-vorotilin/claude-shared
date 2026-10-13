@@ -3,7 +3,8 @@ when you pass it. When your context passes **~150k**, stop and write a
 checkpoint note — do not push on. Hard stop at **~200k**, whatever the state.
 - Write the note to `CHECKPOINT.md` in your worktree **and** return it with
   `STATUS: CHECKPOINT`. Never commit it: add `CHECKPOINT.md` to
-  `$(git rev-parse --git-path info/exclude)` first.
+  `$(git rev-parse --git-path info/exclude)` first (in a linked worktree that
+  file is shared by every worktree of the clone, which is harmless).
   ```
   FILES TOUCHED   path — what changed, and what is half-done
   DECISIONS       each decision and why, including options considered and dropped

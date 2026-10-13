@@ -40,7 +40,7 @@ template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
   run python3 - "$REPO/skills" <<'PY'
 import re, sys, pathlib
 root = pathlib.Path(sys.argv[1]); bad = []; n = 0
-pat = re.compile(r'(\$S/)?((?:\.\./)?(?:[a-z0-9-]+/)*[A-Za-z0-9_.-]+\.(?:md|py|sh))')
+pat = re.compile(r'(\$S/)?((?:\.\./)?(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+\.(?:md|py|sh))')
 for f in root.rglob("*.md"):
     skill = root / f.relative_to(root).parts[0]
     for m in pat.finditer(f.read_text()):

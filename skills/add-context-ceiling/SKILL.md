@@ -134,7 +134,9 @@ git rm --cached .claude/hooks/agent-ceiling.py      # stop tracking the link; th
 tmp=$(mktemp)
 jq '.hooks.PreToolUse |= [ .[]? | select( any(.hooks[]?; (.command // "") | contains("agent-ceiling.py")) | not ) ]' \
   .claude/settings.json > "$tmp" && mv "$tmp" .claude/settings.json
-git commit -m "Move the context-ceiling hook to a per-clone install" -- .claude/hooks/agent-ceiling.py .claude/settings.json
+git add .claude/settings.json
+# No pathspec here: `git commit -- <path>` re-stages the link and undoes the git rm.
+git commit -m "Move the context-ceiling hook to a per-clone install"
 ```
 
 Then run step 2. Other clones of the project lose the hook with that commit and

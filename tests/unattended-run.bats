@@ -75,3 +75,12 @@ make_dir() { # name age
   refute_contains "$output" "STALL"
   assert_contains "$output" "SWEEP DOWN"
 }
+
+@test "a directory that recovers and stalls again is reported again" {
+  make_dir wt-b "2 hours ago"
+  INTERVAL=1 timeout 7 bash "$SWEEP" > "$TEST_TMP/out" 2>&1 &
+  sleep 2; touch "$SCRATCH/wt-b/f" "$SCRATCH/wt-b"          # recovers
+  sleep 2; touch -d "2 hours ago" "$SCRATCH/wt-b/f" "$SCRATCH/wt-b"   # stalls again
+  wait || true
+  assert_equal "$(grep -c 'STALL: wt-b' "$TEST_TMP/out")" 2
+}

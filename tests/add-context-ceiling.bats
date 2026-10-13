@@ -97,3 +97,27 @@ ceiling_entries() { # settings_file
   [ "$status" -ne 0 ] || fail "should fail on a missing target"
   [ ! -e "$TEST_TMP/caller/.claude" ] || fail "wrote .claude into the caller's directory"
 }
+
+@test "the documented migration untracks an old install, and step 2 then succeeds cleanly" {
+  # An old install: link and settings entry both committed.
+  install
+  cp "$TARGET/.claude/settings.local.json" "$TARGET/.claude/settings.json"
+  rm "$TARGET/.claude/settings.local.json"
+  sed -i '/agent-ceiling.py/d; /settings.local.json/d' "$TARGET/.git/info/exclude"
+  git -C "$TARGET" add .claude/hooks/agent-ceiling.py .claude/settings.json
+  git -C "$TARGET" -c user.name=t -c user.email=t@example.com commit -qm "old install"
+  run install
+  [ "$status" -ne 0 ] || fail "install should refuse the tracked link first"
+
+  script="$TEST_TMP/migrate.sh"
+  extract_code_block "$REPO/skills/add-context-ceiling/SKILL.md" "## Migrating an older install" bash \
+    | sed "s#<target>#$TARGET#g" > "$script"
+  (cd "$TARGET" && git config user.name t && git config user.email t@example.com && bash "$script") >/dev/null
+  run git -C "$TARGET" ls-files --error-unmatch .claude/hooks/agent-ceiling.py
+  [ "$status" -ne 0 ] || fail "migration left the hook link tracked"
+  assert_equal "$(jq '[.hooks.PreToolUse[]?] | length' "$TARGET/.claude/settings.json")" 0
+
+  install
+  assert_equal "$(ceiling_entries "$TARGET/.claude/settings.local.json")" 1
+  assert_equal "$(git -C "$TARGET" status --porcelain)" ""
+}
