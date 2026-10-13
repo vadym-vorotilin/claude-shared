@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 #
-# unattended-run SKILL.md — the liveness sweep. These tests run the *actual*
-# documented block: silent while healthy, STALL on a stale directory, and
+# unattended-run tools/sweep.sh — the liveness sweep the skill tells a session
+# to run: silent while healthy, STALL on a stale directory, and
 # SWEEP DOWN (exit 1) rather than watching nothing in silence.
 
 load 'helpers/setup'
@@ -9,8 +9,7 @@ load 'helpers/extract'
 
 setup() {
   common_setup
-  SWEEP="$TEST_TMP/sweep.sh"
-  extract_code_block "$REPO/skills/unattended-run/SKILL.md" "### The liveness sweep" bash > "$SWEEP"
+  SWEEP="$REPO/skills/unattended-run/tools/sweep.sh"
   export SCRATCH="$TEST_TMP/scratch"
   mkdir -p "$SCRATCH"
   export INTERVAL=1

@@ -1,6 +1,22 @@
 ## Fixer rules
 
 - **TDD:** record the red, then make it green. Commit after every plan step.
+  The PR body carries the red→green evidence; flip the card's labels at start
+  and end. Never merge, never push to a protected or default branch.
+- **Worktree:** `git -C <repo> fetch <remote> && git -C <repo> worktree add
+  <scratch>/wt-<issue> -b <branch> <remote>/<default-branch>`, with the
+  remote, default branch and branch naming your brief gives. Cross-repo work:
+  one worktree and one PR per repo, cross-referenced.
+- **A design resting on several rulings** gets a throwaway end-to-end skeleton,
+  actually run, before the real diff — contradictions between rulings show up
+  there first.
+- **A ruling's numbers are hypotheses.** Verify a cited count, dimension or
+  exception type before building on it; report a correction, never absorb it.
+- **Widening a gate is a design act:** disclose even a narrow exemption in the
+  PR body, with a tripwire test that reads the production roster (never a
+  re-typed copy) so the next addition goes red.
+- **Asked to rebase:** first record `old-base` and `old-head` in your return,
+  then rebase and publish with `git push --force-with-lease`, never `-f`.
 - **A guard you add** — test it first against the shape your own diff
   introduces. Pin it with a property over the whole set, never a count: "exactly
   N items" stops discriminating at N+1, "every item, wherever it lands" can only

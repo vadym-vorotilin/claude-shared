@@ -54,3 +54,10 @@ The reviewer's job on such a PR is to prove that guard fires, by mutating those
 inputs until the infeasible core dissolves. Put the
 amend / re-author / park-disabled choice to the operator as a question, and
 ship the defensible option meanwhile rather than stalling on it.
+
+**Retried captures** (only where the project captures live external output and
+replays it in tests). Re-capturing until a capture is usable and keeping the
+last one is disclosed, not cherry-picked — and only when every discard was for
+validity. Discarding on content the brief never pinned is a selection the
+operator rules on; the capture's provenance carries an attempt count. Route it
+to the deferred register, not to the reviewer.

@@ -94,12 +94,26 @@ PY
   # block would ship a brief without its rules and nobody would see it.
   S="$REPO/skills/orchestrating-issue-runs"
   n=0
-  for rel in $(grep -ohE '`(briefs/[a-z-]+\.md|(cache-warmth|context-ceiling)/brief\.md)`' "$S/phase1-loop.md" | tr -d '`' | sort -u); do
+  for rel in $(grep -ohE '`(\.\./)?(briefs/[a-z-]+\.md|(cache-warmth|context-ceiling)/brief\.md)`' "$S/SKILL.md" "$S"/phase*.md | tr -d '`' | sed 's#^\.\./##' | sort -u); do
     n=$((n + 1))
     case "$rel" in briefs/*) p="$S/$rel" ;; *) p="$S/../$rel" ;; esac
-    [ -r "$p" ] || fail "phase1-loop.md names brief block $rel, missing"
+    [ -r "$p" ] || fail "the orchestrator names brief block $rel, missing"
   done
-  [ "$n" -ge 5 ] || fail "found only $n brief blocks named"
+  [ "$n" -ge 9 ] || fail "found only $n brief blocks named"
+}
+
+@test "the orchestrator's every-run reading stays within its budget" {
+  # The decomposition's goal was to carry LESS skill text than the old single
+  # runbook did (a median old run carried about 28 KB). SKILL.md plus every file
+  # its "Every run" table names is what a run carries; it must not creep back.
+  S="$REPO/skills/orchestrating-issue-runs"
+  budget=28672
+  files=$(awk '/^\| Every run \|/{t=1; next} t && /^\|/{print; next} t{exit}' "$S/SKILL.md" \
+          | grep -oE '\]\(([A-Za-z0-9_./-]+\.md)\)' | sed -E 's/^\]\(|\)$//g' | sort -u)
+  [ "$(echo "$files" | grep -c .)" -ge 3 ] || fail "could not read the Every-run table: [$files]"
+  total=$(wc -c < "$S/SKILL.md")
+  for f in $files; do total=$((total + $(wc -c < "$S/$f"))); done
+  [ "$total" -le "$budget" ] || fail "every-run reading is $total bytes, over the $budget budget: SKILL.md $files"
 }
 
 @test "an overlay that links only SKILL.md resolves every file the skill's map names" {
