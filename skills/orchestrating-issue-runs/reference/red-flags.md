@@ -49,16 +49,12 @@ the flow.
 ## Waiting, cache and context
 
 Rows about waiting and the prompt cache moved to the `cache-warmth` skill's
-Red flags; none was deleted.
+Red flags, and rows about the context ceiling to the `context-ceiling` skill's;
+none was deleted.
 
-- An agent measured at more than twice its stated ceiling written up as a
-  ledger note — that is a broken instrument, fixed before the next dispatch,
-  not an observation
 - Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
 - A brief that does not ban the agent dispatching its own subagents — forked helpers can clobber each other's single output file
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
-- A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
-- Resuming a cold agent that is already over the ceiling — that is a continuation from its handoff note, not a resume
 - Arming a check-up timer per agent — one silent sweep covers every in-flight agent and wakes you only on a stall
 - Starting a wave or a fix round without checking the run's spend against the target
 

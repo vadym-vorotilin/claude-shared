@@ -27,9 +27,9 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 > symlinks the first two alone leaves those pointers dangling in exactly the
 > way nobody notices. Put every local difference in `project.md`, which stays
 > with the project. Install the **`cache-warmth`** skill beside it too
-> (symlinked the same way): the runbook's briefs `cat` its `brief.md`. The ceiling hook is not installed this way — it goes into
-> the project's `.claude/hooks/`; see runbook → "The fixer stops at the context
-> ceiling". Symlinking `hooks/` beside the skill installs nothing.
+> (symlinked the same way), and **`context-ceiling`**: the runbook's briefs
+> `cat` their `brief.md` files. The ceiling hook is not installed by any
+> symlink — run **`/add-context-ceiling`** on the project.
 >
 > **Verify the overlay actually loaded before the first dispatch** — ask the
 > session to quote a line that exists only in `project.md`. A machine that has
@@ -148,10 +148,9 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
 5. **Ledger before first dispatch** (scratchpad file: waves, per-issue state,
    rulings, deferred minors, resume queue). Survives compaction and limits.
    Dead agents are **resumed from their transcripts** — while they are still
-   under the context ceiling (rule 9). Above it, or with a cold cache (a
-   subagent idle past ~5 minutes), **continue from the handoff note instead**:
-   both paths pay a full cache write at that point, and the fresh agent then
-   re-reads a fraction of the context on every turn that follows. If the agent
+   under the context ceiling (rule 9). Above it, or with a cold cache, **continue
+   from its checkpoint note instead** (`context-ceiling` → "Resume under the
+   ceiling; continue above it"). If the agent
    id is genuinely unrecoverable, dispatch with the ledger's state summary plus
    the worktree, branch and PR facts you verified yourself.
 6. **Nothing deferred silently — and not everything deferred becomes a card.**
@@ -174,38 +173,26 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
    reader cannot trust is worse than none. **Exit items first, card cost second**: the percentage
    measures spend consumed, and a run can consume most of its cards without
    moving a single Exit item. Weight the percentage by expected issue cost,
-   never by count; unmerged is not done. Read `tools/context-size.py` in the
-   same turn and record its `current` in the ledger — that is the orchestrator's
+   never by count; unmerged is not done. Read `context-size.py` (`context-ceiling` skill) in
+   the same turn and record its `current` in the ledger — that is the orchestrator's
    own context instrument (rule 9). See runbook.md → Reports.
-9. **Context is a budget, and the orchestrator's is not the fixer's.** An agent
-   re-reads its whole context every turn, so cost grows with context × turns
-   and the expensive failure mode is the long-lived agent, not the chatty one.
+9. **Context is a budget, and the orchestrator's is not the fixer's** — the
+   **`context-ceiling`** skill holds the rule, the instruments and the
+   checkpoint note. Its numbers, as this run uses them:
    - **Fixers and other long-running dispatched agents stop at ~150k, write a
-     handoff note, and return it** (hard stop ~200k); the orchestrator
-     dispatches a continuation from that note.
-   - **The orchestrator's ceiling is soft 200k / hard 500k**, and past the soft
+     checkpoint note, and return it** (hard stop ~200k), enforced by the hook
+     `/add-context-ceiling` installs; the orchestrator dispatches a
+     continuation from that note.
+   - **The orchestrator's ceiling is soft 200k / hard 500k**, read with
+     `context-size.py` **at each progress stamp** into the ledger. Past the soft
      one it does not stop — it **offers the operator a handover at the next
-     natural boundary**: a merge, a wave end, a ruling. The two numbers differ
-     because the two jobs do: an orchestrator's turns are bookkeeping over a
-     ledger that is already in a warm cache, so cost per turn grows at the
-     cache-read rate; a fixer re-derives a repo's history, a diff and a suite
-     on every turn and pays for it at full rate. Handing over too early is not
-     free either — every handover costs a cold write of the ledger plus a
-     re-orientation, and re-orientation is where lane seams get lost.
-   - **The orchestrator's number has no hook and so needs an instrument.** The
-     ceiling hook exempts the main loop by construction, and `--view agents`
-     excludes the orchestrator because it is built from subagent rows. Read
-     `tools/context-size.py` **at each progress stamp** and put its `current`
-     figure in the ledger, or the soft ceiling is decoration (rule 10) — an estimate
-     drifts and nothing flags it.
+     natural boundary**: a merge, a wave end, a ruling.
+   - **Reviewers are exempt from the ceiling but not from a budget** — a verdict
+     does not split; a reviewer gets a **turn budget** and reports what it could
+     not cover. Its length is a larger lever on cost than its tier, so keep
+     reviewers on the stronger tier and bound their length — save on length,
+     not on tier.
 
-   **Reviewers are exempt from the ceiling but not from a budget** — a verdict
-   does not split, so a reviewer may not hand off mid-review; it gets a **turn
-   budget** instead and reports what it could not cover. A review that runs many times its
-   budget has stopped judging a diff and started re-doing the work, and its
-   length is a larger lever on cost than the tier it runs on. So keep reviewers on
-   the stronger tier and bound their length — save on length, not on tier. The thresholds
-   are defaults to tune after a wave (runbook → Handoff note).
 10. **A threshold ships with the instrument that reads it.** No agent can see
     its own context size: the harness does not report it and `/context` belongs
     to the operator, so "stop at N tokens" is a rule its subject cannot obey and
@@ -217,9 +204,8 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
     transcript path, so it can measure the agent and inject the warning, which
     turns instruction into enforcement. **A threshold with no instrument is
     decoration, and worse than none: it reads as a control that is working.**
-    An agent measured past **twice** its stated ceiling is not a ledger note —
-    it is an instrument that did not bind, and every other agent under the same
-    rule is therefore unmeasured too. Fix it before the next dispatch.
+    An agent measured past **twice** its stated ceiling is an instrument that
+    did not bind — fix it before the next dispatch.
 11. **The run has one goal line, and it is written before Phase 0.** One
     sentence naming the observable outcome — a report that opens, a screen
     that loads, a recording someone can watch — testable by looking at the
@@ -252,9 +238,9 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
 
 ## Red flags — stop, you are about to violate the flow
 
-**The full set is [reference/red-flags.md](reference/red-flags.md)** — 64 rows,
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 61 rows,
 grouped, none deleted; the waiting and cache rows are in the `cache-warmth`
-skill. Read it once at run start and again at any wave boundary
+skill, the ceiling rows in `context-ceiling`. Read it once at run start and again at any wave boundary
 where the run changed shape. These ten fire the most often:
 
 - About to dispatch a fixer and the user hasn't approved a scope doc
@@ -276,7 +262,7 @@ where the run changed shape. These ten fire the most often:
   agent dispatching its own subagents
 - Re-dispatching a task whose agent died instead of resuming it — and, the
   other way, resuming a cold agent already over the ceiling, which is a
-  continuation from its handoff note
+  continuation from its checkpoint note
 - Escalating a fixer's "the requested design is infeasible" before leave-one-out
   has **named** the conflict — and a menu that omits DEMOTING the rule it names
 - A progress stamp with a tool call after it, or one that leads with card cost
@@ -285,8 +271,8 @@ where the run changed shape. These ten fire the most often:
 ## Common rationalizations
 
 **The full set is [reference/rationalizations.md](reference/rationalizations.md)**
-— 57 rows, none deleted; the waiting and cache rows are in the `cache-warmth`
-skill. These ten fire the most often:
+— 53 rows, none deleted; the waiting and cache rows are in the `cache-warmth`
+skill, the ceiling rows in `context-ceiling`. These ten fire the most often:
 
 | Excuse | Reality |
 |---|---|

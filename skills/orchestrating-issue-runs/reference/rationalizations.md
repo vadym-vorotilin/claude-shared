@@ -2,7 +2,8 @@
 
 The full set. SKILL.md keeps the ten that fire most often; every other row is
 here, and none has been deleted. Rows about waiting and the prompt cache
-moved to the `cache-warmth` skill.
+moved to the `cache-warmth` skill, and rows about the context ceiling to the
+`context-ceiling` skill.
 
 Each left-hand column is a representative paraphrase — illustrative, not a
 quote — of the sentence an agent tends to reach for on its way to the mistake
@@ -17,7 +18,6 @@ fine.
 | "These two issues are coupled, share the checkout" | Two agents in one tree corrupt each other's work. Worktrees + merge order. |
 | "Review was clean, the reviewer can merge" | Verdict ≠ decision. Gates (human labels, groups, freezes) live above the reviewer. |
 | "The spec gap is obvious, I'll just decide" | Cheap now, contradiction later. Adjudicator + citation + binding comment costs one dispatch. |
-| "Fresh agent is cleaner than resuming" | True below the ceiling — there a resume keeps the task context for a fraction of the price. Above it both paths pay the same cache write, and the resumed one re-reads a bloated context on every turn after it. |
 | "Minor finding, not worth a follow-up" | Silent discards are how the next run re-finds it at a higher cost. |
 | "Tests are green, the constraint works" | Green survives inputs the check is blind to — a symmetric, self-paired or uniformly shifted case. Mutate position, not just structure — and where the rule is about *which of two objects* is involved, a whole-structure transform moves both at once and can stay green while the rule is broken. Move one of them. |
 | "It compiled red first, that's my TDD evidence" | A compile error proves the file was absent. Go green, then mutate the load-bearing decision back to naive and quote that red. |
@@ -57,7 +57,6 @@ fine.
 | "Two agents measured the same thing and disagree, I'll relay both" | Reconcile arithmetically before relaying: a difference that factors cleanly (a per-item weight times a count) says one input differed between the two measurements. A reconciled number is a fact; two numbers are a question. |
 | "The reviewer can't request changes, so it's a comment" | Same-account PRs refuse `--request-changes`. The verdict is the literal `VERDICT:` line in the body, whatever GitHub calls the review. |
 | "The source data says X, the requested design says Y — one correction" | Check the whole frame: which parts match. A single reported mismatch often hides several wrong input fields; each correction moves a different downstream number. |
-| "It's nearly done, it can push past the ceiling" | "Nearly done" is the estimate most often wrong, so make it evidential: suite green, one named deliverable left, no open decision. That finishes (hard stop ~200k). Anything else writes the note and returns. |
 | "Round 5 is just another round" | A late round on a resumed agent costs a multiple of round 1 for a same-sized fix. Price the round before spending it; when the budget says stop, adjudicate the open findings instead. |
 | "The check-up timer is cheap insurance" | Per agent, on a fixed interval, it re-reads the entire orchestrator context to learn "still alive" — and still finds a stall up to a full interval late. One silent sweep is cheaper and faster. |
 | "I made the edit, so it is in the diff" | Not if you later ran `git checkout -- <that file>` in a mutation-revert loop on it. A fixer can report a corrected paragraph as landed when its own revert has eaten it. Commit the edit before you start mutating that file, or re-read it from `git diff` — never from the edit. |
@@ -72,6 +71,4 @@ fine.
 | "It's a follow-on milestone, so the backlog says what to do next" | Compute the lineage — what share of its cards descend from the previous milestone's. Above about half, the predecessor did not close its question and this one will re-cut the same defects. That is a direction question for the operator, asked before dispatch, not a wave plan. |
 | "Every ruling deserves a durable design record" | One written for a question that does not change the Exit costs a doc PR, a review, a merge and an operator read, and moves nothing anyone can see. Size the record by the goal. Above roughly two rulings per merged card the spec itself is the defect — propose the change as one batch. |
 | "The rule is in the spec, so the choice is amend it or re-author the inputs" | There is a third, and leave-one-out is what earns it: **demote** the rule — hard to soft, soft to advisory. Demotion is always on the menu when leave-one-out names a rule as the conflict, and where the spec states its own cutting order, quote that order instead of inventing one. |
-| "The orchestrator is past its ceiling, hand over now" | The orchestrator's ceiling and a fixer's are different numbers for different reasons (iron rule 9). Past the soft one you **offer** a handover at the next natural boundary — a merge, a wave end, a ruling — and the operator decides; you do not stop mid-wave. |
-| "The agent ran to several times its ceiling but it finished, so note it" | An agent measured past twice its ceiling is an instrument failure, not an observation: the rule did not bind, which means every other agent under it is unmeasured too. Fix the instrument before the next dispatch. |
 | "The schema has a field for it, so the model may fill it" | A field the model is meant to leave empty is an invitation to fill it; it does not belong in the record the model sees. And a schema change to an agent-facing record is a **prompt** change — brief it with the re-capture rather than treating it as data plumbing. |

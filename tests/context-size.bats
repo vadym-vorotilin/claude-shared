@@ -8,7 +8,7 @@ load 'helpers/setup'
 
 setup() {
   common_setup
-  TOOL="$REPO/skills/orchestrating-issue-runs/tools/context-size.py"
+  TOOL="$REPO/skills/context-ceiling/tools/context-size.py"
   T="$TEST_TMP/session.jsonl"
   # Fictional transcript, four real turns:
   #   req-a  split over 3 lines, context 100k

@@ -24,6 +24,9 @@ Check these before Phase 0; the skill will mislead you where they do not hold.
   skill:** a board-sync tool, a demo skill, a run memory file. Where one is
   absent, the step that mentions it says what to do instead; none is required
   for the run to work.
+- **The `context-ceiling` skill beside it too**, with its hook installed on
+  the project by `/add-context-ceiling`; without the hook a fixer's ceiling is a
+  brief line only.
 - **The `cache-warmth` skill, installed beside this one** in the same skills
   directory (`sync.sh` puts both in `~/.claude/skills/`). Paths written
   `../cache-warmth/…` are relative to this skill's directory; resolve them to
@@ -143,7 +146,7 @@ the survey leaking into the orchestrator, whatever the doc it ends up holding
 says.
 
 The scope agent is not exempt from rule 9's ceiling, and it writes the handoff
-note like anything else — that rule is unconditional (Handoff note, below),
+note like anything else — that rule is unconditional (Checkpoint note, below),
 and a survey that dies unrecorded is repurchased in full. What differs is the
 remedy. It returns the **partial doc plus the note saying which surfaces it
 covered**, and the **orchestrator** dispatches the rest — per repo, or sources
@@ -378,128 +381,22 @@ design act, not an implementation detail**: a necessary, narrow exemption is
 still disclosed in the PR body and paired with a tripwire test that reads the
 production roster (never a re-typed copy), so the next addition reds.
 
-**The fixer stops at the context ceiling — and something has to tell it.** No
-agent can read its own context (iron rule 10), so the brief line alone gets
-breached silently — agents go past it, some past the hard stop. Install `hooks/agent-ceiling.py` as a
-`PreToolUse` hook (steps below) and the harness does the measuring. In the
-project's `.claude/settings.json`, inside the top-level `"hooks"` object —
-without that wrapper the entry is valid JSON the harness silently ignores:
+**The fixer stops at the context ceiling — and something has to tell it.**
+No agent can read its own context (iron rule 10), so the brief line alone gets
+breached silently. The **`context-ceiling`** skill has the mechanism: install
+its hook on the project with **`/add-context-ceiling`** and prove it fires
+before the first dispatch (that skill's step 4); put
+`../context-ceiling/brief.md` into every fixer's brief verbatim. What is the
+orchestrator's own:
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "*",
-        "hooks": [{ "type": "command",
-          "command": "sh -c '[ -r \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-ceiling.py\" ] || exit 0; exec python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/agent-ceiling.py\"'" }] }
-    ]
-  }
-}
-```
-
-The `[ -r ... ] || exit 0` guard is not decoration. `python3` on a file it
-cannot open exits 2, and for a `PreToolUse` hook exit 2 means *block this tool
-call* — with `"matcher": "*"` that is every call in the session, the main loop
-included, until someone edits the settings back. A missing hook file has to
-mean "no enforcement", never "no work". The operator also has to approve a
-changed project hook before it runs at all; until that is accepted the hook is
-inert.
-
-It reads the agent's own transcript, blocks **once** on each threshold crossing
-with the ceiling message on stderr, records the crossing, then stays out of the
-way — blocking once is what makes it unmissable, blocking every call would
-deadlock the agent. It exempts the main loop, and it **fails open**: it is
-advisory, and a bug in it must never halt a run. (The companion guard hook, which
-enforces prohibitions rather than budgets, fails **closed** — opposite rule,
-opposite reason. Do not copy one policy into the other.)
-
-**What it assumes — verify these, or it is a silent no-op.** The hook decides
-"this is a dispatched agent" from a `subagents/` segment in the transcript path,
-the layout the CLI has written since 2.1. Where that directory is named
-differently the test never matches, the hook returns 0 on every call, and
-nothing enforces the ceiling — a gate that always passes, which is worse than no
-gate, because you will trust it. It needs the transcript's own directory to be
-writable, too — it records each crossing in a dot-file beside the transcript,
-and where it cannot write one it stays silent rather than block again, which
-means no enforcement at all. It also needs `python3` 3.9 or newer on `PATH`
-(it calls `str.removesuffix`), and the snippet above loads the file from
-`.claude/hooks/`, so install it there — shipping it beside the skill installs
-nothing. **Symlink it, do not copy it**: a copy stops taking fixes, and unlike a
-stale overlay a stale hook still looks like it is working. From the project
-root:
-
-```bash
-mkdir -p .claude/hooks
-ln -sfn "$HOME/.claude/skills/orchestrating-issue-runs/hooks/agent-ceiling.py" \
-        .claude/hooks/agent-ceiling.py
-test -r .claude/hooks/agent-ceiling.py \
-  || echo "target missing — fix the path before adding the settings entry"
-```
-
-That `test -r` is the point of the third line: `ln -s` creates a link to a
-target that is not there without complaint, and a skill installed anywhere but
-`~/.claude/skills/` leaves you with exactly that. `-fn` also makes a re-run
-idempotent instead of erroring on the existing link. If you later move or
-uninstall the skill, remove the settings entry first.
-
-**It cannot see the orchestrator at all.** The hook exempts the main loop by
-construction, so the orchestrator's own soft-200k / hard-500k ceiling has no
-enforcement behind it and is read from `tools/context-size.py` at each
-progress stamp instead (Iron rule 9; "The orchestrator's ceiling is not the fixer's", below).
-Do not raise these thresholds because the orchestrator's number went up — they
-bind dispatched agents, whose number did not change.
-
-**It cannot tell a reviewer from a fixer.** Iron rule 9 exempts reviewers from
-the ceiling — a verdict does not split — but the hook binds every dispatched
-agent, and its thresholds come from the CLI's own environment, so they cannot be
-raised for one agent mid-run. Set the thresholds high enough for the longest
-reviewer you dispatch and let the reviewer's turn budget bound it instead;
-otherwise a long review is told to hand off mid-verdict, which rule 9 forbids.
-
-Prove it fires before you let it bound a run: **export `AGENT_CEILING_SOFT=1`
-before starting the CLI** — the hook inherits that environment, so a value set
-mid-session never reaches it — then dispatch a throwaway agent. Its first tool
-call should come back blocked with the ceiling message. If it does not, the
-ceiling is unenforced here and the brief line is all you have — which is reason
-to keep that line in every brief regardless, since it is also what makes the
-resulting handoff note well-formed.
-
-Every brief still carries it: *when your context passes ~150k, stop and write
-the handoff note (below).* An agent re-reads its whole context on every turn,
-so a long fixer's last turns are its most expensive ones while a continuation
-starts at a small fraction of that size.
-Mid-card is a fine place to stop: the note, the branch and the worktree carry
-the state. **Make it cheap by construction: a card the plan says is large is
-briefed as parts from the start (A, B, then a finisher), and every part
-commits and pushes after each plan step.** The handoff note then reduces to
-"head, steps done, the one open question", and the continuation starts from a
-pushed head rather than from a transcript. A part that still reaches the ceiling costs one
-short handover brief and no lost work.
-
-**The ceiling is a checkpoint, not a guillotine.** Writing the note is
-unconditional — it is cheap, and it is what survives if the agent dies.
-Returning is not:
-
-- **More than a few turns of work left, or any design question still open →
-  return the note.** This is the case the ceiling exists for: the agent that
-  would otherwise run to several hundred k re-deriving its own history.
-- **A bounded finish → finish it, and say so in the note.** Handing off three
-  turns from done buys nothing — the continuation pays a fresh cache write and
-  a re-orientation to save those turns — and it risks the one thing a note
-  cannot carry: what the agent tried and rejected. "Bounded" is evidence, not a
-  feeling: the suite is already green, one named deliverable remains (the PR
-  body, a last assertion, a rename), and no decision is open. Hard stop at
-  ~200k: past that, return the note whatever the state.
-- **A job that outlasts the agent → launch it detached and return `running`.**
-  A long-running job (a long run, a render) is not something an agent should
-  stay alive across: split the card into implement → launch → return, then a
-  finisher dispatched when the orchestrator's background wait sees the done
-  marker. The `running` return names the log path, the done marker and the
-  job's PID **verified against `/proc/<pid>/exe`** (Linux; use your platform's
-  equivalent) — `$!` is often the wrapper
-  shell or build tool, which exits or lingers independently of the job, and a
-  liveness check on the wrong PID reads a live run as dead or a dead one as
-  live.
+- **Large cards are briefed as parts from the start** (A, B, then a finisher),
+  each committing and pushing after every plan step, so a checkpoint costs one
+  short continuation brief and no lost work.
+- **A job that outlasts the agent** returns `running`; the finisher is
+  dispatched when the orchestrator's background wait sees the done marker.
+- **Do not raise the hook's thresholds because the orchestrator's number went
+  up** — they bind dispatched agents, whose number did not change. Set them for
+  the longest reviewer you dispatch (iron rule 9).
 
 **Review.** Independent agent, never the implementer. Gets the issue, the
 approach + rulings, the spec sections, the PR. Posts a GitHub review with an
@@ -523,7 +420,7 @@ downgrading it is small next to what it catches.
 
 **Fix rounds.** Findings go back to the SAME fixer via message (resume), not
 a fresh agent — rounds 1–3, while it is under the ceiling. Round 4–5: fresh
-agent, one tier up, briefed from the fixer's handoff note. **A fresh agent
+agent, one tier up, briefed from the fixer's checkpoint note. **A fresh agent
 on an existing branch collides with the old agent's worktree**, which still
 holds that branch after the old agent finishes (it is locked, and git refuses
 a second checkout). Before the dispatch, either remove it —
@@ -711,33 +608,14 @@ discard was for validity. Discarding on content the brief never pinned is a
 selection the operator rules on, and the capture's provenance should carry an
 attempt count. Route it to the deferred register, not to the reviewer.
 
-**The orchestrator's ceiling is not the fixer's: soft 200k, hard 500k.** Iron
-rule 9 carries the numbers; this is why they differ and how to read them.
+**The orchestrator's ceiling is not the fixer's: soft 200k, hard 500k.** Why
+the numbers differ, and how to read the orchestrator's, is in the
+`context-ceiling` skill ("The main session"). Read `context-size.py` at each
+progress stamp and write its `current` beside the stamp in the ledger; the run
+milestones alone ("second wave boundary") say nothing about which side of 200k
+or 500k you are on.
 
-A fixer re-derives a repo's history, a diff and a suite on every turn, so its
-turns are expensive and its ceiling is tight (~150k, hard ~200k). An
-orchestrator's turns are bookkeeping over a ledger that is already in a warm
-cache: cost per turn grows at the cache-read rate, roughly a tenth of the
-write rate. Held to the fixer's number, an orchestrator hits the ceiling
-before any substantial coordination has happened — and every handover costs a cold write
-of the ledger plus a re-orientation. Re-orientation is not free bookkeeping
-either: it is where a lane seam gets lost, which is a defect the run then ships.
-
-So past the **soft 200k** the orchestrator does not stop. It **offers the
-operator a handover at the next natural boundary** — a merge, a wave end, a
-ruling — and keeps running until the operator answers or the boundary arrives.
-**Hard 500k** is a stop.
-
-**The orchestrator's number has no hook, so it needs an instrument.** The
-ceiling hook exempts the main loop by construction (below), and `--view agents`
-excludes the orchestrator because that view is built from subagent rows. So
-**read `tools/context-size.py` at each progress stamp** (Budget check, below)
-and write its `current` figure into the ledger beside the stamp. Without it the
-soft ceiling is decoration — iron rule 10 applies to the orchestrator's own
-threshold before it applies to anyone else's, and the run milestones alone ("second wave boundary") tell you nothing
-about which side of 200k or 500k you are on.
-
-**The ledger is the orchestrator's own handoff note.** When the instrument says
+**The ledger is the orchestrator's own handover record.** When the instrument says
 the soft ceiling is behind you, bring the ledger fully current — wave state,
 in-flight agents with their worktrees and PRs, open gates, resume queue, spend
 so far — and tell the user that a fresh orchestrator session can take the run
@@ -767,38 +645,18 @@ in-flight agents cannot be messaged from a new session, so if any are running,
 either wait for them or accept recovering their work from the worktree and PR.
 End the message with the progress stamp, as always.
 
-**Handoff note.** The unit that lets an agent stop without losing work: written
-when it hits the ceiling, and written **before a deliberate park** rather than
-leaving a large-context agent to thaw at full size later. Five headings:
-
-```
-FILES TOUCHED   path — what changed, and what is half-done
-DECISIONS       each decision and why, including options considered and dropped
-REMAINING       the concrete next step, then the rest, in order
-STATE           repo, branch, worktree path, PR number, resolved base SHA
-GOTCHAS         what surprised you: a flaky test, a slow suite, a wrong claim
-                in the issue
-```
-
-The agent writes the note into its worktree (or the orchestrator copies it into
-the ledger on arrival) as well as returning it — a note that exists only in a
-returned message dies with an agent that never returns.
-
-The orchestrator dispatches the continuation with that note **verbatim**, plus
+**Checkpoint note.** The template, and how a continuation is briefed from it,
+are in the `context-ceiling` skill. The orchestrator's part: copy each note into
+the ledger on arrival, dispatch the continuation with the note **verbatim** plus
 the standard brief (role, one issue, binding comments, file surfaces, return
-contract). Do not summarise the note — summarising is where handoffs lose the
-one detail the next agent needed. Verify the STATE lines yourself before
-sending: worktree present, branch pushed, PR open, SHA resolvable.
+contract), and verify its STATE lines yourself first. Treat the first wave that
+uses notes as a pilot — read them, and add the heading a continuation had to
+re-derive.
 
 **Reviewers never hand off.** A review is one coherent whole-diff verdict; a
 split review is two partial opinions, neither of which saw the whole change. If
 a review is genuinely too large for one agent, the diff is too large — ask the
 reviewer for the scope ruling instead.
-
-A lossy note makes the continuation redo work, which no token count shows.
-Treat the first wave that uses one as a pilot: read the note before dispatching
-the continuation, and if the continuation had to re-derive something, add the
-missing heading to this template.
 
 **The resume packet is what a fresh orchestrator reads before its first
 dispatch, and it is bounded.** What a fresh orchestrator reads before its first dispatch is carried on every
@@ -848,23 +706,10 @@ command in the INTRO; a run on a shared machine that reads only the
 machine-wide total cannot apply this rule at all.
 
 **The orchestrator's own context has a second instrument, and it is the one
-the stamp needs.** The command above measures spend; it says nothing about how
-large the orchestrator's context is, and a guessed stamp can sit far from the number the
-transcript gives. Read the number, never
-estimate it:
-
-```bash
-python3 ~/.claude/skills/orchestrating-issue-runs/tools/context-size.py
-# → context current 140,000 · peak 170,000 · avg 100,000 over 60 turns · under-soft (soft 200k / hard 500k)
-```
-
-It sums, for every assistant turn in the session's own transcript,
-`input_tokens + cache_read_input_tokens + cache_creation_input_tokens` — the
-prompt the model was actually given, which is the context. It picks the newest
-main-loop transcript for the current project (`--transcript`, `--session` or
-`--project-dir` to point elsewhere; `--json` for the ledger), and exits 0 / 1 /
-2 for under-soft / past-soft / past-hard so a stamp can branch on it. Write its
-`current` into the ledger beside every progress stamp.
+the stamp needs.** The command above measures spend, not context size. Read
+`../context-ceiling/tools/context-size.py` (exit 0 / 1 / 2 for under-soft /
+past-soft / past-hard; `--json` for the ledger) and write its `current` into the
+ledger beside every progress stamp. Never estimate it.
 
 Consult the spend report (`token_audit.py` from the `token-report` skill)
 between waves and before each fix round after the
@@ -876,15 +721,8 @@ cost and how large their contexts grew — that is the view that says whether
 the ceiling is being respected.
 
 **An agent measured past twice its ceiling is an instrument failure, and it is
-fixed before the next dispatch.** Not a ledger note, not a line in the wrap.
-The ceiling did not bind that agent, which means it is not binding any of the
-others under the same rule either, and the whole run's cost model is
-unmeasured. Check the obvious causes in order — is the hook installed in the
-project's `.claude/settings.json` inside the top-level `"hooks"` object, was
-`AGENT_CEILING_SOFT` exported *before* the CLI started, does the throwaway
-probe still come back blocked — and re-verify by dispatching the probe, not by
-reading the settings file. A past-ceiling reading that is recorded and not fixed
-is reproduced by the next run. (Needs the `token-report` skill
+fixed before the next dispatch** — not a ledger note. The checks, in order, are
+in the `context-ceiling` skill. (Needs the `token-report` skill
 installed; without it, say so in the report rather than estimating. A zero
 reading is a claim to check, not a result: the same `$0.00` comes from a
 mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
@@ -1021,7 +859,7 @@ operator, or until a ceiling is reached; then wrap automatically and stop.
   1. every remaining card, gate or wrap step needs the operator: a human gate,
      a release, a deferred-register ruling, or a held amendment;
   2. the orchestrator's soft context ceiling (overlay, or 200k), read with
-     `tools/context-size.py`, at the next natural boundary. In attended mode,
+     `../context-ceiling/tools/context-size.py`, at the next natural boundary. In attended mode,
      passing this ceiling means offering a handover. Unattended, it means taking
      the handover;
   3. the token budget (iron rule 7): drain, then stop;
@@ -1052,13 +890,10 @@ so only the resumed session can `SendMessage` its in-flight agents. A resumed
 session can find a reviewer mid-suite and an agent with uncommitted work, and
 resume both from their transcripts without repeating work.
 
-**Resume under the ceiling; continue above it.** A resume restores the agent's
-whole context and re-reads it every turn afterwards. If the dead agent was
-already past ~150k — or has been cold for more than a few minutes carrying a
-large context — dispatch a **continuation** instead, from its last handoff note,
-or failing that from the ledger plus the worktree, branch and PR facts you
-verified. Both paths pay one full cache write at that moment; only one of them
-keeps paying for the bloat afterwards.
+**Resume under the ceiling; continue above it** — the `context-ceiling`
+skill's rule. Above ~150k, or cold with a large context, dispatch a
+continuation from the agent's last checkpoint note, or failing that from the
+ledger plus the worktree, branch and PR facts you verified.
 
 **Stall nudge.** Agents stop with "waiting for the monitor/background task".
 Nudge with: use a BLOCKING wait (`until <check>; do sleep 10; done`, or
@@ -1233,15 +1068,10 @@ brief without it missed:
    test is broken. Only a mutation that
    moves one of the two objects and leaves the other where it is discriminates
    a working rule from a broken one; no whole-thing transform can.
-7. To **any long-running dispatched agent**: *"when your context passes ~150k,
-   stop and write the handoff note; do not push on."* The one line that bounds
-   an agent's cost, because cost grows with context × turns and not with how
-   much the agent says. Pair it with the note template (Handoff note, above) so
-   the agent does not have to ask what a handoff note is. Reviewers get the
-   opposite line: one verdict on the whole diff, never split. **The
-   orchestrator's own numbers are different and deliberately so** — soft 200k,
-   hard 500k, offer-a-handover rather than stop (iron rule 9); do not copy the
-   fixer's number into the orchestrator's ledger, or the other way round.
+7. To **any long-running dispatched agent**: the context-ceiling brief lines
+   (`../context-ceiling/brief.md`), verbatim. Reviewers get the opposite line:
+   one verdict on the whole diff, never split. Do not copy the fixer's numbers
+   into the orchestrator's ledger, or the other way round (iron rule 9).
 8. To **every waiting role**: the cache-warmth brief lines (`brief.md`),
    verbatim (Briefing rules, above).
 9. **The goal line, and the `GOAL:` return line.** Every brief carries the

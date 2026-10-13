@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Measure an orchestrator's (or any session's) context size from its own transcript.
+"""Measure a session's context size from its own transcript (context-ceiling skill).
 
 The harness reports no context size to the model, and the token-report skill's
 agent view is built from subagent rows, so the main loop has no instrument for
-iron rule 9's soft 200k / hard 500k ceiling. This reads the session transcript
+its own soft / hard ceiling (defaults 200k / 500k). This reads the session transcript
 JSONL and, for every assistant turn, sums the prompt the model was given:
 input_tokens + cache_read_input_tokens + cache_creation_input_tokens. That sum
 IS the context size for that turn.
@@ -17,8 +17,8 @@ Usage:
   context-size.py --soft 200 --hard 500   # ceilings in k-tokens (defaults)
 
 Exit status: 0 under the soft ceiling, 1 past the soft, 2 past the hard — so a
-stamp line can branch on it. Read it at every progress stamp and write the
-figure into the ledger; a threshold with no instrument is decoration.
+stamp line can branch on it. Read it at every progress report and record the
+figure; a threshold with no instrument is decoration.
 """
 import argparse, json, os, sys, glob
 

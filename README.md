@@ -79,7 +79,16 @@ backs up `settings.json` before merging:
   subagents wait: subagents poll instead of blocking (their cache lasts minutes),
   the main session never spends a turn waiting and keeps a 50-minute heartbeat
   (its cache lasts about an hour). Its `brief.md` is the block to paste into any
-  subagent brief. `/orchestrating-issue-runs` depends on it.
+  subagent brief. `/orchestrating-issue-runs` depends on it, and on
+  `/context-ceiling`.
+- **`/context-ceiling`** — bound how large a session's or a subagent's context
+  grows. Dispatched agents stop at ~150k and return a checkpoint note a fresh
+  agent continues from; the main session reads its own size with
+  `tools/context-size.py` and offers a handover past its soft ceiling. Its
+  `brief.md` is the block to paste into a long-running subagent's brief.
+- **`/add-context-ceiling`** — install the ceiling hook into a project, per clone
+  and uncommitted, so every subagent dispatched there is told when it passes
+  the ceiling. Prove it fires before relying on it (step 4).
 - **`/review-pr`** — review a GitHub PR against its spec, not just its diff:
   reads the PR, its linked issue and any design/plan doc it references, verifies
   the change is architecturally sound and actually wired up, sweeps for dangling

@@ -9,7 +9,7 @@ load 'helpers/setup'
 
 setup() {
   common_setup
-  HOOK="$REPO/skills/orchestrating-issue-runs/hooks/agent-ceiling.py"
+  HOOK="$REPO/skills/context-ceiling/hooks/agent-ceiling.py"
   PROJ="$TEST_TMP/projects/example"
   mkdir -p "$PROJ"
   MAIN="$PROJ/session-1.jsonl"
