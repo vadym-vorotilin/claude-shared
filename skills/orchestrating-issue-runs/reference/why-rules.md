@@ -42,7 +42,7 @@ and reviewing what it returns are already paid at the session's own tier.
    or contract still goes to the held-for-human list.** Escalate to the human
    only what is hard-to-reverse AND a real trade-off the specs don't already
    decide.
-5. **Ledger before first dispatch** (scratchpad file: waves, per-issue state,
+5. **Ledger before first dispatch** (`$RUN/ledger.md`: waves, per-issue state,
    rulings, deferred minors, resume queue). Survives compaction and limits.
    Dead agents are **resumed from their transcripts** — while they are still
    under the context ceiling (rule 9). Above it, or with a cold cache, **continue

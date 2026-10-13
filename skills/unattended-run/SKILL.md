@@ -196,11 +196,11 @@ In one turn, in this order:
 2. **Write the RESUME PACKET into the record**: the goal line and items met,
    what is done (with commits, PRs), what is in flight or half-done and where,
    the held list, and the literal first step for the next session.
-3. **Save the record**: commit it if the project tracks run state, and push
-   it **only if pushing was granted** in §1. Otherwise it stays on local disk —
+3. **Save the record**: commit it if it lives in a tracked path, and push it
+   **only if pushing was granted** in §1. Otherwise it stays on local disk —
    name its path in the final message.
 4. **Run the project's own handoff, if it has one** (`/handoff wrap`, or its
-   handoff doc), and commit that too.
+   handoff doc), and commit it if the project commits it.
 5. **Stop re-arming the heartbeat** and `TaskStop` the sweep. A stopped run does
    not keep its cache warm: the next session starts fresh from the record.
 6. **Send the final message**: what is done, the goal line with items met,

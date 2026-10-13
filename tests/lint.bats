@@ -179,15 +179,36 @@ PY
 }
 
 @test "run state lives under .orchestration/<run>; worktrees never do" {
-  # A fixed place is what lets a fresh orchestrator find the ledger unprompted;
-  # a worktree inside the repo gets built, grepped and committed.
+  # A fixed place is what lets a fresh orchestrator find the ledger; a worktree
+  # inside the repo gets built, grepped and committed.
   O="$REPO/skills/orchestrating-issue-runs"
-  run grep -nE '(brief|spec)-<issue>' "$O/SKILL.md" "$O"/phase*.md
+  run grep -ohE '[^ "`(]*(brief|spec)-<issue>[^ "`)]*' "$O/SKILL.md" "$O"/phase*.md
   [ -n "$output" ] || fail "no brief/spec path found to check"
-  while IFS= read -r line; do
-    [[ "$line" == *'$RUN/briefs/'* ]] || fail "brief or spec part outside \$RUN/briefs: $line"
+  while IFS= read -r path; do
+    [[ "$path" == '$RUN/briefs/'* ]] || fail "brief or spec part outside \$RUN/briefs: $path"
   done <<< "$output"
   grep -qF '$RUN/ledger.md' "$O/phase1-loop.md" || fail "the ledger path is not \$RUN/ledger.md"
   ! grep -nE '(RUN|\.orchestration)[^ ]*/wt-' "$O/SKILL.md" "$O"/phase*.md "$O"/briefs/*.md \
     || fail "a worktree placed under the run state directory"
+}
+
+@test "run state is excluded through the shared exclude file, and a tracked folder stops the run" {
+  # A literal .git/info/exclude fails in a linked worktree (.git is a file);
+  # an exclude does not untrack, so an already-tracked folder must be asked about.
+  O="$REPO/skills/orchestrating-issue-runs"
+  for f in "$O/SKILL.md" "$O/INSTALL.md"; do
+    grep -qF 'git rev-parse --git-path info/exclude' "$f" || fail "$f: exclude not via --git-path"
+    grep -qF 'git ls-files .orchestration' "$f" || fail "$f: no check for an already-tracked folder"
+  done
+  ! grep -rnE '(append|add)[^.]*`\.git/info/exclude`' "$O" --include=*.md --exclude-dir=full \
+    || fail "an instruction writes the literal .git/info/exclude"
+}
+
+@test "agents write reports to the absolute path their brief names" {
+  # A report written relative to a worktree is deleted with the worktree.
+  O="$REPO/skills/orchestrating-issue-runs"
+  grep -qF 'absolute path your brief names' "$O/briefs/common.md" || fail "common.md: report path not absolute"
+  grep -qF '$RUN/reports/<issue>-<role>.md' "$O/phase1-loop.md" || fail "the spec part does not name the report path"
+  ! grep -rniE "(scratch(pad)? (file|directory)[^.]*(ledger|report)|(ledger|report)[^.]*scratch(pad)? (file|directory))" \
+      "$REPO/skills" --include=*.md --exclude-dir=full || fail "run state still placed in a scratch file or directory"
 }

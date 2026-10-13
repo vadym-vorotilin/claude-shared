@@ -44,19 +44,26 @@ the overlay, and it is the first thing to check before dispatching.
 
 Each run keeps its state in `<repo>/.orchestration/<run>/`: `ledger.md`,
 `INTRO.md`, `briefs/` (assembled briefs and the spec parts they were built
-from) and `reports/` (agent reports). A fixed place means a fresh orchestrator
-finds the ledger without being told, and two projects never invent two
-layouts. Brief templates have no slot here: standing rules live in this
+from) and `reports/` (agent reports). A fixed place means the handoff file
+need only name `<run>` for a fresh orchestrator to find the ledger, and two
+projects never invent two layouts. Brief templates have no slot here: standing rules live in this
 skill's `briefs/` blocks, a project's own standing text in `project.md`.
 
-- **Local by default.** The orchestrator adds `.orchestration/` to
-  `.git/info/exclude` before its first write. Briefs quote issues, rulings and
-  specs, so tracking the folder in a public repo publishes the run's internals.
+- **Local by default.** Before its first write the orchestrator appends
+  `.orchestration/` to `$(git rev-parse --git-path info/exclude)` — the shared
+  exclude file, which a literal `.git/info/exclude` is not from a linked
+  worktree. Briefs quote issues, rulings and specs, so tracking the folder in
+  a public repo publishes the run's internals.
+- **An exclude does not untrack.** If `git ls-files .orchestration` prints
+  anything and the overlay does not say `run state: tracked`, the orchestrator
+  stops and asks: either the overlay opts in, or the operator untracks it.
 - **Tracking is the overlay's call.** A `project.md` that says `run state:
   tracked` gets `.orchestration/*/reports/` in `.gitignore` instead (reports
-  are bulky and live only while a card is open), and names the branch the state
-  is committed to when the default branch is protected. Run state never rides
-  in an agent's PR.
+  are bulky and live only while a card is open), and names a **dedicated state
+  branch, never the default branch**, committed from its own worktree under
+  `$SCRATCH`. On the default branch the state would move the base under every
+  open PR at each stamp, and reach every fixer's worktree, where it could ride
+  in a PR.
 - **Nothing that builds goes here.** Worktrees, probes and experiment crates
   live in `$SCRATCH`, outside the repo: inside it they are picked up by test
   runners, `grep` and indexers, and their build output gets committed.
