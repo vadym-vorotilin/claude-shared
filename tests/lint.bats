@@ -47,6 +47,51 @@ template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
   [ "$n" -gt 0 ] || fail "found no sibling references at all; the pattern no longer matches"
 }
 
+@test "every <file>.md → \"Section\" reference in a skill names a section that exists" {
+  # A skill split across files points between them by section name; a rename on
+  # one side must not leave the other pointing at nothing.
+  run python3 - "$REPO/skills" <<'PY'
+import re, sys, pathlib
+root = pathlib.Path(sys.argv[1]); bad = []; n = 0
+ref = re.compile(r'`?([A-Za-z0-9_./-]+\.md)`?\s*→\s*"?([A-Z][^"\n.;)|]{2,60})')
+for f in root.glob("*/**/*.md"):
+    text = f.read_text()
+    for m in ref.finditer(text.replace("\n", " ")):
+        target = (f.parent / m.group(1))
+        if not target.exists():
+            target = f.parents[len(f.relative_to(root).parts) - 2] / m.group(1)
+        if not target.exists():
+            bad.append(f"{f.relative_to(root)}: {m.group(1)} does not exist"); continue
+        n += 1
+        name = m.group(2).strip().rstrip('"').strip()
+        words = " ".join(name.split()[:3])
+        body = " ".join(target.read_text().split())
+        if f"# {words}" not in body and f"**{words}" not in body:
+            bad.append(f"{f.relative_to(root)}: {m.group(1)} has no section '{words}'")
+if n == 0: bad.append("found no references at all; the pattern no longer matches")
+print("\n".join(bad)); sys.exit(1 if bad else 0)
+PY
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "an overlay that links only SKILL.md resolves every file the skill's map names" {
+  # Project overlays symlink SKILL.md into the project's own skill directory;
+  # the skill reads its other files from where that link resolves.
+  overlay="$TEST_TMP/proj/.claude/skills/orchestrating-issue-runs"
+  mkdir -p "$overlay"
+  ln -s "$REPO/skills/orchestrating-issue-runs/SKILL.md" "$overlay/SKILL.md"
+  S="$(dirname "$(readlink -f "$overlay/SKILL.md")")"
+  n=0
+  for rel in $(grep -oE '\]\(([A-Za-z0-9_./-]+\.md)\)' "$overlay/SKILL.md" | sed -E 's/^\]\(|\)$//g' | sort -u); do
+    n=$((n + 1))
+    [ -e "$S/$rel" ] || fail "map names $rel, missing under $S"
+  done
+  [ "$n" -ge 5 ] || fail "found only $n file links in SKILL.md"
+  for sib in cache-warmth context-ceiling unattended-run; do
+    [ -e "$S/../$sib/SKILL.md" ] || fail "sibling skill $sib not beside $S"
+  done
+}
+
 # ----------------------------------------------------------- EDGE CASES ----
 
 @test "tokens sharing a line with content aren't told to delete the line" {

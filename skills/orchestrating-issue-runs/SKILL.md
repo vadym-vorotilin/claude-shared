@@ -6,43 +6,12 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 # Orchestrating issue runs
 
 > **Project overlay — read `project.md` FIRST if one sits in *this project's*
-> skill directory.**
-> A project keeps its overlay at
-> `<project>/.claude/skills/orchestrating-issue-runs/project.md` — in the
-> project's own skill directory, never inside the shared `claude-shared`
-> checkout, which is public and is where an overlay's private gates would be
-> published. Read it before the runbook and before Phase 0. **Where the overlay
-> or the repo's `CLAUDE.md` conflicts with anything here, they win** — this
-> skill is generic and a project knows its own gates.
->
-> The overlay is a separate file **by convention, so this one never has to be
-> edited to install it.** An install that edits the shared files cannot be
-> updated without a merge, so it rots — and a rotted overlay fails silently:
-> the project's own overrides stop loading while everything still looks
-> installed — and what stops loading could be a rule reserving merges to a
-> human. Give the project its own skill directory, symlink
-> `SKILL.md`, `runbook.md` **and `reference/`** there from the shared copy so
-> they stay byte-identical — the two `reference/` files hold the full red-flag
-> and rationalization sets that SKILL.md only samples, and an install that
-> symlinks the first two alone leaves those pointers dangling in exactly the
-> way nobody notices. Put every local difference in `project.md`, which stays
-> with the project. Install the **`cache-warmth`** skill beside it too
-> (symlinked the same way), with **`context-ceiling`** and **`unattended-run`**:
-> the runbook's briefs `cat` their `brief.md` files, and its sweep, stamps and
-> stop live in `unattended-run`. The ceiling hook is not installed by any
-> symlink — run **`/add-context-ceiling`** on the project.
->
-> **Verify the overlay actually loaded before the first dispatch** — ask the
-> session to quote a line that exists only in `project.md`. A machine that has
-> run `sync.sh` already carries this skill under the same name in
-> `~/.claude/skills/`, and which copy wins is not something this skill can
-> promise; if the project's does not, give the project directory a distinct
-> name and point the operator at it.
->
-> **The most dangerous thing an overlay can carry is a narrower authority than
-> this skill assumes.** This skill assumes the orchestrator merges. If a
-> project reserves merges, deploys, or any other act to a human, that is in
-> the overlay, and it is the first thing to check before dispatching.
+> skill directory.** Where the overlay or the repo's `CLAUDE.md` conflicts with
+> anything here, they win. **The most dangerous thing an overlay can carry is a
+> narrower authority than this skill assumes** — this skill assumes the
+> orchestrator merges; check the overlay for acts reserved to a human before the
+> first dispatch. Installing an overlay, and what this skill assumes about the
+> toolchain: [INSTALL.md](INSTALL.md).
 
 Turn a backlog of spec-backed GitHub issues into merged PRs using subagents,
 with exactly two kinds of human involvement: **scope approval before anything
@@ -65,12 +34,41 @@ pricier tier it asks the user to run `/model opus` **before dispatching the
 scope agent**, not in the message that posts the scope: dispatching the survey
 and reviewing what it returns are already paid at the session's own tier.
 
-**REQUIRED READING before the first dispatch:** [runbook.md](runbook.md) —
-phase mechanics, briefing templates, and the protocols below in full.
-Open it **by section** — list the headings, then read the range you need. A
-session that Reads it whole carries all of it on every later turn; the
-resume packet rule (runbook → "The resume packet") bounds what a fresh
-orchestrator reads before its first dispatch.
+**"The operator"** is the human who owns the run — the same person the rules
+call "the user": the one who approves the scope, owns the held-for-human gates,
+and rules on filings.
+
+## Which file to read, and when
+
+Each file is sized to be **read whole, once, at the moment it applies** — never
+read a file the current phase does not need.
+
+**Every path below is relative to `$S`, the directory this `SKILL.md` really
+lives in** — resolve it once at run start, before reading anything else:
+
+```bash
+S="$(dirname "$(readlink -f <path to this SKILL.md>)")"
+```
+
+In a project overlay `SKILL.md` is a symlink, so `$S` is the shared copy, where
+every file below and the sibling skills (`$S/../cache-warmth`,
+`$S/../context-ceiling`, `$S/../unattended-run`) exist. Only `project.md` is
+read from the project's own skill directory.
+
+| When | Read |
+|---|---|
+| First run on a project or machine | [INSTALL.md](INSTALL.md) — overlay install and what this skill assumes |
+| Run start, before the scope dispatch | [phase0-scope.md](phase0-scope.md), and the `cache-warmth` and `unattended-run` skills |
+| Scope approved | [phase1-loop.md](phase1-loop.md), and the `context-ceiling` skill |
+| A fresh orchestrator taking a run over | `phase1-loop.md` → "The resume packet" first; nothing else before the first dispatch |
+| A card touches a persisted field, a version constant or an agent-facing record | [reference/schema-changes.md](reference/schema-changes.md) |
+| A fixer authored a convention, or calls a requested design infeasible | [reference/conventions.md](reference/conventions.md) |
+| Run start, and a wave boundary where the run changed shape | [reference/red-flags.md](reference/red-flags.md) |
+| Last card merged, quota called, or an unattended run stopping | [phase2-wrap.md](phase2-wrap.md) |
+| Changing a brief block | [reference/why-briefs.md](reference/why-briefs.md) |
+
+**Never read** `briefs/` — the orchestrator assembles briefs from it with `cat`
+(`phase1-loop.md` → "Briefs").
 
 ## The flow
 
@@ -102,7 +100,7 @@ Phase 2  WRAP       demo evidence + domain walkthrough review (an agent uses
                     board-consistency sweep as the run's last board action
                     (whatever the operator defers instead carries into the
                     next run's Phase 0), run summary, memory update, and the
-                    skill self-update (runbook.md → Self-improvement)
+                    skill self-update (phase2-wrap.md → Self-improvement)
 ```
 
 ## Unattended mode
@@ -117,13 +115,13 @@ maps onto this skill:
   operator. **An operator-only question parks its card** (label `needs-human`,
   a ledger line, the held list); the rest of the wave keeps going.
 - **The record is the ledger**; the stop runs the project's handoff wrap. See
-  runbook → "Unattended mode".
+  phase1-loop.md → "Unattended mode".
 
 **Waiting, attended or not, follows the `cache-warmth` skill.** The
 orchestrator never takes a turn to wait, and it arms that skill's 50-minute
 heartbeat in the same turn as the first dispatch, re-arming it until the wrap.
 Every brief for a role that waits carries its `brief.md` lines verbatim. See
-runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
+phase1-loop.md → "The orchestrator never takes a turn to wait" and "Heartbeat".
 
 ## Iron rules
 
@@ -169,7 +167,7 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
 7. **Budget = graceful drain.** At the token target: start nothing new, let
    in-flight rounds finish, report, pause. **Measure it, don't estimate it** —
    `/token-report`'s `--json` total between waves and before each fix round
-   (runbook → Budget check). A budget rule with no instrument is a wish.
+   (phase1-loop.md → Budget check). A budget rule with no instrument is a wish.
 8. **Report progress after every substantial agent completion** — a stamped
    `**<date and time> - Progress: Exit <met>/<total> · N%**` line plus one line
    of what happened. **The time comes from `date` in that same turn, never
@@ -179,7 +177,7 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
    moving a single Exit item. Weight the percentage by expected issue cost,
    never by count; unmerged is not done. Read `context-size.py` (`context-ceiling` skill) in
    the same turn and record its `current` in the ledger — that is the orchestrator's
-   own context instrument (rule 9). See runbook.md → Reports.
+   own context instrument (rule 9). See phase1-loop.md → Reporting.
 9. **Context is a budget, and the orchestrator's is not the fixer's** — the
    **`context-ceiling`** skill holds the rule, the instruments and the
    checkpoint note. Its numbers, as this run uses them:
@@ -219,7 +217,7 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
     - **every brief carries the goal line**, and the return contract asks what
       the deliverable moved on it;
     - the **progress stamp reports Exit items met / total FIRST**, card cost
-      second (runbook → Progress line);
+      second (phase1-loop.md → Progress line);
     - **rulings are sized by the goal.** A question that does not change the
       Exit does not get a durable design record; one probe is run per card
       before the operator is asked anything. Above roughly two rulings per
@@ -235,7 +233,7 @@ runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
 |---|---|
 | Approaches, mechanical fixes, standard reviews, re-reviews | cheap/mid (Sonnet-class) |
 | Load-bearing implement/review: core types, schema, cache/graph logic, anything that runs unattended with write access | top standard (Opus-class) |
-| Design adjudication | strongest (Fable-class) — requires the scoped brief in runbook → Adjudication |
+| Design adjudication | strongest (Fable-class) — requires the scoped brief in phase1-loop.md → Adjudication |
 | Contract/freeze drafts, Phase 0 scope | strongest available |
 | Repeat of an already-merged pattern | one combined approach+fix agent, cheap tier |
 | Doc/comment text + mechanical tests, zero non-comment production lines | orchestrator verifies instead of dispatching a review — confirm no production diff and no fixture bytes moved, then **re-apply a discriminating mutation yourself on a different axis than the fixer's**. The mutation is what makes it safe; the greps alone are not a gate. |

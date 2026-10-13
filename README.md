@@ -74,7 +74,7 @@ backs up `settings.json` before merging:
   subagents end-to-end: scope for human approval, then approach → go-gate →
   fix → independent review → fix rounds → merge, per issue. Merges and closes
   issues autonomously once the scope is approved, so read
-  `skills/orchestrating-issue-runs/runbook.md` → *What this assumes* first.
+  `skills/orchestrating-issue-runs/INSTALL.md` → *What this assumes* first.
 - **`/unattended-run`** — run a long task without you there, solo or with its
   own helper agents: you approve the goal, the plan and what it may do alone
   (push, merge, deploy…) before it starts; it decides what it can, parks what it

@@ -105,4 +105,4 @@ skill's; none was deleted.
   empty — showing it is an invitation to fill it; remove the field
 - A schema change to an agent-facing record shipped without briefing the
   re-capture with it — the record is part of the prompt, so the change is a prompt change
-- A fresh orchestrator past ~80k before its first dispatch, or a Read of the ledger, the runbook or a brief it wrote (runbook → "The resume packet")
+- A fresh orchestrator past ~80k before its first dispatch, or a Read of the ledger, a phase file or a brief it wrote (phase1-loop.md → "The resume packet")
