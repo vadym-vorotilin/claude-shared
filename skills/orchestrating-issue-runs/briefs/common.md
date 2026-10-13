@@ -38,7 +38,7 @@ one shared output file clobber each other.
   drop what it did not match.
 
 **The return.** At most about 40 lines — everything else goes in a report file
-in the run's scratch directory, named in the return:
+in the run's `reports/` directory your brief names, named in the return:
 
 ```
 STATUS:      done | CHECKPOINT | running | blocked

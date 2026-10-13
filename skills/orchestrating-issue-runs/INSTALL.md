@@ -40,6 +40,27 @@ this skill assumes.** This skill assumes the orchestrator merges. If a
 project reserves merges, deploys, or any other act to a human, that is in
 the overlay, and it is the first thing to check before dispatching.
 
+## Run state: `.orchestration/`
+
+Each run keeps its state in `<repo>/.orchestration/<run>/`: `ledger.md`,
+`INTRO.md`, `briefs/` (assembled briefs and the spec parts they were built
+from) and `reports/` (agent reports). A fixed place means a fresh orchestrator
+finds the ledger without being told, and two projects never invent two
+layouts. Brief templates have no slot here: standing rules live in this
+skill's `briefs/` blocks, a project's own standing text in `project.md`.
+
+- **Local by default.** The orchestrator adds `.orchestration/` to
+  `.git/info/exclude` before its first write. Briefs quote issues, rulings and
+  specs, so tracking the folder in a public repo publishes the run's internals.
+- **Tracking is the overlay's call.** A `project.md` that says `run state:
+  tracked` gets `.orchestration/*/reports/` in `.gitignore` instead (reports
+  are bulky and live only while a card is open), and names the branch the state
+  is committed to when the default branch is protected. Run state never rides
+  in an agent's PR.
+- **Nothing that builds goes here.** Worktrees, probes and experiment crates
+  live in `$SCRATCH`, outside the repo: inside it they are picked up by test
+  runners, `grep` and indexers, and their build output gets committed.
+
 ## What this assumes
 
 Check these before Phase 0; the skill will mislead you where they do not hold.

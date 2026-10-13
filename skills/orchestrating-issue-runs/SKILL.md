@@ -49,6 +49,16 @@ read from the project's own directory.
 **Never read `briefs/`** or the sibling skills' `brief.md` — they are assembled
 into briefs below.
 
+## Run state
+
+One directory per run in the repo: `RUN=<repo>/.orchestration/<run>` (`<run>`
+= a short name for the milestone or wave). It holds `ledger.md`, `INTRO.md`,
+`briefs/` (every assembled brief and its spec part) and `reports/` (agent
+reports). **Local by default:** before the first write, add `.orchestration/`
+to `.git/info/exclude` unless the overlay opts into tracking (INSTALL.md →
+"Run state"). Worktrees and agents' experiments go in `$SCRATCH`, **outside**
+the repo, never under `.orchestration/`.
+
 ## Briefs
 
 The agent-facing rules live in `briefs/` and the sibling skills, in the agent's
@@ -56,16 +66,16 @@ own voice. You write only the issue-specific part (phase1-loop.md → "Briefs")
 and join it to the blocks:
 
 ```bash
-: "${SCRATCH:?set SCRATCH to the run's scratch directory}"
+: "${RUN:?set RUN to <repo>/.orchestration/<run>}"
 brief() { # brief <out> <block>... — refuses a missing or empty block; never leaves a stale brief
   local out="$1"; shift; rm -f "$out"
   [ $# -ge 2 ] || { echo "brief: needs at least two blocks" >&2; return 1; }
   for f in "$@"; do [ -s "$f" ] || { echo "brief: missing or empty block $f" >&2; return 1; }; done
   for f in "$@"; do cat "$f"; echo; done > "$out"
 }
-brief "$SCRATCH/brief-<issue>-fixer.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
+brief "$RUN/briefs/brief-<issue>-fixer.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
   "$S/../cache-warmth/brief.md" "$S/../context-ceiling/brief.md" "$S/briefs/fixer.md" \
-  "$SCRATCH/spec-<issue>-fixer.md" || echo "STOP: fix the brief before dispatching"
+  "$RUN/briefs/spec-<issue>-fixer.md" || echo "STOP: fix the brief before dispatching"
 ```
 
 | Role | Blocks after `briefs/common.md` and `../cache-warmth/brief.md` |

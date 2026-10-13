@@ -77,7 +77,7 @@ branch and dispatch on its notification.
 
 ## Protocols
 
-**Ledger.** On disk (not a tmpfs `/tmp`), written before the first dispatch:
+**Ledger.** `$RUN/ledger.md` (SKILL.md → "Run state"), written before the first dispatch:
 wave plan, per-issue lines, rulings, deferred minors, resume queue, pause
 state. **Append-only** for the orchestrator: read its tail, grep it by issue.
 A line ≤ 300 characters, pointing at a report file for detail. After a
@@ -137,11 +137,12 @@ stop" (read them when the operator says "unattended"). Its authority is the
 scope's Authority line plus the overlay's gates; an operator-only question parks
 that card (`needs-human`, a ledger line, the held list); a design question goes
 to the adjudicator. The stop also writes the ledger's RESUME PACKET and runs the
-project's handoff wrap; the ledger is pushed only if pushing was granted.
+project's handoff wrap; the ledger is committed only if run state is tracked,
+and pushed only if pushing was granted.
 
 ## Briefs
 
-**The specific part** you write (`$SCRATCH/spec-<issue>-<role>.md`): **the
+**The specific part** you write (`$RUN/briefs/spec-<issue>-<role>.md`): **the
 goal line**, the role, ONE issue, binding comments by name, repo and worktree
 instructions, the file surfaces to avoid — in parallel mode **the version
 constant is one** — and any return fields to add. A reviewer's adds the PR and

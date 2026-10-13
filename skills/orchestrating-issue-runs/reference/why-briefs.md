@@ -32,7 +32,7 @@ bans verbatim in each brief and check their trace after each return.
 **The return contract has a shape, and it is short.** A return is at most
 about 40 lines: STATUS, GOAL, the quoted numbers (suite line, counts, SHAs), PR
 number and head, DEVIATIONS, DESIGN_QUESTIONS, and one path to a report file in
-the run's scratch directory that holds everything else. The orchestrator greps
+the run's `reports/` directory that holds everything else. The orchestrator greps
 the report for a named question and does not read it; a 200-line return is
 read at whatever context the orchestrator has reached, on every later turn.
 **The goal line goes in the brief and comes back in the return contract.** Add

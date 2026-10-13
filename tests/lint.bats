@@ -177,3 +177,17 @@ PY
   ! brief "$out" "$TEST_TMP/a.md" 2>/dev/null || fail "a lone block passed"
   ! brief "$out" 2>/dev/null || fail "no blocks passed"
 }
+
+@test "run state lives under .orchestration/<run>; worktrees never do" {
+  # A fixed place is what lets a fresh orchestrator find the ledger unprompted;
+  # a worktree inside the repo gets built, grepped and committed.
+  O="$REPO/skills/orchestrating-issue-runs"
+  run grep -nE '(brief|spec)-<issue>' "$O/SKILL.md" "$O"/phase*.md
+  [ -n "$output" ] || fail "no brief/spec path found to check"
+  while IFS= read -r line; do
+    [[ "$line" == *'$RUN/briefs/'* ]] || fail "brief or spec part outside \$RUN/briefs: $line"
+  done <<< "$output"
+  grep -qF '$RUN/ledger.md' "$O/phase1-loop.md" || fail "the ledger path is not \$RUN/ledger.md"
+  ! grep -nE '(RUN|\.orchestration)[^ ]*/wt-' "$O/SKILL.md" "$O"/phase*.md "$O"/briefs/*.md \
+    || fail "a worktree placed under the run state directory"
+}
