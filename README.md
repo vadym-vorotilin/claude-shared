@@ -75,6 +75,11 @@ backs up `settings.json` before merging:
   fix → independent review → fix rounds → merge, per issue. Merges and closes
   issues autonomously once the scope is approved, so read
   `skills/orchestrating-issue-runs/runbook.md` → *What this assumes* first.
+- **`/cache-warmth`** — keep prompt caches warm while a session or its
+  subagents wait: subagents poll instead of blocking (their cache lasts minutes),
+  the main session never spends a turn waiting and keeps a 50-minute heartbeat
+  (its cache lasts about an hour). Its `brief.md` is the block to paste into any
+  subagent brief. `/orchestrating-issue-runs` depends on it.
 - **`/review-pr`** — review a GitHub PR against its spec, not just its diff:
   reads the PR, its linked issue and any design/plan doc it references, verifies
   the change is architecturally sound and actually wired up, sweeps for dangling

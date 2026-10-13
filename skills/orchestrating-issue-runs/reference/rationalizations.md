@@ -1,7 +1,8 @@
 # Common rationalizations
 
 The full set. SKILL.md keeps the ten that fire most often; every other row is
-here, and none has been deleted.
+here, and none has been deleted. Rows about waiting and the prompt cache
+moved to the `cache-warmth` skill.
 
 Each left-hand column is a representative paraphrase — illustrative, not a
 quote — of the sentence an agent tends to reach for on its way to the mistake
@@ -47,8 +48,6 @@ fine.
 | "Both PRs are green, so merging both is green" | Per-branch gates don't compose over a counted set. Serialise, or rebase and re-run one against the other. |
 | "Same clone, FETCH_HEAD is fine" | Concurrent agents mutate it mid-read, and nested checkouts go stale while still reading as authoritative — yielding stale counts and a false "the fix never landed" verdict. Resolve the SHA once and pin every read in the brief to it, in the agent's own worktree. |
 | "The parent merged, the child will just retarget" | It can be closed, or silently retargeted onto a base it was never reviewed against. Rebase `--onto`, then content-hash before carrying the review. |
-| "I'll pick the run back up when the notification arrives" | A pause with no armed timer or monitor is a pause that runs long. Arm it, then pause. |
-| "The brief said no monitors" | It read as a Bash rule. Name the Monitor tool, or an agent blocks on one like any other wait. |
 | "It's a rebase, the review stands" | It stands only if the content is identical — prove it with diff-of-diffs, then merge without a third review. |
 | "The spec is silent, so the fixer's convention is fine" | It is a design act. A short adjudication is the cheap way to ratify it or relocate it. |
 | "The suite is the sum of the filtered chunks" | Some runners' filters are exact-match and silently drop everything nested below the named level. Run unfiltered, or split by test class. |
@@ -73,9 +72,6 @@ fine.
 | "It's a follow-on milestone, so the backlog says what to do next" | Compute the lineage — what share of its cards descend from the previous milestone's. Above about half, the predecessor did not close its question and this one will re-cut the same defects. That is a direction question for the operator, asked before dispatch, not a wave plan. |
 | "Every ruling deserves a durable design record" | One written for a question that does not change the Exit costs a doc PR, a review, a merge and an operator read, and moves nothing anyone can see. Size the record by the goal. Above roughly two rulings per merged card the spec itself is the defect — propose the change as one batch. |
 | "The rule is in the spec, so the choice is amend it or re-author the inputs" | There is a third, and leave-one-out is what earns it: **demote** the rule — hard to soft, soft to advisory. Demotion is always on the menu when leave-one-out names a rule as the conflict, and where the spec states its own cutting order, quote that order instead of inventing one. |
-| "The command only takes six minutes, I'll wait for it" | Six idle minutes is past a subagent's prompt-cache lifetime, so the next turn rewrites the entire context at the write rate — more than an order of magnitude above what the poll turns would have cost. Detach and poll. |
-| "The command takes ten minutes, so a longer poll bound saves turns" | Each extra poll is one cache read. One bound past the cache lifetime is a full write — about ten reads' worth — so the longer bound can cost more than every poll it saved: a poll form given without a stated maximum gets stretched toward the Bash ceiling and expires the cache repeatedly. The bound is a maximum, never an example. |
-| "This agent isn't a fixer, so the poll rule doesn't apply" | It applies to whoever waits. A reviewer re-measuring a suite, a screenshot agent driving a browser, a recording agent and a wrap agent all pay the identical rewrite — most easily when an ad-hoc brief for a post-run role omits the line. |
 | "The orchestrator is past its ceiling, hand over now" | The orchestrator's ceiling and a fixer's are different numbers for different reasons (iron rule 9). Past the soft one you **offer** a handover at the next natural boundary — a merge, a wave end, a ruling — and the operator decides; you do not stop mid-wave. |
 | "The agent ran to several times its ceiling but it finished, so note it" | An agent measured past twice its ceiling is an instrument failure, not an observation: the rule did not bind, which means every other agent under it is unmeasured too. Fix the instrument before the next dispatch. |
 | "The schema has a field for it, so the model may fill it" | A field the model is meant to leave empty is an invitation to fill it; it does not belong in the record the model sees. And a schema change to an agent-facing record is a **prompt** change — brief it with the re-capture rather than treating it as data plumbing. |

@@ -48,26 +48,13 @@ the flow.
 
 ## Waiting, cache and context
 
-- A brief that lets an agent **block** on a command expected to outlast its
-  prompt cache (~5 minutes idle) — the next turn then rewrites the whole
-  context at the cache-write rate; poll instead
-- A poll form given as an example with no maximum — the bound gets stretched
-  toward the Bash timeout to save turns, and past the cache lifetime it costs a
-  full rewrite; say "every poll call returns within four minutes"
-- A live agent's transcript untouched for five minutes — its cache is gone;
-  correct its poll bound rather than reading the silence as health
-- A waiting role briefed without the poll rule because it is "not a fixer" —
-  reviewers re-measuring a suite, screenshot and recording agents, and wrap
-  agents pay the identical rewrite
-- A stall sweep whose interval is longer than the orchestrator's own cache
-  lifetime — the sweep then pays the rewrite it exists to save
+Rows about waiting and the prompt cache moved to the `cache-warmth` skill's
+Red flags; none was deleted.
+
 - An agent measured at more than twice its stated ceiling written up as a
   ledger note — that is a broken instrument, fixed before the next dispatch,
   not an observation
 - Re-nudging a stalled agent when what it's waiting for hasn't started — remove the dependency instead
-- Pausing the run by waiting for notifications — a pause needs an armed timer or monitor
-- A dispatch with no 50-minute heartbeat armed in the same turn, or a heartbeat still re-arming after an unattended run's wrap
-- A brief that says "no monitors" without naming the Monitor tool and *unpolled* `run_in_background`
 - A brief that does not ban the agent dispatching its own subagents — forked helpers can clobber each other's single output file
 - Starting a new card after the operator has called the quota — the wind-down finishes in-flight work, parks green PRs with rebase notes, and demos as a pre-release
 - A fixer past the ~150k ceiling still going — it should have stopped at the ceiling and returned a handoff note
@@ -127,5 +114,4 @@ the flow.
   empty — showing it is an invitation to fill it; remove the field
 - A schema change to an agent-facing record shipped without briefing the
   re-capture with it — the record is part of the prompt, so the change is a prompt change
-- A `sleep`, `until`, `tail -f`, `--watch` or task-output call in the orchestrator's OWN turn — a poll turn at full context; the wait belongs in a background `until` or the sweep (runbook → "The orchestrator never takes a turn to wait")
 - A fresh orchestrator past ~80k before its first dispatch, or a Read of the ledger, the runbook or a brief it wrote (runbook → "The resume packet")

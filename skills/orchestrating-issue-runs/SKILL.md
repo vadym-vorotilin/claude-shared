@@ -26,7 +26,8 @@ description: Use when the user asks to orchestrate execution of multiple spec-ba
 > and rationalization sets that SKILL.md only samples, and an install that
 > symlinks the first two alone leaves those pointers dangling in exactly the
 > way nobody notices. Put every local difference in `project.md`, which stays
-> with the project. The ceiling hook is not installed this way — it goes into
+> with the project. Install the **`cache-warmth`** skill beside it too
+> (symlinked the same way): the runbook's briefs `cat` its `brief.md`. The ceiling hook is not installed this way — it goes into
 > the project's `.claude/hooks/`; see runbook → "The fixer stops at the context
 > ceiling". Symlinking `hooks/` beside the skill installs nothing.
 >
@@ -114,11 +115,11 @@ operator. Scope approval and the overlay's human gates still hold. An
 operator-only question parks its card, not the run. The details are in runbook
 → "Unattended mode".
 
-**Heartbeat, attended or not:** in the same turn as the first dispatch, arm a
-one-shot 50-minute timer (`sleep 3000` in background Bash). Re-arm it each time
-it fires, until the wrap. Completion notifications alone let a wait longer than
-an hour expire the orchestrator's cache. Do not use cron, whose gaps are uneven,
-or `Monitor`, which is capped at 30 minutes. See runbook → "Heartbeat".
+**Waiting, attended or not, follows the `cache-warmth` skill.** The
+orchestrator never takes a turn to wait, and it arms that skill's 50-minute
+heartbeat in the same turn as the first dispatch, re-arming it until the wrap.
+Every brief for a role that waits carries its `brief.md` lines verbatim. See
+runbook → "The orchestrator never takes a turn to wait" and "Heartbeat".
 
 ## Iron rules
 
@@ -251,8 +252,9 @@ or `Monitor`, which is capped at 30 minutes. See runbook → "Heartbeat".
 
 ## Red flags — stop, you are about to violate the flow
 
-**The full set is [reference/red-flags.md](reference/red-flags.md)** — 73 rows,
-grouped, none deleted. Read it once at run start and again at any wave boundary
+**The full set is [reference/red-flags.md](reference/red-flags.md)** — 64 rows,
+grouped, none deleted; the waiting and cache rows are in the `cache-warmth`
+skill. Read it once at run start and again at any wave boundary
 where the run changed shape. These ten fire the most often:
 
 - About to dispatch a fixer and the user hasn't approved a scope doc
@@ -283,7 +285,8 @@ where the run changed shape. These ten fire the most often:
 ## Common rationalizations
 
 **The full set is [reference/rationalizations.md](reference/rationalizations.md)**
-— 62 rows, none deleted. These ten fire the most often:
+— 57 rows, none deleted; the waiting and cache rows are in the `cache-warmth`
+skill. These ten fire the most often:
 
 | Excuse | Reality |
 |---|---|

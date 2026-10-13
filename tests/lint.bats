@@ -33,6 +33,20 @@ template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
   grep -qF '<<< claude-shared <<<' "$snip" || fail "snippet missing END marker"
 }
 
+@test "every ../<skill>/<file> a skill points at exists" {
+  # A skill that leans on a sibling (orchestrating-issue-runs -> cache-warmth)
+  # names it by relative path; a rename or move must not leave it dangling.
+  n=0
+  for f in "$REPO"/skills/*/*.md; do
+    dir="$(dirname "$f")"
+    for ref in $(grep -oE '\.\./[a-z0-9-]+/[A-Za-z0-9_./-]+\.(md|py|sh)' "$f" | sort -u); do
+      n=$((n + 1))
+      [ -e "$dir/$ref" ] || fail "$f points at $ref, which does not exist"
+    done
+  done
+  [ "$n" -gt 0 ] || fail "found no sibling references at all; the pattern no longer matches"
+}
+
 # ----------------------------------------------------------- EDGE CASES ----
 
 @test "tokens sharing a line with content aren't told to delete the line" {

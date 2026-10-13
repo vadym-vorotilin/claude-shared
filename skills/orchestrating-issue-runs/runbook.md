@@ -24,6 +24,10 @@ Check these before Phase 0; the skill will mislead you where they do not hold.
   skill:** a board-sync tool, a demo skill, a run memory file. Where one is
   absent, the step that mentions it says what to do instead; none is required
   for the run to work.
+- **The `cache-warmth` skill, installed beside this one** in the same skills
+  directory (`sync.sh` puts both in `~/.claude/skills/`). Paths written
+  `../cache-warmth/…` are relative to this skill's directory; resolve them to
+  an absolute path before putting one in a `cat` or a brief.
 - **The `token-report` skill**, for every spend figure (Budget check). Without
   it, say so in the report rather than estimating.
 - **Merge rights that do not need a second human approval.** Reviewer and
@@ -600,8 +604,8 @@ works while the transcript is still there.
 **Agent briefs — three run-stopping rules.** (1) Name the Monitor tool and
 *unpolled* `run_in_background` explicitly as banned, for **every dispatched
 agent** — "no monitors" alone can be read as a Bash-only rule, and a fixer
-then stalls on a Monitor. Detached-and-polled work is the permitted form (Poll, do
-not block, below). The orchestrator's own liveness sweep is the only Monitor
+then stalls on a Monitor. Detached-and-polled work is the permitted form (the cache-warmth
+brief lines, Briefing rules below). The orchestrator's own liveness sweep is the only Monitor
 any agent may rely on; it is the orchestrator's, and no brief may grant it.
 (2) Scratch filenames are card-scoped
 (`pr-<issue>-<repo>.md`); two agents sharing one filename can propagate one
@@ -886,28 +890,18 @@ reading is a claim to check, not a result: the same `$0.00` comes from a
 mistyped window and from a mistyped `--root`, and the JSON's `root_missing`
 flag is what separates them.)
 
-**The orchestrator never takes a turn to wait.** Its own polls are the
-expensive kind: a foreground `until … sleep`, `tail`, `gh pr checks`
-or task-output call is one full context read to learn "not yet", and because
-polls fire late in a run they are read at the largest context. Waiting has
-three shapes and each has a form that costs no turn:
+**The orchestrator never takes a turn to wait.** The forms — the wait table,
+the 50-minute bound on background waits, the expiry rule, the heartbeat — are
+the **cache-warmth** skill's main-session rules (`../cache-warmth/SKILL.md`);
+read that section at the first dispatch. What is the orchestrator's own:
 
-| Waiting for | Form | Turns |
-|---|---|---|
-| a dispatched agent | its completion wakes you, **plus the heartbeat below**, so that a wait longer than the cache does not expire it | 1 per 50 min |
-| a condition on the world (the default branch moved, a PR merged, a check landed, a log marker, a lock freed) | Bash with `run_in_background: true` running `timeout <bound> bash -c 'until <check>; do sleep 30; done'` — one notification when it exits; exit non-zero on expiry so a slow condition surfaces as a failed step | 0 |
-| a failure shape (stall, cold agent, vanished worktree) | the one persistent silent sweep `Monitor` below | 0 |
-
-Bound the background wait inside the orchestrator's own cache lifetime (about
-an hour; fifty minutes is the bound to use) so the wake reads the
-cache instead of rewriting it. The gated-fixer queue (Phase 1 → "Queue gated
-fixers") is the commonest instance: the `until` on the default branch runs in
-the background and the next card is dispatched on the notification, not on a
-poll. **On expiry:** one field-selecting read of the cause (the PR's state, the
-check's status), then re-arm the same wait once; a second expiry is a stall —
-a ledger line and an operator question, not a third wait. This is the
-orchestrator's rule; dispatched agents keep theirs (Poll, do
-not block — their cache is minutes, not an hour).
+- **The commonest world-condition wait is the gated-fixer queue** (Phase 1 →
+  "Queue gated fixers"): the `until` on the default branch runs in the
+  background and the next card is dispatched on the notification, not on a poll.
+- **The failure-shape wait is the liveness sweep below.**
+- A second expiry of the same wait is a ledger line and an operator question.
+- Dispatched agents keep the subagent rule (poll, do not block); their cache is
+  minutes, not an hour.
 
 **Liveness sweep.** Agents die silently — weekly quota, mid-stream API errors,
 background-wait stalls — and the run reads as "still working"
@@ -1005,31 +999,13 @@ processes) and rescue it if it is genuinely dead. **Never re-dispatch a live
 agent because the sweep fired** — a long agent is not a dead one, and the sweep
 is a hint, not a verdict. `TaskStop` it when the run ends.
 
-**Heartbeat: from the first dispatch until the wrap.** An agent's run routinely
-outlasts the orchestrator's one-hour cache: a recording plus a claims check, or a
-fixer with a continuation. A wait that relies only on completion notifications
-then wakes on a cold cache, and the orchestrator rewrites its whole context at
-the write rate. So **in the same turn as the first dispatch**, arm a one-shot
-50-minute timer:
-
-    Bash run_in_background: sleep 3000; echo "HEARTBEAT $(date +%H:%M)"
-
-When it fires, re-arm it first. Then run the liveness check: the agents'
-output-file mtimes and `pgrep` on their processes, never a transcript read. If
-nothing moved, reply with one line. Keep the timer through every wait: agents in
-flight, a world condition, or a park at an operator gate (a quota drain, a human
-gate). Stop re-arming it only at the wrap (see "Unattended mode → the stop"), and
-say in the final message that it is off.
-
-The form is chosen against these alternatives:
-- **cron:** it fires at wall-clock minutes, so `7,47` gives uneven 20- and
-  40-minute gaps, which wake too often;
-- **`Monitor`:** it is capped at 30 minutes, so a 50-minute timer cannot be one;
-- **`ScheduleWakeup`:** it works only inside `/loop`.
-
-Fifty minutes is the same bound as the background wait above, and the two can
-share one timer. A run with a background `until` wait already pending need not
-arm a second timer.
+**Heartbeat: from the first dispatch until the wrap.** Arm the cache-warmth
+skill's 50-minute heartbeat **in the same turn as the first dispatch**. When it
+fires, re-arm it, then run the liveness check — the agents' output-file mtimes
+and `pgrep` on their processes, never a transcript read — and reply with one
+line if nothing moved. Keep it through every park at an operator gate or a
+quota drain. Stop re-arming it only at the wrap (see "Unattended mode → the
+stop"), and say in the final message that it is off.
 
 **Unattended mode.** The operator says "unattended" (or "continue unattended",
 or "run until you need me"): run until nothing more can be done without the
@@ -1147,47 +1123,16 @@ close-comment line, never a card** — say that in the brief, in those words,
 because "nothing deferred silently" is otherwise read as "everything deferred
 is filed" (iron rule 6).
 
-**Every brief also sets a long Bash timeout (e.g. `timeout: 600000`) and bans
-*unpolled* backgrounding by name — "never fire `run_in_background` and then
-wait on it blind; never arm a `Monitor`. Your prompt cache expires after about
-five minutes idle, and the next turn then rewrites your whole context at ten
-times what a cache read costs — so any command you expect to run longer than
-about four minutes runs detached and you poll it on a short cadence (Poll, do
-not block, below). This is a cache rule, not a timeout rule: it applies to
-builds, checkouts, renders and recordings exactly as much as to the suite."**
-Give the agent the poll form, not just the ban — a bounded wait per call:
-`timeout 230 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; tail -3 <log>`
-— because an agent told only what not to do will block anyway. **And say that
-the bound is a maximum, not an example: every poll call returns within about
-four minutes, whatever the command is expected to take.** The long Bash
-timeout is a ceiling for a runaway command, not a poll cadence. Briefed with
-the 230-second form and nothing about it being a limit, a fixer can stretch its
-polls toward the Bash ceiling to save turns — detached, polling, correct by
-every other reading of the rule — and expire its cache on consecutive polls.
-Each extra poll is one cache read; one bound past the lifetime is a full write,
-about ten reads' worth, so a longer bound never saves anything.
-**Put that line in every waiting role's brief**, not only the fixer's:
-reviewers re-measuring a suite, screenshot and recording agents, wrap and
-demo-capture agents.
-"No monitors" on its own is not enough: it reads as a Bash rule, and a fixer
-that takes it that way still arms the Monitor tool and stalls on it. **Ban
-dispatching subagents in the same breath**: unless told otherwise an agent can
-fork, and forked helpers that write one shared output file clobber each other.
-A short default Bash timeout is what auto-backgrounds long suite runs and live
-CLI calls; agents stall that way, each costing a nudge round-trip.
-
-**Why it is a cache rule, in one paragraph** (the full reasoning and the
-evidence behind it: `reference/cache-warmth.md`). A subagent's prompt cache
-expires after about five minutes idle; a command that blocks past that expires
-the whole cache and the next turn rewrites the context at the write rate, about
-ten reads' worth — at a mid-run fixer's context, a major cost. It binds **every role that waits** (fixer, reviewer re-measuring, capture,
-recording, wrap, board and post-run agents), it is about the waiting and not
-the suite (builds, checkouts and renders cost more than the suite did), and
-verifying less does not fix it. The orchestrator's cache is about an hour and
-sets its own cadence: sweep and wake-ups run under the hour. The rule is
-**poll, do not block**: anything that outlasts the cache runs detached and is
-polled with every call returning inside about four minutes; what stays banned
-is unpolled backgrounding.
+**Every brief for a role that waits carries the cache-warmth brief lines
+verbatim**: `cat ../cache-warmth/brief.md` into the brief file, never read it
+into the orchestrator's own context. That is the poll form, the four-minute
+maximum, the long Bash timeout and the ban on unpolled backgrounding and the
+`Monitor` tool. Waiting roles are not only fixers: reviewers re-measuring a
+suite, screenshot and recording agents, wrap and demo-capture agents all wait.
+The reasoning is in `../cache-warmth/reference/why.md`.
+**Ban dispatching subagents in the same brief**: unless told otherwise an agent
+can fork, and forked helpers that write one shared output file clobber each
+other.
 
 **Reviewer brief template.** On top of the rules above, every reviewer brief
 carries:
@@ -1297,10 +1242,8 @@ brief without it missed:
    orchestrator's own numbers are different and deliberately so** — soft 200k,
    hard 500k, offer-a-handover rather than stop (iron rule 9); do not copy the
    fixer's number into the orchestrator's ledger, or the other way round.
-8. To **every waiting role** — fixer, reviewer re-measuring a suite, screenshot
-   agent, recorder, wrap and capture agents: *"your prompt cache expires after
-   about five minutes idle; run anything longer detached and poll it."* Give
-   the poll form, not just the ban (Briefing rules, above).
+8. To **every waiting role**: the cache-warmth brief lines (`brief.md`),
+   verbatim (Briefing rules, above).
 9. **The goal line, and the `GOAL:` return line.** Every brief carries the
    run's goal line; every return contract asks what the deliverable moved on
    it, or `nothing`. A finding that moves nothing is a close-comment line, not
