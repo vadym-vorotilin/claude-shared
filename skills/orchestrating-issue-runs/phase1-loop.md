@@ -52,7 +52,9 @@ mechanical tests with **zero non-comment production lines**: verify it
 yourself — no production diff, no fixture bytes moved, and **a discriminating
 mutation you re-apply on a different axis than the fixer's**. Non-blocking
 findings: one-liners now; the rest to the ledger and the close comment. After
-several rounds, ask the reviewer whether it is still one change.
+several rounds, ask the reviewer whether it is still one change. **Reviewers
+never hand off or split**: a diff too large for one review means the change is
+too large — ask the reviewer for the scope ruling.
 
 **Merge.** Review clean + CI green + no open human gate (and the Authority line
 grants it) → a merge-mechanics agent (`merge` block) does the squash, close,
@@ -103,7 +105,10 @@ agent is not a dead one. On `SWEEP DOWN`, fix what it names and re-arm.
 **Rescue.** A dead agent under its ceiling: resume it by `SendMessage`, after
 verifying its worktree, branch and PR yourself and handing those facts back.
 Above ~150k, or cold with a large context: dispatch a continuation from its
-checkpoint note **verbatim**, plus the standard brief. If your own session
+checkpoint note **verbatim**, plus the standard brief. Copy every checkpoint
+note into the ledger on arrival and verify its STATE lines (worktree, branch,
+PR, SHA) yourself before dispatching from it; with no note, the verified facts
+are the STATE. If your own session
 crashes, resume that same session — only it can message its agents. **An agent
 stalled on something that has not started** (a queued CI run): have it return
 with `CI: queued` and own that gate yourself.
