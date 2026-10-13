@@ -8,7 +8,8 @@ rule is in `reference/full/phase1-loop.md`.
 
 **Approach.** One agent per issue (`approach` block); siblings in parallel, each
 told the others' file surfaces. Clean → **Go-gate**: flip to go, strip any spent
-gating label, dispatch the fixer. Design questions → adjudication first.
+gating label, dispatch the fixer. Design questions → adjudication first. A stated conflict
+with an operator ruling → the operator, as its own question.
 
 **Size the ruling by the goal.** A question that does not change the Exit gets
 no durable design record — it is ruled in the issue comment. One probe per card
@@ -24,7 +25,10 @@ binding issue comment; code proceeds on it. A docs amendment PR is reviewed for
 PR (or at once if standalone) — **except an amendment to a FROZEN spec or
 contract, which goes to the held-for-human list.** A schema-shaped ruling →
 `reference/schema-changes.md`; a fixer-authored convention or an "infeasible"
-claim → `reference/conventions.md`.
+claim → `reference/conventions.md`. A bar or baseline change — your own
+recommendation included — goes through an adjudicator before the operator. **A
+gate the operator delegates back** takes two minds: the fixer decides with
+citations, the reviewer's spec says so and it re-decides; `DIVERGE` → operator.
 
 **Fixer.** `fixer` block, a fresh worktree per issue under `$SCRATCH/wt-<issue>`
 (`$SCRATCH` on disk — built worktrees fill a tmpfs `/tmp`).
@@ -44,7 +48,8 @@ under its ceiling; each round ends with a scoped re-review by the SAME reviewer.
 Rounds 4–5: a fresh agent one tier up, from the checkpoint note — first remove
 the old worktree (only if the old agent finished and `git status --porcelain` is
 empty; then `git worktree remove -f -f`), or brief it to work on
-`checkout -B <local> origin/<branch>`. **Cap 5, but the real cap is the budget**:
+`checkout -B <local> origin/<branch>`. **Cap 5** — then adjudicate the open
+findings: park with a ruling or stop. **The real cap is the budget**:
 before each round after the first, read the spend; a round not worth its price
 → adjudicate the open findings instead. **A round costing more than the work it
 repairs → stop and ask the operator.** A round that is doc/comment text plus
@@ -97,10 +102,11 @@ task-output call in your own turn.
   agents' output-file mtimes and `pgrep` — never a transcript — and reply in one
   line if nothing moved. Stop re-arming it only at the wrap.
 
-**Liveness sweep.** At the first dispatch, arm `$S/../unattended-run/tools/sweep.sh`
+**Liveness sweep.** At the first fixer dispatch, arm `$S/../unattended-run/tools/sweep.sh`
 as **one** persistent `Monitor`, with `SCRATCH` set. On `STALL`, verify with
 cheap reads (commit time, `git status`, PR, processes) before acting; a long
-agent is not a dead one. On `SWEEP DOWN`, fix what it names and re-arm.
+agent is not a dead one. A PR an agent reported that does not exist is a stall.
+The merge spec names the card's worktree, for removal. On `SWEEP DOWN`, fix what it names and re-arm.
 
 **Rescue.** A dead agent under its ceiling: resume it by `SendMessage`, after
 verifying its worktree, branch and PR yourself and handing those facts back.

@@ -159,3 +159,21 @@ PY
   assert_equal "$lits" "<repo>"
   grep -qF '<repo>' "$(ADDH)" || fail "add-handoff does not list <repo> as an allowed literal"
 }
+
+@test "the brief function refuses a missing, empty or lone block and leaves no stale brief" {
+  # The orchestrator never reads the assembled brief, so the function is the
+  # only thing between a broken block and an agent briefed without its rules.
+  fn="$TEST_TMP/brief.sh"
+  sed -n '/^brief() {/,/^}/p' "$REPO/skills/orchestrating-issue-runs/SKILL.md" > "$fn"
+  [ -s "$fn" ] || fail "no brief() function found in SKILL.md"
+  . "$fn"
+  echo rules > "$TEST_TMP/a.md"; echo spec > "$TEST_TMP/b.md"; : > "$TEST_TMP/empty.md"
+  out="$TEST_TMP/out.md"
+  brief "$out" "$TEST_TMP/a.md" "$TEST_TMP/b.md" || fail "a good brief was refused"
+  assert_contains "$(cat "$out")" "spec"
+  ! brief "$out" "$TEST_TMP/a.md" "$TEST_TMP/missing.md" 2>/dev/null || fail "a missing block passed"
+  [ ! -e "$out" ] || fail "a refused brief left the earlier one in place"
+  ! brief "$out" "$TEST_TMP/a.md" "$TEST_TMP/empty.md" 2>/dev/null || fail "an empty block passed"
+  ! brief "$out" "$TEST_TMP/a.md" 2>/dev/null || fail "a lone block passed"
+  ! brief "$out" 2>/dev/null || fail "no blocks passed"
+}

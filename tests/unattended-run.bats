@@ -60,6 +60,8 @@ make_dir() { # name age
   unset SCRATCH
   run sweep
   [ "$status" -ne 0 ] && [ "$status" -ne 124 ] || fail "expected an immediate error; got $status"
+  assert_contains "$output" "set SCRATCH"            # the guard spoke, not a SWEEP DOWN later
+  [[ "$output" != *"SWEEP DOWN"* ]] || fail "ran without SCRATCH: $output"
 }
 
 @test "a stalled directory is reported once, not on every pass" {

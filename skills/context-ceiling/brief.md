@@ -12,9 +12,12 @@ checkpoint note — do not push on. Hard stop at **~200k**, whatever the state.
   STATE           repo, branch, worktree path, PR number, resolved base SHA
   GOTCHAS         what surprised you: a flaky test, a slow command, a wrong claim
   ```
+- **No worktree of your own** (a survey, a wrap or a read-only leg): write no
+  file, touch no exclude and commit nothing — return the note only, with STATE
+  naming what you covered and what is left.
 - **Finish instead only when the finish is bounded**: tests already green, one
   named deliverable left, no open decision. Say so in the note.
 - A job that would outlast you: launch it detached and return `STATUS: running`
   with its log path, done marker and verified PID.
-- Commit after every plan step (and push, where your brief allows it), so the
+- In a worktree, commit after every plan step (and push, where your brief allows it), so the
   note can point at a committed head.

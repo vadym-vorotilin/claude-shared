@@ -17,6 +17,10 @@
   re-typed copy) so the next addition goes red.
 - **Asked to rebase:** first record `old-base` and `old-head` in your return,
   then rebase and publish with `git push --force-with-lease`, never `-f`.
+- **Briefed onto `checkout -B <local> origin/<branch>`** (a later fix round):
+  confirm the remote head is still the one your brief names, then push with
+  `git push --force-with-lease <remote> <local>:<branch>` — a plain push from
+  `<local>` never moves the PR.
 - **A guard you add** — test it first against the shape your own diff
   introduces. Pin it with a property over the whole set, never a count: "exactly
   N items" stops discriminating at N+1, "every item, wherever it lands" can only

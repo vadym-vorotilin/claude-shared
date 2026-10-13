@@ -154,8 +154,8 @@ SCRATCH=<dir holding the helpers' worktrees> <this skill's directory>/tools/swee
 ```
 
 Optional: `WATCH` (glob under `$SCRATCH`, default `wt-*/`), `STALE_MIN` (default
-30), `INTERVAL` (seconds, default 120). It assumes GNU `find` (`-newermt` with a
-relative date); on BSD/macOS, adapt it to `-mmin`.
+30), `INTERVAL` (seconds, default 120). It needs bash and a `find` with `-mmin`
+(GNU and BSD/macOS both have one).
 
 - **Silent while healthy, and each STALL said once** — otherwise it is the
   per-helper timer again, wearing a loop. A directory that recovers and stalls

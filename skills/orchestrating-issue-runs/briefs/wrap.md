@@ -8,6 +8,8 @@ capture; patch only the pages your brief names, keeping the earlier version.
 Build a demo page **self-contained** — images inline as data URIs, no sibling
 files. Every claim on a page must trace to this run's measurements: write
 "inputs untouched, not re-run" rather than "unchanged" for anything not re-run.
+A capture from the operator's machine stays outside the repo until the
+operator rules on it; record "seen by the operator" in its place.
 
 **Walkthrough.** Use the demo artifact the way the project's end user would —
 open it, run the report, follow the flow — and list every place it is

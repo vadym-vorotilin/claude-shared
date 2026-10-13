@@ -37,3 +37,8 @@ teardown() { common_teardown; }
   run "$TOOL" "$base1" "$base1" "$base2" "$base2" "$R"
   [ "$status" -eq 1 ]; assert_contains "$output" "NOT verified"
 }
+
+@test "a bad SHA on one side fails as that side, not as a mismatch" {
+  run "$TOOL" deadbeef "$head1" "$base2" "$head2" "$R"
+  [ "$status" -eq 1 ]; assert_contains "$output" "old side failed"
+}

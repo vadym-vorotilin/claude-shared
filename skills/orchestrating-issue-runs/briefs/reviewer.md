@@ -18,6 +18,10 @@
   variant could pass, and the check decides the verdict on its own.
 - **One verdict on the whole diff — never split a review or hand it off.** Work
   inside your turn budget and report what you could not cover.
+- **A gate your brief says the operator delegated back:** re-decide it yourself
+  from the citations, before reading the implementer's decision, and report
+  `DELEGATED_GATE: MATCH` or `DIVERGE` with both positions. Divergence goes to
+  the operator.
 - **A docs PR paired with a ruling:** add a `DOCS_PR_MATCH` section on top of
   the `VERDICT:` line, never instead of it — check each clause of the docs PR
   against the ruling and against the code that shipped, and report

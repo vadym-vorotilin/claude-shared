@@ -5,7 +5,8 @@ reads the sources, so your doc is all it will know. Inputs: the goal line, the
 specs/ADRs/glossary, project memory, ALL open issues with labels and board
 state, open PRs, CI state per repo, prior runs' ledgers and deferred minors.
 
-**The doc** — posted as a message, a few lines per issue, these nine items:
+**The doc** is your report file (the return names it, within the return's own
+limit), a few lines per issue, these nine items:
 
 1. **Waves — the minimum card set that closes the goal line**, dependency
    ordered: what parallelizes, what serializes, and why (file surfaces,

@@ -1,7 +1,7 @@
 ## Working one issue
 
-You work **ONE issue, in your own worktree**. The orchestrator merges; you never
-merge. Add these to your return:
+You work **ONE issue** (or the one cluster your brief declares), **in your own
+worktree**. The orchestrator merges; you never merge. Add these to your return:
 
 ```
 PR:                number and head SHA — or `none` if your role opens no PR

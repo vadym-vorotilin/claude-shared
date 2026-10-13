@@ -40,8 +40,9 @@ read from the project's own directory.
 |---|---|
 | First run on a project or machine | [INSTALL.md](INSTALL.md) |
 | The operator says "unattended" | `../unattended-run/SKILL.md` → "When to stop" and "The stop" |
+| The first budget check | `../unattended-run/SKILL.md` → "Budget" (the command) |
 | A card touches a persisted field, a version constant or an agent-facing record | [reference/schema-changes.md](reference/schema-changes.md) |
-| A fixer authored a convention, or calls a requested design infeasible | [reference/conventions.md](reference/conventions.md) |
+| A fixer authored a convention, calls a requested design infeasible, or a capture is retried | [reference/conventions.md](reference/conventions.md) |
 | A wave boundary where the run changed shape | [reference/red-flags.md](reference/red-flags.md) |
 | A rule is unclear, or you are changing one | `reference/full/` (the reasoning), [reference/why-rules.md](reference/why-rules.md) |
 
@@ -56,9 +57,10 @@ and join it to the blocks:
 
 ```bash
 : "${SCRATCH:?set SCRATCH to the run's scratch directory}"
-brief() { # brief <out> <block>... — refuses a missing block; never writes a partial brief
-  local out="$1"; shift
-  for f in "$@"; do [ -r "$f" ] || { echo "brief: missing block $f" >&2; return 1; }; done
+brief() { # brief <out> <block>... — refuses a missing or empty block; never leaves a stale brief
+  local out="$1"; shift; rm -f "$out"
+  [ $# -ge 2 ] || { echo "brief: needs at least two blocks" >&2; return 1; }
+  for f in "$@"; do [ -s "$f" ] || { echo "brief: missing or empty block $f" >&2; return 1; }; done
   for f in "$@"; do cat "$f"; echo; done > "$out"
 }
 brief "$SCRATCH/brief-<issue>-fixer.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
@@ -69,12 +71,12 @@ brief "$SCRATCH/brief-<issue>-fixer.md" "$S/briefs/common.md" "$S/briefs/issue.m
 | Role | Blocks after `briefs/common.md` and `../cache-warmth/brief.md` |
 |---|---|
 | fixer, continuation | `briefs/issue.md`, `../context-ceiling/brief.md`, `briefs/fixer.md` |
-| approach | `briefs/issue.md`, `briefs/approach.md` |
-| adjudicator | `briefs/issue.md`, `briefs/adjudicator.md` |
+| combined approach+fix | `briefs/issue.md`, `briefs/approach.md`, `../context-ceiling/brief.md`, `briefs/fixer.md` |
+| approach, adjudicator | `briefs/issue.md`, `briefs/approach.md` or `briefs/adjudicator.md` (+ ceiling block if the leg can run long) |
 | reviewer | `briefs/issue.md`, `briefs/reviewer.md` — never the ceiling block |
 | scope | `../context-ceiling/brief.md`, `briefs/scope.md` |
 | merge mechanics | `briefs/merge.md` |
-| demo, walkthrough, register, filing, board sweep | `briefs/wrap.md` (the spec part names the role) |
+| demo, walkthrough, register, filing, board sweep | `briefs/wrap.md`, the spec part naming the role (+ ceiling block if the leg can run long) |
 
 Dispatch with only: *"Your brief is `<file>`. Read it in full before anything
 else; it is your complete brief."*

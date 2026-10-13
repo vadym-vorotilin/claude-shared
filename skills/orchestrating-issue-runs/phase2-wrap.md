@@ -11,15 +11,16 @@ the reasoning is in `reference/full/phase2-wrap.md`.
 2. **Walkthrough** (`wrap` block, walkthrough role; top standard tier, not the
    reviewer role): point it at the project's own rubric and name every
    variable the tool chain writes to, so its environment is fully isolated.
-3. **Demo document** from the capture log's captions, delivered, and released
-   the way the run's memory says (Phase 0's demo question). Put it somewhere
-   durable.
+3. **Demo document** from the capture log's captions, walkthrough findings named
+   as known gaps, delivered, and released the way the run's memory says (Phase
+   0's demo question). Put it somewhere durable.
 4. **Close the milestone** — only the one this run owns: read it back first and
    close it only if its open count is zero.
 5. **Deferred register → operator ruling → filing; never agent → filing.** A
    register agent (`wrap` block) returns the folded, grouped list; you add
    **filed-to-merged against the filing budget** and a recommendation per group
-   — fold most, file few. **The operator rules**; only then does a filing agent
+   — fold most, file few; two runs in a row above 1 means the register is
+   generating work. **The operator rules**; only then does a filing agent
    file. What the operator defers carries into the next run's Phase 0.
 6. **Board-consistency sweep**, always, as the run's last board action, after
    filing.

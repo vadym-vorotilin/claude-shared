@@ -14,6 +14,9 @@ You carry out a merge the orchestrator has already decided; you decide nothing.
 - Delete the branch; close the issue with a summary comment naming what was
   deferred; strip every state label (in-progress, in-review, blocked, go,
   needs-human, spent gates); run the project's board-sync tool if it has one.
+- **The card's worktree**, if your brief names one: remove it with
+  `git worktree remove` only when `git -C <path> status --porcelain` is empty;
+  otherwise leave it and report it.
 - **Edit and verify in one shell call, merge in a separate one**; use
   `git -C <path>`, never `cd` into a worktree inside a script.
 - **Do not trust a state read taken right after the merge** — an auto-close can
