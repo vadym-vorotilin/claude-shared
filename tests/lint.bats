@@ -66,7 +66,7 @@ for f in root.glob("*/**/*.md"):
         name = m.group(2).strip().rstrip('"').strip()
         words = " ".join(name.split()[:3])
         body = " ".join(target.read_text().split())
-        if f"# {words}" not in body and f"**{words}" not in body:
+        if not re.search(r"#+ (?:\d+\. )?" + re.escape(words), body) and f"**{words}" not in body:
             bad.append(f"{f.relative_to(root)}: {m.group(1)} has no section '{words}'")
 if n == 0: bad.append("found no references at all; the pattern no longer matches")
 print("\n".join(bad)); sys.exit(1 if bad else 0)

@@ -1,6 +1,6 @@
 # Red flags — stop, you are about to violate the flow
 
-The full set. SKILL.md keeps the ten that fire most often; every other row is
+The full set. SKILL.md samples the five that fire most often; every row is
 here, and none has been deleted. Read this file once at run start, and again at
 any wave boundary where the run has changed shape — a new lane, a scope change,
 an operator ruling.

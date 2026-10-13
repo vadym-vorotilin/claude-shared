@@ -124,25 +124,12 @@ orchestrator's own:
   up** — they bind dispatched agents, whose number did not change. Set them for
   the longest reviewer you dispatch (iron rule 9).
 
-**Review.** Independent agent, never the implementer. Gets the issue, the
-approach + rulings, the spec sections, the PR. Posts a GitHub review with an
-explicit `VERDICT: APPROVED | CHANGES_REQUESTED` line (self-approval is
-blocked when reviewer and author share the account — the COMMENT + verdict
-line IS the record). **The `VERDICT:` line must be literally present in the
-POSTED review body, not just in the agent's return to the orchestrator** —
-the merge agent checks GitHub's own review text, and a posted review body can
-carry no verdict line at all (the state reads back as COMMENTED regardless of
-what the agent's return said). `briefs/reviewer.md`
-carries this requirement so it does not depend on this paragraph being read.
-Reviews verify claims, not prose: run the suite, probe the mechanism
-adversarially, sabotage-test guards ("would this test catch the bug it claims
-to catch?"). **The brief pins the diff and the base**: PR number, resolved head
-and base SHAs, the file list — review *that diff*, and open anything outside it
-only to check a specific claim you are making. A reviewer left to explore
-arrives at the same verdict having read several times the context, and unlike a
-fixer it cannot be handed off to cap that (below). Keep reviewers on the top
-standard tier: this is the last gate before merge, and the saving from
-downgrading it is small next to what it catches.
+**Review.** Independent agent, never the implementer, on the top standard tier
+— the last gate before merge. It gets the issue, the approach and rulings, the
+spec sections, and the PR pinned by head and base SHA; its rules are
+`briefs/reviewer.md`. **The merge gate reads the `VERDICT:` line in the POSTED
+review body**, never the agent's return: a posted body can carry no verdict at
+all, and same-account reviews read back as COMMENTED whatever they say.
 
 **Fix rounds.** Findings go back to the SAME fixer via message (resume), not
 a fresh agent — rounds 1–3, while it is under the ceiling. Round 4–5: fresh
@@ -268,42 +255,19 @@ discard was for validity. Discarding on content the brief never pinned is a
 selection the operator rules on, and the capture's provenance should carry an
 attempt count. Route it to the deferred register, not to the reviewer.
 
-**The orchestrator's ceiling is not the fixer's: soft 200k, hard 500k.** Why
-the numbers differ, and how to read the orchestrator's, is in the
-`context-ceiling` skill ("The main session"). Read `context-size.py` at each
-progress stamp and write its `current` beside the stamp in the ledger; the run
-milestones alone ("second wave boundary") say nothing about which side of 200k
-or 500k you are on.
-
-**The ledger is the orchestrator's own handover record.** When the instrument says
-the soft ceiling is behind you, bring the ledger fully current — wave state,
-in-flight agents with their worktrees and PRs, open gates, resume queue, spend
-so far — and tell the user that a fresh orchestrator session can take the run
-over from the ledger file, because **the orchestrator cannot clear its own
-context**.
-
-**Where to hand over matters more than whether.** Agent handles are
-session-scoped: a fresh session can read the ledger, the worktrees and the PRs,
-but it cannot `SendMessage` the previous session's agents. Both options exist
-at every point; what changes is which one is cheap:
-
-- **At a wave boundary, nothing in flight** — a fresh session is cheapest and
-  loses nothing. Compaction is still perfectly valid here if the user prefers
-  to stay put; it just keeps carrying more context than a fresh start would.
-- **Mid-wave, agents running** — compact and keep the handles. A compacted
-  orchestrator carries more than a fresh one, but losing the rescue path for
-  several running agents costs more than the context does.
-
-**The choice is the user's; the orchestrator's job is to make it informed.**
-Post one handover message and then stop dispatching until it is answered:
-where the run is (wave, issues closed, what is in flight and what each agent is
-waiting on), any open gate, the ledger's path, the two options above with the
-trade-off in one line each, and the literal instruction a fresh session needs —
+**Past the soft ceiling: a handover, offered, not taken.** The numbers and the
+reasoning are `context-ceiling` → "The main session". The orchestrator's part:
+bring the ledger fully current — wave state, in-flight agents with worktrees
+and PRs, open gates, resume queue, spend — since **the orchestrator cannot clear
+its own context**, then post one handover message and stop dispatching until it
+is answered. It says where the run is and what each in-flight agent waits on,
+any open gate, the ledger's path, and the two options: **at a wave boundary
+with nothing in flight, a fresh session** is cheapest; **mid-wave with agents
+running, compact** and keep the handles, since a fresh session cannot message
+the old one's agents. Give the literal instruction a fresh session needs —
 *"read `<ledger path>`, verify worktree/branch/PR state with `git` and `gh`
-before trusting it, then continue at `<next concrete step>`"*. Say plainly that
-in-flight agents cannot be messaged from a new session, so if any are running,
-either wait for them or accept recovering their work from the worktree and PR.
-End the message with the progress stamp, as always.
+before trusting it, then continue at `<next concrete step>`"* — and end with
+the progress stamp.
 
 **Checkpoint note.** The template, and how a continuation is briefed from it,
 are in the `context-ceiling` skill. The orchestrator's part: copy each note into
@@ -313,65 +277,37 @@ contract), and verify its STATE lines yourself first. Treat the first wave that
 uses notes as a pilot — read them, and add the heading a continuation had to
 re-derive.
 
-**Reviewers never hand off.** A review is one coherent whole-diff verdict; a
-split review is two partial opinions, neither of which saw the whole change. If
-a review is genuinely too large for one agent, the diff is too large — ask the
-reviewer for the scope ruling instead.
+**Reviewers never hand off.** A split review is two partial opinions, neither
+of which saw the whole change. A review too large for one agent means the diff
+is too large — ask the reviewer for the scope ruling instead.
 
 **The resume packet is what a fresh orchestrator reads before its first
-dispatch, and it is bounded.** What a fresh orchestrator reads before its first dispatch is carried on every
-turn that follows, so it reads little: the system prompt and instructions are a
-large fixed base, and the overlay, a phase file read when it is not needed, ledger greps and
-directory listings only add to it. Cost per unit of
-work goes as (base + cap) / (cap − base): with a large base a handover at the soft ceiling is
-dearer per unit of work than running to the hard one, which is why long
-sessions felt right; with a small base both are cheap. So the packet, in order and nothing else:
-(1) the project's handoff file and the run's INTRO — self-sufficient, under
-~4k tokens: mains, open PRs by number and head, what is in flight, the NEXT
-list, budgets, ceilings; if it needs a second file to be understood, the last
-wrap was lossy and the fix is the INTRO, at your own wrap; (2) the ledger's
-last stamp by `tail`, never the ledger — **the ledger is append-only for the
-orchestrator**, grepped by issue when a card names one; (3) live state from
-the tracker as field-selecting one-liners. The overlay is loaded by the skill;
-the phase files are read only when their phase applies (SKILL.md → "Which file to read"); prior briefs, registers and earlier runs'
-ledgers are not read at start. **The first dispatch is the leg whose brief
-already exists with no placeholder left** — a brief that still needs writing
-is written after that dispatch, not before it, so a finished brief never waits
-behind one being built. **Stamp
-the ready point** — the context at the first dispatch — on that dispatch's
-ledger line; past ~80k, name the file that did it. Turn 1 alone is already the stable prefix plus the INTRO, the
-memory index, the instructions file and the skill listing, so the ready point
-is never zero; a ready point well past that floor means work was done before
-the first dispatch. Keep the ledger tail to 20 lines and a ledger line to 300 characters — the
-detail is in the report file the line points at, and a long line costs on every turn.
+dispatch, and it is bounded** — whatever it reads then is carried on every turn
+after. In order, and nothing else:
+1. the project's handoff file and the run's INTRO — self-sufficient, under ~4k
+   tokens: mains, open PRs by number and head, what is in flight, the NEXT
+   list, budgets, ceilings. If it needs a second file to be understood, the
+   last wrap was lossy; fix the INTRO at your own wrap;
+2. the ledger's last stamp by `tail`, never the ledger — **the ledger is
+   append-only for the orchestrator**, grepped by issue when a card names one;
+3. live state from the tracker as field-selecting one-liners.
 
-**Budget check.** Iron rule 7 needs a number, not a feeling: the
-`unattended-run` skill's budget read (§5), which refuses to report `$0` from a
-mistyped window or root.
+Prior briefs, registers and earlier runs' ledgers are not read at start, and
+phase files only when their phase applies. **The first dispatch is the leg
+whose brief already exists with no placeholder left.** **Stamp the ready
+point** — the context at the first dispatch — on its ledger line; past ~80k,
+name the file that did it. Keep the ledger tail to 20 lines and a ledger line
+to 300 characters; the detail is in the report file the line points at.
 
-Before the first wave, find the instrument's per-project view
-(`token_audit.py --view projects`, from the `token-report` skill) and record the
-command in the INTRO; a run on a shared machine that reads only the
-machine-wide total cannot apply this rule at all.
-
-**The orchestrator's own context has a second instrument, and it is the one
-the stamp needs.** The command above measures spend, not context size. Read
-`../context-ceiling/tools/context-size.py` (exit 0 / 1 / 2 for under-soft /
-past-soft / past-hard; `--json` for the ledger) and write its `current` into the
-ledger beside every progress stamp. Never estimate it.
-
-Consult the spend report (`token_audit.py` from the `token-report` skill)
-between waves and before each fix round after the
-first, and record its figure in the ledger next to the wave line so the drain
-decision is made against a trend rather than one reading. The progress stamp's
-context figure comes from `context-size.py`, not from the spend report (Iron
-rule 9). `token_audit.py --view agents --top 40` shows which agents carry the
-cost and how large their contexts grew — that is the view that says whether
-the ceiling is being respected.
-
-**An agent measured past twice its ceiling is an instrument failure, and it is
-fixed before the next dispatch** — not a ledger note. The checks, in order, are
-in the `context-ceiling` skill. 
+**Budget check.** Iron rule 7's number is the `unattended-run` skill's budget
+read ("Budget"), taken between waves and before each fix round after the first,
+and written into the ledger beside the wave line so a drain is decided on a
+trend. Before the first wave, find the per-project view
+(`token_audit.py --view projects`, from `token-report`) and record the command
+in the INTRO — on a shared machine the machine-wide total cannot apply this
+rule at all. `--view agents --top 40` shows which agents carry the cost and
+how large their contexts grew: the view that says whether the ceiling holds.
+The stamp's context figure is `context-size.py`'s, never the spend report's.
 
 **The orchestrator never takes a turn to wait.** The forms — the wait table,
 the 50-minute bound on background waits, the expiry rule, the heartbeat — are
@@ -397,13 +333,9 @@ reading at 100% on an agent meant to be polling says the same as a `COLD` line,
 sooner. A transcript idle five minutes is a brief violation for the
 self-improvement pass, not a wake-up.
 
-**Heartbeat: from the first dispatch until the wrap.** Arm the cache-warmth
-skill's 50-minute heartbeat **in the same turn as the first dispatch**. When it
-fires, re-arm it, then run the liveness check — the agents' output-file mtimes
-and `pgrep` on their processes, never a transcript read — and reply with one
-line if nothing moved. Keep it through every park at an operator gate or a
-quota drain. Stop re-arming it only at the wrap (see "Unattended mode → the
-stop"), and say in the final message that it is off.
+**Heartbeat:** the `cache-warmth` heartbeat, armed in the same turn as the
+first dispatch and re-armed until the wrap. When it fires, the check is the
+agents' output-file mtimes and `pgrep`, never a transcript read.
 
 **Unattended mode.** The `unattended-run` skill holds the contract, when to
 stop and the stop sequence. The orchestrator's specifics:

@@ -1,6 +1,6 @@
 # Common rationalizations
 
-The full set. SKILL.md keeps the ten that fire most often; every other row is
+The full set. SKILL.md samples the five that fire most often; every row is
 here, and none has been deleted. Rows about waiting and the prompt cache
 moved to the `cache-warmth` skill, rows about the context ceiling to the
 `context-ceiling` skill, and rows about unattended operation to `unattended-run`.
