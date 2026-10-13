@@ -62,3 +62,16 @@ make_dir() { # name age
   run sweep
   [ "$status" -ne 0 ] && [ "$status" -ne 124 ] || fail "expected an immediate error; got $status"
 }
+
+@test "a stalled directory is reported once, not on every pass" {
+  make_dir wt-b "2 hours ago"
+  run sweep          # INTERVAL=1 over 4 seconds: several passes
+  assert_equal "$(grep -c 'STALL: wt-b' <<<"$output")" 1
+}
+
+@test "a literal WATCH naming a missing directory is SWEEP DOWN, not a stall" {
+  INTERVAL=0 WATCH=my-wt/ run sweep
+  [ "$status" -eq 1 ] || fail "expected exit 1; got $status"
+  refute_contains "$output" "STALL"
+  assert_contains "$output" "SWEEP DOWN"
+}

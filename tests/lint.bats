@@ -33,45 +33,73 @@ template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
   grep -qF '<<< claude-shared <<<' "$snip" || fail "snippet missing END marker"
 }
 
-@test "every ../<skill>/<file> a skill points at exists" {
+@test "every sibling path a skill names exists (../<skill>/… and \$S/…)" {
   # A skill that leans on a sibling (orchestrating-issue-runs -> cache-warmth)
-  # names it by relative path; a rename or move must not leave it dangling.
-  n=0
-  for f in "$REPO"/skills/*/*.md; do
-    dir="$(dirname "$f")"
-    for ref in $(grep -oE '\.\./[a-z0-9-]+/[A-Za-z0-9_./-]+\.(md|py|sh)' "$f" | sort -u); do
-      n=$((n + 1))
-      [ -e "$dir/$ref" ] || fail "$f points at $ref, which does not exist"
-    done
-  done
-  [ "$n" -gt 0 ] || fail "found no sibling references at all; the pattern no longer matches"
+  # names it by path; a rename or move must not leave it dangling. Paths written
+  # $S/… are relative to the skill's own directory, wherever the file sits.
+  run python3 - "$REPO/skills" <<'PY'
+import re, sys, pathlib
+root = pathlib.Path(sys.argv[1]); bad = []; n = 0
+pat = re.compile(r'(\$S/)?((?:\.\./)?(?:[a-z0-9-]+/)*[A-Za-z0-9_.-]+\.(?:md|py|sh))')
+for f in root.rglob("*.md"):
+    skill = root / f.relative_to(root).parts[0]
+    for m in pat.finditer(f.read_text()):
+        rel = m.group(2)
+        if m.group(1):
+            base = skill
+        elif rel.startswith("../"):
+            base = f.parent
+        else:
+            continue
+        if "<" in rel: continue
+        n += 1
+        if not (base / rel).exists():
+            bad.append(f"{f.relative_to(root)}: {m.group(0)} does not exist")
+if n < 10: bad.append(f"only {n} sibling paths found; the pattern no longer matches")
+print("\n".join(bad)); sys.exit(1 if bad else 0)
+PY
+  [ "$status" -eq 0 ] || fail "$output"
 }
 
 @test "every <file>.md → \"Section\" reference in a skill names a section that exists" {
   # A skill split across files points between them by section name; a rename on
-  # one side must not leave the other pointing at nothing.
+  # one side must not leave the other pointing at nothing. Every name in a
+  # `→ "A", "B" and "C"` list is checked, not only the first.
   run python3 - "$REPO/skills" <<'PY'
 import re, sys, pathlib
 root = pathlib.Path(sys.argv[1]); bad = []; n = 0
-ref = re.compile(r'`?([A-Za-z0-9_./-]+\.md)`?\s*→\s*"?([A-Z][^"\n.;)|]{2,60})')
-for f in root.glob("*/**/*.md"):
-    text = f.read_text()
-    for m in ref.finditer(text.replace("\n", " ")):
-        target = (f.parent / m.group(1))
-        if not target.exists():
-            target = f.parents[len(f.relative_to(root).parts) - 2] / m.group(1)
-        if not target.exists():
+ref = re.compile(r'`?((?:\.\./[a-z0-9-]+/)?[A-Za-z0-9_./-]+\.md)`?\s*→\s*'
+                 r'((?:"[^"]+"(?:\s*,\s*(?:and\s+)?|\s+and\s+)?)+|[A-Z][^".;)|]{2,60})')
+for f in root.rglob("*.md"):
+    skill = root / f.relative_to(root).parts[0]
+    for m in ref.finditer(" ".join(f.read_text().split())):
+        target = next((b / m.group(1) for b in (f.parent, skill) if (b / m.group(1)).exists()), None)
+        if target is None:
             bad.append(f"{f.relative_to(root)}: {m.group(1)} does not exist"); continue
-        n += 1
-        name = m.group(2).strip().rstrip('"').strip()
-        words = " ".join(name.split()[:3])
+        names = re.findall(r'"([^"]+)"', m.group(2)) or [m.group(2)]
         body = " ".join(target.read_text().split())
-        if not re.search(r"#+ (?:\d+\. )?" + re.escape(words), body) and f"**{words}" not in body:
-            bad.append(f"{f.relative_to(root)}: {m.group(1)} has no section '{words}'")
-if n == 0: bad.append("found no references at all; the pattern no longer matches")
+        for name in names:
+            n += 1
+            words = " ".join(name.strip().split()[:3]).rstrip(":")
+            if not re.search(r"#+ (?:\d+\. )?" + re.escape(words), body) and f"**{words}" not in body:
+                bad.append(f"{f.relative_to(root)}: {m.group(1)} has no section '{words}'")
+if n < 10: bad.append(f"only {n} references found; the pattern no longer matches")
 print("\n".join(bad)); sys.exit(1 if bad else 0)
 PY
   [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "every brief block the orchestrator assembles exists" {
+  # Briefs are joined with cat and never read by the orchestrator, so a missing
+  # block would ship a brief without its rules and nobody would see it.
+  S="$REPO/skills/orchestrating-issue-runs"
+  n=0
+  for rel in $(grep -ohE '`(briefs/[a-z-]+\.md|(cache-warmth|context-ceiling)/brief\.md)`' "$S/phase1-loop.md" | tr -d '`' | sort -u); do
+    n=$((n + 1))
+    case "$rel" in briefs/*) p="$S/$rel" ;; *) p="$S/../$rel" ;; esac
+    [ -r "$p" ] || fail "phase1-loop.md names brief block $rel, missing"
+  done
+  [ "$n" -ge 5 ] || fail "found only $n brief blocks named"
 }
 
 @test "an overlay that links only SKILL.md resolves every file the skill's map names" {

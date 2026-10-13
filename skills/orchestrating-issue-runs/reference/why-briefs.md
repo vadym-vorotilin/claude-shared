@@ -145,7 +145,7 @@ brief without it missed:
    moves one of the two objects and leaves the other where it is discriminates
    a working rule from a broken one; no whole-thing transform can.
 7. To **any long-running dispatched agent**: the context-ceiling brief lines
-   (`../context-ceiling/brief.md`), verbatim. Reviewers get the opposite line:
+   (`$S/../context-ceiling/brief.md`), verbatim. Reviewers get the opposite line:
    one verdict on the whole diff, never split. Do not copy the fixer's numbers
    into the orchestrator's ledger, or the other way round (iron rule 9).
 8. To **every waiting role**: the cache-warmth brief lines (`brief.md`),

@@ -1,8 +1,7 @@
 ## Standing rules (every agent in this run)
 
-**Scope.** You work ONE issue, in your own worktree. Do not dispatch subagents
-of your own: forked helpers that write one shared output file clobber each
-other. The orchestrator merges; you never merge.
+**Helpers.** Do not dispatch subagents of your own: forked helpers that write
+one shared output file clobber each other.
 
 **Evidence over assertion.**
 - Re-measure every baseline yourself — suite counts, sizes, timings. Do not
@@ -28,7 +27,7 @@ other. The orchestrator merges; you never merge.
   show up there: second-granularity timestamp collisions, `/dev/stderr`
   redirects (ENXIO when stderr is a pipe), ambient git identity and config.
   "Deterministic" is a per-platform claim until measured on a second platform.
-- Scratch files are named for your issue (`pr-<issue>-<repo>.md`), never a
+- Scratch files are named for your task (e.g. `pr-<issue>-<repo>.md`), never a
   shared name. Before any `gh pr edit N`, run
   `gh pr view N --json title,headRefName` and check it is your PR.
 - `gh` bodies with backticks: always `--body-file`, written with a **quoted**
@@ -38,20 +37,18 @@ other. The orchestrator merges; you never merge.
   class, and quote each chunk's total: a filter may be exact-match and silently
   drop what it did not match.
 
-**The return.** At most about 40 lines, in this shape — everything else goes in
-a report file in the run's scratch directory, named in the return:
+**The return.** At most about 40 lines — everything else goes in a report file
+in the run's scratch directory, named in the return:
 
 ```
-STATUS:            done | CHECKPOINT | running | blocked
-GOAL:              what your deliverable moved on the run's goal line, in one sentence, or `nothing`
-NUMBERS:           quoted, not summarised — the suite line, counts, SHAs
-PR:                number and head SHA
-DEVIATIONS:        each, with the line that proves it — or `none`
-DESIGN_QUESTIONS:  each, or `none`
-REPORT:            <path>
+STATUS:      done | CHECKPOINT | running | blocked
+GOAL:        what your deliverable moved on the run's goal line, in one sentence, or `nothing`
+NUMBERS:     quoted, not summarised — counts, SHAs, measured figures
+DEVIATIONS:  each, with the line that proves it — or `none`
+REPORT:      <path>
 ```
 
-**Quote, do not self-assess.** For every instruction you were asked to follow,
-quote the line that shows you did — the closing keyword, the shipped wording,
-the measured number. A finding that moves nothing on the goal line is a line in
-the closing comment, **never a new issue**.
+Your brief may add fields to this. **Quote, do not self-assess.** For every
+instruction you were asked to follow, quote the line that shows you did — the
+closing keyword, the shipped wording, the measured number. A finding that moves
+nothing on the goal line is a line in your report, **never a new issue**.

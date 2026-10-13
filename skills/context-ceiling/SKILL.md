@@ -74,7 +74,8 @@ GOTCHAS         what surprised you: a flaky test, a slow command, a wrong claim
                 in the task
 ```
 
-The agent writes it to `CHECKPOINT.md` in its worktree **and** returns it with
+The agent writes it to `CHECKPOINT.md` in its worktree — excluded from git
+(`.git/info/exclude`), never committed — **and** returns it with
 `STATUS: CHECKPOINT` — a note that exists only in a returned message dies with
 an agent that never returns. Write one **before a deliberate pause** too,
 rather than leaving a large-context agent to thaw at full size later.
@@ -133,8 +134,9 @@ is where details get lost. **A main session doing the heavy work itself**
 pass `--soft 150 --hard 200`.
 
 **Past the soft ceiling, do not stop — offer a handover at the next natural
-boundary** (a finished task, a merge, a decision point) and keep going until
-the operator answers. **Hard is a stop.** The offer says where the work stands,
+boundary** (a finished task, a merge, a decision point). Until the operator
+answers, finish and tend what is in flight, but **start no new work** — a
+coordinating session stops dispatching. **Hard is a stop.** The offer says where the work stands,
 what is in flight, where the durable record is, and the literal instruction a
 fresh session needs: *"read `<record>`, verify the state with `git`/`gh` before
 trusting it, then continue at `<next step>`"*. **Agent handles are
@@ -146,8 +148,9 @@ fresh session is cheapest.
 
 Not a note in a report — the ceiling did not bind that agent, so it is not
 binding any other agent under the same rule either. Fix it before the next
-dispatch: is the hook in the project's `.claude/settings.json` inside the
-top-level `"hooks"` object, were the thresholds exported before the CLI
+dispatch: is the hook in the project's `.claude/settings.local.json` (or
+`.claude/settings.json` for an install older than `/add-context-ceiling`)
+inside the top-level `"hooks"` object, were the thresholds exported before the CLI
 started, and does a probe agent still come back blocked
 (`/add-context-ceiling` → "Prove it fires")? Re-verify by dispatching the
 probe, not by reading the settings file.

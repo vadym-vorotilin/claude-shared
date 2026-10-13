@@ -42,10 +42,15 @@ files: `.claude/settings.local.json`, with both paths added to
 hook, where it would do nothing and look installed.
 
 ```bash
-cd "<target>"
+cd "<target>" || exit 1
 CEILING_HOOK="${CEILING_HOOK:-$HOME/.claude/skills/context-ceiling/hooks/agent-ceiling.py}"
 # Run the block as one bash command: the exit stops it before anything is written.
 test -r "$CEILING_HOOK" || { echo "hook not found at $CEILING_HOOK — set CEILING_HOOK"; exit 1; }
+# An install older than this skill may have COMMITTED the link; replacing it here
+# would dirty the tree. Stop and say how to migrate (see "Migrating an older install").
+if git ls-files --error-unmatch .claude/hooks/agent-ceiling.py >/dev/null 2>&1; then
+  echo "the hook link is tracked by git — migrate it first (Migrating an older install)"; exit 1
+fi
 
 # 1. Link the hook. ln -s accepts a missing target silently, hence the check
 #    above; -fn makes a re-run replace the link instead of failing.
@@ -106,7 +111,9 @@ the ceiling line in every brief regardless.
 Remove the settings entry **first**, then the link:
 
 ```bash
-cd "<target>"
+cd "<target>" || exit 1
+git ls-files --error-unmatch .claude/hooks/agent-ceiling.py >/dev/null 2>&1 \
+  && { echo "the hook link is tracked by git — remove it in a commit instead"; exit 1; }
 tmp=$(mktemp)
 jq '.hooks.PreToolUse |= [ .[]? | select( any(.hooks[]?; (.command // "") | contains("agent-ceiling.py")) | not ) ]' \
   .claude/settings.local.json > "$tmp" && mv "$tmp" .claude/settings.local.json
@@ -116,10 +123,22 @@ rm -f .claude/hooks/agent-ceiling.py
 ## Migrating an older install
 
 Installs made before this skill existed link to
-`orchestrating-issue-runs/hooks/agent-ceiling.py`. That path is kept as a
-symlink to this hook, so they keep working; re-running step 2 moves a project
-to the new path and to `settings.local.json`. Remove the old entry from the
-project's `.claude/settings.json` afterwards, or the hook runs twice.
+`orchestrating-issue-runs/hooks/agent-ceiling.py`, and often **committed** both
+the link and an entry in `.claude/settings.json`. The old path is kept as a
+symlink to this hook, so they keep working. To move one to the per-clone
+install, in a commit of its own:
+
+```bash
+cd "<target>" || exit 1
+git rm --cached .claude/hooks/agent-ceiling.py      # stop tracking the link; the file stays
+tmp=$(mktemp)
+jq '.hooks.PreToolUse |= [ .[]? | select( any(.hooks[]?; (.command // "") | contains("agent-ceiling.py")) | not ) ]' \
+  .claude/settings.json > "$tmp" && mv "$tmp" .claude/settings.json
+git commit -m "Move the context-ceiling hook to a per-clone install" -- .claude/hooks/agent-ceiling.py .claude/settings.json
+```
+
+Then run step 2. Other clones of the project lose the hook with that commit and
+need their own install — say so to the operator before committing.
 
 ## 6. Report
 

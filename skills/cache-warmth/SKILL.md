@@ -112,7 +112,9 @@ pays for nothing. Say in the final message that it is off.
 The form is chosen against these alternatives:
 - **cron** fires at wall-clock minutes, so `7,47` gives uneven 20- and 40-minute
   gaps, which wake too often;
-- **`Monitor`** is capped at 30 minutes, so a 50-minute timer cannot be one;
+- **`Monitor`** with a timeout is capped at 30 minutes, so a 50-minute timer
+  cannot be one; the persistent form runs until stopped, and the one persistent
+  `Monitor` a run arms is the silent stall sweep (`unattended-run`);
 - **`ScheduleWakeup`** works only inside `/loop`.
 
 ## Red flags

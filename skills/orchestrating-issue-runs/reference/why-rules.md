@@ -223,8 +223,8 @@ command in the INTRO; a run on a shared machine that reads only the
 machine-wide total cannot apply this rule at all.
 
 **The orchestrator's own context has a second instrument, and it is the one
-the stamp needs.** The command above measures spend, not context size. Read
-`../context-ceiling/tools/context-size.py` (exit 0 / 1 / 2 for under-soft /
+the stamp needs.** The spend read measures spend, not context size. Read
+`$S/../context-ceiling/tools/context-size.py` (exit 0 / 1 / 2 for under-soft /
 past-soft / past-hard; `--json` for the ledger) and write its `current` into the
 ledger beside every progress stamp. Never estimate it.
 

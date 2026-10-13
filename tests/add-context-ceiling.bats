@@ -78,3 +78,22 @@ ceiling_entries() { # settings_file
   [ "$status" -ne 0 ] || fail "should fail without the hook"
   [ ! -e "$TARGET/.claude/settings.local.json" ] || fail "wrote settings without a hook"
 }
+
+@test "stops, and changes nothing, when an older install committed the hook link" {
+  mkdir -p "$TARGET/.claude/hooks"
+  ln -s /nonexistent/agent-ceiling.py "$TARGET/.claude/hooks/agent-ceiling.py"
+  git -C "$TARGET" add .claude/hooks/agent-ceiling.py
+  git -C "$TARGET" -c user.name=t -c user.email=t@example.com commit -qm "old install"
+  run install
+  [ "$status" -ne 0 ] || fail "should refuse a tracked link"
+  assert_contains "$output" "tracked by git"
+  assert_equal "$(git -C "$TARGET" status --porcelain)" ""
+}
+
+@test "a target that does not exist writes nothing into the caller's directory" {
+  TARGET="$TEST_TMP/no-such-dir"
+  mkdir -p "$TEST_TMP/caller"; cd "$TEST_TMP/caller"
+  run install
+  [ "$status" -ne 0 ] || fail "should fail on a missing target"
+  [ ! -e "$TEST_TMP/caller/.claude" ] || fail "wrote .claude into the caller's directory"
+}

@@ -86,8 +86,7 @@ check, post — plus exactly these three:
   section exists, that a PR is real. Resolving a citation is not reading the
   source: `gh issue view N --json title,state` is a line, `gh issue view N` is
   the body. The first is the receipt check; the second is the leak.
-- **Branch protection and the merge method** per repo (What this assumes,
-  above) — one `gh api` call each, and the result goes in the doc.
+- **Branch protection and the merge method** per repo (`INSTALL.md` → "What this assumes") — one `gh api` call each, and the result goes in the doc.
 - **The project-memory read** (if the project keeps one) behind the
   demo-release question, which is asked before the doc is presented and so
   cannot wait for it.
@@ -190,6 +189,12 @@ Produce the scope doc (posted as a message, not a file the user must open):
    number is what makes it enforceable. Report **filed-to-merged** against it
    in the wrap, and treat two consecutive runs above 1 as the register
    generating work rather than the backlog growing.
+9. **Authority** — one line per act, each **granted** or **reserved**: merge
+   to the default branch, close issues, push branches, delete merged branches,
+   publish a demo release, file new cards (within the filing budget). The
+   overlay's reservations are copied in, never relaxed. Approving the scope
+   approves this line; it is the run's answer to the `unattended-run` skill's
+   "authority" step, and **anything not listed is reserved**.
 
 **Return the doc, not the evidence — and cap it structurally.** A size target
 is graded by the agent that wrote the doc, which always finds its own doc

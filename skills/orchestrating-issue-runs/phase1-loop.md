@@ -57,8 +57,8 @@ per-token rate in the run. One issue or one pre-declared cluster per adjudicator
 never batch unrelated issues into one agent — a batched adjudicator runs far
 longer than a single one and rules no better. Rules each question against
 the specs with citations; posts a binding "## Design decisions" comment;
-drafts any doc amendment as a PR, reviewed for `DOCS_PR_MATCH` (defined in the
-reviewer brief template below) and **squash-merged by the orchestrator after
+drafts any doc amendment as a PR, reviewed for `DOCS_PR_MATCH` (the reviewer
+checks each clause against the ruling and the shipped code — `briefs/reviewer.md`) and **squash-merged by the orchestrator after
 its paired code PR lands** — or immediately if standalone. No held queue:
 holding docs amendments for the human only adds latency, and they come back
 merged unchanged. Design-changing amendments are still surfaced in the
@@ -339,8 +339,9 @@ agents' output-file mtimes and `pgrep`, never a transcript read.
 
 **Unattended mode.** The `unattended-run` skill holds the contract, when to
 stop and the stop sequence. The orchestrator's specifics:
-- **Still gated:** scope approval (iron rule 1) and every human gate in the
-  overlay — together they are the run's authority.
+- **Still gated:** scope approval (iron rule 1), the scope doc's **Authority**
+  line, and every human gate in the overlay. An act the Authority line does not
+  grant is reserved — park the card, do not do it.
 - **What continues:** every card whose next step is the orchestrator's or an
   agent's. A design question goes to the adjudicator (iron rule 4). An
   operator-only question parks that card (label `needs-human`, a ledger line,
@@ -367,22 +368,31 @@ merge.
 
 **A brief is assembled, not written whole.** The agent-facing rules live in
 `briefs/` and the two sibling skills, in the agent's own voice; the orchestrator
-writes only the issue-specific part and joins them with `cat` — **it never reads
+writes only the issue-specific part and joins them with the `brief` function
+below — **it never reads
 those files into its own context.** `$S` is the directory `SKILL.md`
 resolves to (SKILL.md → "Which file to read"):
 
 ```bash
 S="$(dirname "$(readlink -f <path to SKILL.md>)")"   # SKILL.md → "Which file to read"
-B="$SCRATCH/brief-<issue>-<role>.md"
-cat "$S/briefs/common.md" "$S/../cache-warmth/brief.md" "$S/../context-ceiling/brief.md" \
-    "$S/briefs/fixer.md" "$SCRATCH/spec-<issue>-<role>.md" > "$B"
+: "${SCRATCH:?set SCRATCH to the run's scratch directory, the one the ledger lives in}"
+brief() { # brief <out> <block>... — fails loudly on a missing block, never writes a partial brief
+  local out="$1"; shift
+  for f in "$@"; do [ -r "$f" ] || { echo "brief: missing block $f" >&2; return 1; }; done
+  for f in "$@"; do cat "$f"; echo; done > "$out"
+}
+brief "$SCRATCH/brief-<issue>-fixer.md" \
+  "$S/briefs/common.md" "$S/briefs/issue.md" "$S/../cache-warmth/brief.md" \
+  "$S/../context-ceiling/brief.md" "$S/briefs/fixer.md" "$SCRATCH/spec-<issue>-fixer.md" \
+  || echo "STOP: fix the brief before dispatching"
 ```
 
-| Role | Blocks, after `briefs/common.md` and `cache-warmth/brief.md` |
+| Role | Blocks, in order (`briefs/common.md` and `cache-warmth/brief.md` always) |
 |---|---|
-| fixer, continuation, combined approach+fix | `context-ceiling/brief.md`, `briefs/fixer.md` |
-| reviewer | `briefs/reviewer.md` — never the ceiling block: a verdict does not split |
-| approach, scope, adjudicator, capture, wrap | `context-ceiling/brief.md` when the leg can run long |
+| fixer, continuation, combined approach+fix | `briefs/issue.md`, `context-ceiling/brief.md`, `briefs/fixer.md` |
+| reviewer | `briefs/issue.md`, `briefs/reviewer.md` — never the ceiling block: a verdict does not split |
+| approach, adjudicator | `briefs/issue.md`; `context-ceiling/brief.md` when the leg can run long |
+| scope, capture, wrap, merge mechanics | no per-issue block — the specific part states the task and its return fields; `context-ceiling/brief.md` when the leg can run long |
 
 **The specific part** (`spec-<issue>-<role>.md`) carries: **the run's goal
 line**, the role, ONE issue, binding comments listed by name, repo and worktree

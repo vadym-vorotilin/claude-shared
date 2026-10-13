@@ -53,7 +53,10 @@ Read the sibling skills **by section** — the orchestrator needs about a third
 of each. Print one section with:
 
 ```bash
-sec() { awk -v h="$2" '/^## /{p = index($0, h) > 0} p' "$S/$1"; }   # sec <file> "<title>"
+sec() { # sec <file> "<title>" — prints that section; says so if it is gone
+  awk -v h="$2" '/^## /{p = index($0, h) > 0; if (p) f = 1} p; END {exit !f}' "$S/$1" \
+    || echo "SECTION MISSING: $1 → $2 — read the file's headings instead" >&2
+}
 ```
 
 | When | Read |
