@@ -32,10 +32,45 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   assert_contains "$out" "/tmp/proj"
 }
 
-@test "renders effort level between model and context" {
+@test "renders effort level and its bar between model and context" {
   json="$(jq -n --arg c /tmp --arg m M '{cwd:$c, model:{display_name:$m}, effort:{level:"high"}, context_window:{used_percentage:5}}')"
   out="$(statusline "$json" | sed $'s/\033\\[[0-9;]*m//g')"
-  assert_contains "$out" "M | high | ctx: 5%"
+  assert_contains "$out" "M | high ▅ | ctx: 5%"
+}
+
+# Each level: its exact escape (color, and bold at the top) and its bar.
+effort_line() {
+  statusline "$(jq -n --arg l "$1" '{cwd:"/tmp", model:{display_name:"M"}, effort:{level:$l}}')" | sed -n 2p
+}
+
+@test "effort low renders teal with the lowest bar" {
+  assert_contains "$(effort_line low)" $'\033[38;5;30mlow ▁'
+}
+
+@test "effort medium renders green" {
+  assert_contains "$(effort_line medium)" $'\033[38;5;71mmedium ▃'
+}
+
+@test "effort high renders dark yellow" {
+  assert_contains "$(effort_line high)" $'\033[38;5;136mhigh ▅'
+}
+
+@test "effort xhigh renders orange" {
+  assert_contains "$(effort_line xhigh)" $'\033[38;5;166mxhigh ▇'
+}
+
+@test "effort max renders bold red with a full bar" {
+  assert_contains "$(effort_line max)" $'\033[1;38;5;160mmax █'
+}
+
+@test "effort ultra renders bold dark purple with a full bar" {
+  assert_contains "$(effort_line ultra)" $'\033[1;38;5;91multra █'
+}
+
+@test "an unknown effort level prints plain, with no color or bar" {
+  out="$(effort_line turbo)"
+  assert_contains "$out" $'| turbo\033[0m'
+  refute_contains "$out" "38;5;"
 }
 
 @test "omits effort segment when the harness sends none" {

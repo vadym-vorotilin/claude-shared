@@ -87,7 +87,6 @@ YELLOW=$'\033[33m'
 RED=$'\033[31m'
 WHITE=$'\033[37m'
 GRAY=$'\033[90m'
-DKYELLOW=$'\033[38;5;136m'
 RESET=$'\033[0m'
 SEP="${RESET} | "
 
@@ -198,6 +197,21 @@ cache_ttl() { # transcript default-seconds -> seconds
 # turning red once the cache is nearly gone.
 ttl_color() { # elapsed-percentage -> color escape
   if [ "$1" -ge 80 ]; then printf '%s' "$RED"; else printf '%s' "$WHITE"; fi
+}
+
+# Effort reads as a traffic light, cheap to costly, with a bar that carries the
+# level without color. Fixed 256-color codes, so the theme can't shift them. A
+# level this table doesn't know prints plain, so it never borrows another's look.
+effort_seg() { # level -> colored "level bar"
+  case "$1" in
+    low)    printf '\033[38;5;30m%s ▁' "$1" ;;
+    medium) printf '\033[38;5;71m%s ▃' "$1" ;;
+    high)   printf '\033[38;5;136m%s ▅' "$1" ;;
+    xhigh)  printf '\033[38;5;166m%s ▇' "$1" ;;
+    max)    printf '\033[1;38;5;160m%s █' "$1" ;;
+    ultra)  printf '\033[1;38;5;91m%s █' "$1" ;;
+    *)      printf '%s' "$1" ;;
+  esac
 }
 
 # The clock runs from the last assistant turn — the last moment a request is
@@ -486,7 +500,7 @@ fi
 
 printf "%s%s%s" "$MAGENTA" "$model" "$RESET"
 if [ -n "$effort" ]; then
-  printf "%s%s%s" "${SEP}${DKYELLOW}" "$effort" "$RESET"
+  printf "%s%s%s" "$SEP" "$(effort_seg "$effort")" "$RESET"
 fi
 if [ -n "$used" ]; then
   printf "%sctx: %s%%%s" "${SEP}${YELLOW}" "$used" "$RESET"
