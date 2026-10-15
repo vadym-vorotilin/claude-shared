@@ -18,7 +18,7 @@ presenting the scope, and save the answer to project memory (with no memory,
 the ledger and the INTRO) with how demos are published — repo, tag scheme,
 milestone link.
 
-**Scope** is one strongest-tier **dispatched** agent (blocks: `common`,
+**Scope** is one **dispatched** agent on the tier table's scope row (blocks: `common`,
 `scope`, plus the ceiling block). Give it the goal line, and each repo's branch
 protection and merge method — one `gh api` call per repo, the only source
 reading you do. Phase 0 for the orchestrator is dispatch, receive, check,

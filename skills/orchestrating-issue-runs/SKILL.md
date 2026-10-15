@@ -155,7 +155,7 @@ fresh agent "one tier up" also goes one effort level up.
 | Approaches — a wrong one costs every leg after it | cheap/mid (Sonnet-class) | high |
 | Standard reviews | cheap/mid (Sonnet-class) | medium |
 | Load-bearing implement/review: core types, schema, cache/graph logic, anything running unattended with write access | top standard (Opus-class) | high |
-| Design adjudication, contract/freeze drafts, Phase 0 scope | strongest available | xhigh |
+| Design adjudication, contract/freeze drafts, Phase 0 scope | top standard (Opus-class); the strongest tier only for a ruling that comes back unsure | xhigh |
 | Repeat of an already-merged pattern | one combined approach+fix agent, cheap tier | low |
 
 ## Red flags — stop

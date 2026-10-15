@@ -16,7 +16,7 @@ no durable design record — it is ruled in the issue comment. One probe per car
 before the operator is asked anything. Track **rulings per merged card** in the
 ledger: above ~2, the spec is the defect — propose one batched spec change.
 
-**Adjudication.** Strongest tier, `adjudicator` block, one issue or one
+**Adjudication.** The tier table's adjudication row, `adjudicator` block, one issue or one
 pre-declared cluster per agent, never a batch. The specific part pins the exact
 questions, the conflicting positions quoted from the approach comments, the
 spec sections by path and anchor, and the file surfaces. The ruling is a
