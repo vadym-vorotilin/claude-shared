@@ -48,7 +48,7 @@ plain_row() { plain "$(row "$1" "$2")"; }
 @test "lays a row out like the session line: agent, model, effort, context, TTL, details" {
   make_subagent "$TP" a1 Explore claude-opus-5-5 220000
   out="$(panel 120 '{"label":"Finding where the TTL is computed"}')"
-  assert_equal "$(plain_row "$out" 1)" "Explore | O 5.5 | h ▅ |  22% |  10% | Finding where the TTL is computed"
+  assert_equal "$(plain_row "$out" 1)" "Explore | O 5.5 | h ▅ | 22% | 10% | Finding where the TTL is computed"
 }
 
 @test "prints nothing when the panel has no rows" {
@@ -90,7 +90,7 @@ plain_row() { plain "$(row "$1" "$2")"; }
 
 @test "drops the effort column when no agent has an effort" {
   out="$(panel 120 '{"effort":null,"model":"claude-haiku-4-5"}')"
-  assert_contains "$(plain_row "$out" 1)" "Explore | H 4.5 |    — |    — | Working"
+  assert_contains "$(plain_row "$out" 1)" "Explore | H 4.5 | — | — | Working"
 }
 
 @test "leaves the effort cell blank for an agent without one beside one with" {
@@ -114,18 +114,18 @@ plain_row() { plain "$(row "$1" "$2")"; }
 @test "measures context off the last turn against the harness's window" {
   make_subagent "$TP" a1 Explore claude-opus-5-5 220000
   out="$(panel 120 '{"tokenCount":300000,"contextWindowSize":1000000}')"
-  assert_contains "$(plain_row "$out" 1)" "|  22% |"
+  assert_contains "$(plain_row "$out" 1)" "| 22% |"
 }
 
 @test "falls back to the task's token count before a transcript exists" {
   out="$(panel 120 '{"tokenCount":50000,"contextWindowSize":200000}')"
-  assert_contains "$(plain_row "$out" 1)" "|  25% |"
+  assert_contains "$(plain_row "$out" 1)" "| 25% |"
 }
 
 @test "guesses the window from the reading when the harness sends none" {
   make_subagent "$TP" a1 Explore claude-opus-5-5 300000
   out="$(panel 120 '{"contextWindowSize":null}')"
-  assert_contains "$(plain_row "$out" 1)" "|  30% |"
+  assert_contains "$(plain_row "$out" 1)" "| 30% |"
 }
 
 @test "never renders a context percentage past 100" {
@@ -137,7 +137,7 @@ plain_row() { plain "$(row "$1" "$2")"; }
 @test "shows a dash, not 0%, before an agent's first turn" {
   make_subagent "$TP" a1 Explore ""
   out="$(panel 120 '{}')"
-  assert_contains "$(plain_row "$out" 1)" "| h ▅ |    — |    — |"
+  assert_contains "$(plain_row "$out" 1)" "| h ▅ | — | — |"
 }
 
 @test "colors context yellow and the TTL white, turning red near expiry" {
@@ -156,7 +156,7 @@ plain_row() { plain "$(row "$1" "$2")"; }
       cache_creation_input_tokens:0, cache_read_input_tokens:19999}}}' \
     >> "$TEST_TMP/sess/subagents/agent-a1.jsonl"
   out="$(panel 120 '{}')"
-  assert_contains "$(plain_row "$out" 1)" "|  10% |"
+  assert_contains "$(plain_row "$out" 1)" "| 10% |"
 }
 
 @test "finds the transcripts by session id when no transcript path is sent" {
@@ -165,7 +165,7 @@ plain_row() { plain "$(row "$1" "$2")"; }
   make_subagent "$TP" a1 Explore claude-opus-5-5 220000
   out="$(panel_json 120 '{}' | jq '.session_id = "s1" | del(.transcript_path)' \
     | bash "$REPO/claude/subagent-statusline-command.sh")"
-  assert_contains "$(plain_row "$out" 1)" "|  22% |  10% |"
+  assert_contains "$(plain_row "$out" 1)" "| 22% | 10% |"
 }
 
 # ---- names -----------------------------------------------------------------
@@ -178,9 +178,22 @@ plain_row() { plain "$(row "$1" "$2")"; }
 @test "numbers a repeated type in spawn order, and only a repeated one" {
   out="$(panel 120 '{"startTime":30}' '{"startTime":10}' '{"agentType":"general-purpose","startTime":20}')"
   assert_equal "$(printf '%s\n' "$out" | jq -r '.id' | tr '\n' ' ')" "a2 a3 a1 "
-  assert_contains "$(plain_row "$out" 1)" "Explore#1       |"
-  assert_contains "$(plain_row "$out" 2)" "general-purpose |"
-  assert_contains "$(plain_row "$out" 3)" "Explore#2       |"
+  assert_contains "$(plain_row "$out" 1)" "Explore#1 |"
+  assert_contains "$(plain_row "$out" 2)" "general   |"
+  assert_contains "$(plain_row "$out" 3)" "Explore#2 |"
+}
+
+@test "shows the built-in general-purpose type as general" {
+  out="$(panel 120 '{"agentType":"general-purpose"}')"
+  assert_contains "$(plain_row "$out" 1)" "general | O 5.5"
+}
+
+# The narrow case the panel actually meets: a 60-column terminal, with every
+# column in use, still keeps some details.
+@test "keeps details on a 60-column panel" {
+  make_subagent "$TP" a1 Explore claude-opus-5-5 220000
+  out="$(panel 60 '{"agentType":"general-purpose","label":"Ping localhost"}' '{"agentType":"general-purpose"}')"
+  assert_contains "$(plain_row "$out" 1)" "general#1 | O 5.5 | h ▅ | 22% | 10% | Ping loc"
 }
 
 @test "drops a plugin prefix from the agent type" {
@@ -222,11 +235,11 @@ plain_row() { plain "$(row "$1" "$2")"; }
   r="$(plain_row "$out" 1)"
   assert_contains "$r" "| ünïcö"
   assert_contains "$r" "…"
-  [ "$(printf '%s' "$r" | jq -Rr 'length')" -le 52 ] || fail "row wider than 52: $r"
+  [ "$(printf '%s' "$r" | jq -Rr 'length')" -le 54 ] || fail "row wider than 54: $r"
 }
 
 @test "drops the details first, then the effort letter, then cuts the name" {
-  assert_equal "$(plain_row "$(panel 44 '{}')" 1)" "Explore | O 5.5 | h ▅ |    — |    —"
-  assert_equal "$(plain_row "$(panel 42 '{}')" 1)" "Explore | O 5.5 | ▅ |    — |    —"
-  assert_equal "$(plain_row "$(panel 40 '{}')" 1)" "Explo… | O 5.5 | ▅ |    — |    —"
+  assert_equal "$(plain_row "$(panel 44 '{}')" 1)" "Explore | O 5.5 | h ▅ | — | —"
+  assert_equal "$(plain_row "$(panel 34 '{}')" 1)" "Explore | O 5.5 | ▅ | — | —"
+  assert_equal "$(plain_row "$(panel 32 '{}')" 1)" "Explo… | O 5.5 | ▅ | — | —"
 }

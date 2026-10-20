@@ -2,7 +2,7 @@
 # Claude Code per-subagent status line — one row per agent in the panel below
 # the prompt, in the session line's columns and colors:
 #
-#   Explore#1        | O 5.5 | h ▅ |  22% |  48% | Finding where the TTL is computed
+#   Explore#1 | O 5.5 | h ▅ | 22% | 10% | Finding where the TTL is computed
 #
 # agent | model | effort | context | cache TTL | what it is doing.
 #
@@ -80,11 +80,14 @@ repeat() { # count char -> the char, count times
 }
 
 # Rows in spawn order. A named agent keeps its name; an unnamed one shows its
-# type, minus any plugin prefix, and only a type that repeats gets #N. Fields
+# type, minus any plugin prefix, and only a type that repeats gets #N. The
+# built-in general-purpose type reads as "general": it is the most common row,
+# and eight cells is a lot on a narrow panel. Fields
 # are joined with a unit separator, which no label carries, so a tab or a
 # backslash in a label survives as itself.
 rows=$(echo "$input" | jq -r '
-  def kind: (.agentType // .type // "agent") | tostring | sub("^.*:"; "");
+  def kind: (.agentType // .type // "agent") | tostring | sub("^.*:"; "")
+    | if . == "general-purpose" then "general" else . end;
   def named: ((.name // "") | tostring) != "";
   [.tasks // [] | .[] | select(.id != null)] | sort_by(.startTime // 0) as $t
   | ([$t[] | select(named | not) | kind] | group_by(.)
@@ -165,29 +168,30 @@ EOF
 
 # Column widths, shared by every row so the panel reads as a table. Labels are
 # ASCII, so a byte count is a cell count.
-name_w=0; model_w=0; eff_w=0
+name_w=0; model_w=0; eff_w=0; ctx_w=1; ttl_w=1
 i=0
 while [ "$i" -lt "$n" ]; do
   [ "${#names[$i]}" -le "$name_w" ] || name_w=${#names[$i]}
   [ "${#models[$i]}" -le "$model_w" ] || model_w=${#models[$i]}
+  [ -z "${ctxs[$i]}" ] || [ $(( ${#ctxs[$i]} + 1 )) -le "$ctx_w" ] || ctx_w=$(( ${#ctxs[$i]} + 1 ))
+  [ -z "${ttls[$i]}" ] || [ $(( ${#ttls[$i]} + 1 )) -le "$ttl_w" ] || ttl_w=$(( ${#ttls[$i]} + 1 ))
   if [ -n "$(effort_letter "${efforts[$i]}")" ]; then w=3; else w=${#efforts[$i]}; fi
   [ "$w" -le "$eff_w" ] || eff_w=$w
   i=$(( i + 1 ))
 done
 [ "$name_w" -le 18 ] || name_w=18
 
-# What fits. The panel spends a few cells on its own pointer and status circle
-# before the content, and truncates whatever overflows. Details shrink first and
-# drop below 12 cells; past that the effort letter goes and the bar stays, then
-# the agent name is cut.
-avail=$(( columns - 8 ))
-num_w=4
-fixed=$(( name_w + 3 + model_w + num_w + 3 + num_w ))
+# What fits. The panel spends four cells on its pointer and status circle before
+# the content and keeps two clear after it, and truncates whatever overflows.
+# Details shrink first and drop below 8 cells; past that the effort letter goes
+# and the bar stays, then the agent name is cut.
+avail=$(( columns - 6 ))
+fixed=$(( name_w + 3 + model_w + ctx_w + 3 + ttl_w ))
 [ "$eff_w" -eq 0 ] || fixed=$(( fixed + 3 + eff_w ))
 fixed=$(( fixed + 3 ))
 detail_w=$(( avail - fixed - 3 ))
 short_eff=""
-if [ "$detail_w" -lt 12 ]; then
+if [ "$detail_w" -lt 8 ]; then
   detail_w=0
   if [ "$fixed" -gt "$avail" ] && [ "$eff_w" -eq 3 ]; then
     short_eff=1; eff_w=1; fixed=$(( fixed - 2 ))
@@ -231,10 +235,10 @@ while [ "$i" -lt "$n" ]; do
   fi
 
   # Numbers right-aligned; an agent with no turn yet reads "—", never 0%.
-  for pair in "${c_ctx}|${ctxs[$i]}" "${c_ttl}|${ttls[$i]}"; do
-    color=${pair%%|*}; val=${pair#*|}
+  for cell in "${c_ctx}|${ctx_w}|${ctxs[$i]}" "${c_ttl}|${ttl_w}|${ttls[$i]}"; do
+    color=${cell%%|*}; rest=${cell#*|}; width=${rest%%|*}; val=${rest#*|}
     if [ -n "$val" ]; then txt="${val}%"; vis=${#txt}; else txt="—"; vis=1; fi
-    row="${row}${SEP}$(repeat $(( num_w - vis )) ' ')${color}${txt}${RESET}"
+    row="${row}${SEP}$(repeat $(( width - vis )) ' ')${color}${txt}${RESET}"
   done
 
   tail=""; detail_w_row=0
