@@ -18,6 +18,17 @@ now=${STATUSLINE_NOW:-$(date +%s)}
 
 TRANSCRIPT_TAIL=262144                        # bytes of a transcript scanned
 
+# The session's effort level, as the main status line last saw it. The agent
+# panel's input carries an effort only for an agent whose definition sets one;
+# every other agent runs at the session's, which only the main status line is
+# told. So that line records it here, one file per session, for the panel.
+SESSION_EFFORT_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/cache/statusline-session-effort"
+
+session_effort_file() { # session-id -> path, or nothing for an unusable id
+  case "$1" in ''|*[!A-Za-z0-9_-]*) return 0 ;; esac
+  printf '%s/%s' "$SESSION_EFFORT_DIR" "$1"
+}
+
 # GNU stat and BSD stat spell this differently; try each.
 file_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
 

@@ -27,6 +27,12 @@ case "$columns" in ''|*[!0-9]*) columns=120 ;; esac
 # reading both come from there.
 transcript=$(echo "$input" | jq -r '.transcript_path // empty')
 session_id=$(echo "$input" | jq -r '.session_id // empty')
+
+# An agent whose definition sets no effort runs at the session's, which the
+# main status line records per session.
+session_effort=""
+effort_file=$(session_effort_file "$session_id")
+[ -z "$effort_file" ] || session_effort=$(cat "$effort_file" 2>/dev/null)
 agents_dir=""
 if [ -n "$transcript" ]; then
   agents_dir="${transcript%.jsonl}/subagents"
@@ -145,6 +151,8 @@ EOF
 $(ttl_of "$f" 300)
 EOF
   fi
+
+  [ -n "$effort" ] || effort="$session_effort"
 
   ids[$n]="$id"; names[$n]="$disp"; states[$n]="$status"
   models[$n]=$(model_label "$model"); efforts[$n]="$effort"

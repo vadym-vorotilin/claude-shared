@@ -384,3 +384,22 @@ plain() { printf '%s' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }
   assert_equal "$(line_n "$out" 3)" "5h: 10%"
   refute_contains "$out" "O/"
 }
+
+# Agents without an effort of their own run at the session's, which only this
+# line is told, so it records it per session for the agent panel.
+@test "records the session's effort for the agent panel" {
+  statusline "$(jq -n '{cwd:"/tmp", session_id:"s1", model:{display_name:"M"}, effort:{level:"xhigh"}}')" >/dev/null
+  assert_equal "$(cat "$HOME/.claude/cache/statusline-session-effort/s1")" "xhigh"
+}
+
+@test "drops the record once the session's model has no effort" {
+  statusline "$(jq -n '{cwd:"/tmp", session_id:"s1", model:{display_name:"M"}, effort:{level:"high"}}')" >/dev/null
+  statusline "$(jq -n '{cwd:"/tmp", session_id:"s1", model:{display_name:"M"}}')" >/dev/null
+  [ ! -e "$HOME/.claude/cache/statusline-session-effort/s1" ] || fail "stale effort record kept"
+}
+
+@test "writes no record for a session id that is not a plain name" {
+  statusline "$(jq -n '{cwd:"/tmp", session_id:"../x", model:{display_name:"M"}, effort:{level:"high"}}')" >/dev/null
+  [ ! -e "$HOME/.claude/cache/x" ] || fail "wrote outside the cache dir"
+  [ ! -e "$HOME/.claude/cache/statusline-session-effort/../x" ] || fail "wrote a traversal path"
+}

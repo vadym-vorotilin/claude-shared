@@ -12,6 +12,20 @@ model=$(echo "$input" | jq -r '.model.display_name // ""')
 # Absent when the model has no effort setting, so the segment drops out.
 effort=$(echo "$input" | jq -r '.effort.level // empty')
 
+# Hand the effort to the agent panel, whose agents inherit it. Written only
+# when it changes, and dropped when the model has none; files a month stale
+# are pruned on the way.
+effort_file=$(session_effort_file "$(echo "$input" | jq -r '.session_id // empty')")
+if [ -n "$effort_file" ]; then
+  if [ -z "$effort" ]; then
+    rm -f "$effort_file" 2>/dev/null
+  elif [ "$(cat "$effort_file" 2>/dev/null)" != "$effort" ]; then
+    mkdir -p "$SESSION_EFFORT_DIR" 2>/dev/null \
+      && printf '%s\n' "$effort" > "$effort_file" 2>/dev/null
+    find "$SESSION_EFFORT_DIR" -type f -mtime +30 -exec rm -f {} + 2>/dev/null
+  fi
+fi
+
 # Shorten home directory to ~
 # (Note: ${cwd/#$home/~} can't be used — bash tilde-expands the replacement
 # back to $HOME, so the prefix gets rewritten to itself instead of "~".)

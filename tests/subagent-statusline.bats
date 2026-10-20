@@ -98,6 +98,17 @@ plain_row() { plain "$(row "$1" "$2")"; }
   assert_contains "$(plain_row "$out" 1)" "| O 5.5 |     |"
 }
 
+# An agent whose definition sets no effort runs at the session's, which the
+# main status line records per session.
+@test "shows the session's effort for an agent without one of its own" {
+  mkdir -p "$HOME/.claude/cache/statusline-session-effort"
+  echo xhigh > "$HOME/.claude/cache/statusline-session-effort/s1"
+  out="$(panel_json 120 '{"effort":null}' '{"effort":"low"}' | jq '.session_id = "s1"' \
+    | bash "$REPO/claude/subagent-statusline-command.sh")"
+  assert_contains "$(plain_row "$out" 1)" "| x ▇ |"
+  assert_contains "$(plain_row "$out" 2)" "| l ▁ |"
+}
+
 # The task's tokenCount adds every output token the agent ever wrote, so the
 # transcript's last turn is the reading; the window is the harness's.
 @test "measures context off the last turn against the harness's window" {

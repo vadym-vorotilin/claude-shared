@@ -234,7 +234,11 @@ without it the panel keeps its stock rows.
   `claude-haiku-4-5-20251001` → `H 4.5`.
 - **Effort** — the level's initial with the session line's bar and color.
   `max` is a bold `M █`, which its color and bar keep apart from `m ▃`. The
-  column drops out when no agent has an effort.
+  panel's input carries an effort only for an agent whose definition sets one;
+  every other agent runs at the session's, so the session's status line records
+  its effort per session under `~/.claude/cache/statusline-session-effort/` and
+  the panel falls back to that. The column drops out when no agent has an
+  effort either way.
 - **Context** — every input token of the agent's last turn, over the window
   the harness sends for its model. The task's own `tokenCount` also adds every
   output token the agent has written, so it overstates a long-running agent and
