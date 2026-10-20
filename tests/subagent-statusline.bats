@@ -252,3 +252,19 @@ plain_row() { plain "$(row "$1" "$2")"; }
   assert_equal "$(plain_row "$(panel 40 '{}')" 1)" "Explore | O 5.5 | ▅ |    — |    —"
   assert_equal "$(plain_row "$(panel 38 '{}')" 1)" "Explo… | O 5.5 | ▅ |    — |    —"
 }
+
+# ---- robustness ------------------------------------------------------------
+
+@test "prints nothing, leaving the panel its own rows, when the helpers are missing" {
+  mkdir -p "$TEST_TMP/bin"
+  cp "$REPO/claude/subagent-statusline-command.sh" "$TEST_TMP/bin/"
+  out="$(panel_json 120 '{}' | bash "$TEST_TMP/bin/subagent-statusline-command.sh" 2>&1)"
+  assert_equal "$out" ""
+}
+
+@test "never searches for transcripts by a session id that is not a plain name" {
+  mkdir -p "$HOME/.claude/projects/-proj/x/subagents"
+  out="$(panel_json 120 '{}' | jq '.session_id = "*" | del(.transcript_path)' \
+    | bash "$REPO/claude/subagent-statusline-command.sh")"
+  assert_contains "$(plain_row "$out" 1)" "|    — |    — |"
+}

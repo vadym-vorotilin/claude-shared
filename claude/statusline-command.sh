@@ -5,7 +5,10 @@ input=$(cat)
 
 # Colors, the clock and the cache-TTL readings, shared with the agent panel's
 # script so a column means the same thing on either line.
-. "$(dirname "${BASH_SOURCE[0]}")/statusline-lib.sh"
+if ! . "$(dirname "${BASH_SOURCE[0]}")/statusline-lib.sh" 2>/dev/null; then
+  printf 'statusline-lib.sh is missing beside this script; re-run sync.sh'
+  exit 0
+fi
 
 cwd=$(echo "$input" | jq -r '.cwd // .workspace.current_dir // ""')
 model=$(echo "$input" | jq -r '.model.display_name // ""')

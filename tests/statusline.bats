@@ -403,3 +403,10 @@ plain() { printf '%s' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }
   [ ! -e "$HOME/.claude/cache/x" ] || fail "wrote outside the cache dir"
   [ ! -e "$HOME/.claude/cache/statusline-session-effort/../x" ] || fail "wrote a traversal path"
 }
+
+@test "says what is wrong when its helpers are missing" {
+  mkdir -p "$TEST_TMP/bin"
+  cp "$REPO/claude/statusline-command.sh" "$TEST_TMP/bin/"
+  out="$(printf '%s' '{"cwd":"/tmp"}' | bash "$TEST_TMP/bin/statusline-command.sh" 2>&1)"
+  assert_equal "$out" "statusline-lib.sh is missing beside this script; re-run sync.sh"
+}

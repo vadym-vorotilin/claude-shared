@@ -14,7 +14,8 @@
 # hides the row instead, so one is never printed.
 input=$(cat)
 
-. "$(dirname "${BASH_SOURCE[0]}")/statusline-lib.sh"
+# Without its helpers, print nothing: the panel then keeps its own rows.
+. "$(dirname "${BASH_SOURCE[0]}")/statusline-lib.sh" 2>/dev/null || exit 0
 
 SEP="${GRAY} | ${RESET}"
 
@@ -36,7 +37,7 @@ effort_file=$(session_effort_file "$session_id")
 agents_dir=""
 if [ -n "$transcript" ]; then
   agents_dir="${transcript%.jsonl}/subagents"
-elif [ -n "$session_id" ]; then
+elif [ -n "$effort_file" ]; then           # a session id safe to put in a path
   for d in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$session_id"/subagents; do
     [ -d "$d" ] && { agents_dir="$d"; break; }
   done
@@ -82,9 +83,9 @@ repeat() { # count char -> the char, count times
 # Rows in spawn order. A named agent keeps its name; an unnamed one shows its
 # type, minus any plugin prefix, and only a type that repeats gets #N. The
 # built-in general-purpose type reads as "general": it is the most common row,
-# and eight cells is a lot on a narrow panel. Fields
-# are joined with a unit separator, which no label carries, so a tab or a
-# backslash in a label survives as itself.
+# and eight cells is a lot on a narrow panel. Fields are joined with a unit
+# separator, which no label carries, so a tab or a backslash in a label
+# survives as itself.
 rows=$(echo "$input" | jq -r '
   def kind: (.agentType // .type // "agent") | tostring | sub("^.*:"; "")
     | if . == "general-purpose" then "general" else . end;
