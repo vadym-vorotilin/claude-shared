@@ -8,5 +8,9 @@
     "type": "command",
     "command": "bash ~/.claude/statusline-command.sh",
     "refreshInterval": 15
+  },
+  "subagentStatusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/subagent-statusline-command.sh"
   }
 }

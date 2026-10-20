@@ -4,6 +4,10 @@
 #
 # Deploys:
 #   - claude/statusline-command.sh  -> ~/.claude/statusline-command.sh
+#   - claude/subagent-statusline-command.sh
+#                                    -> ~/.claude/subagent-statusline-command.sh
+#   - claude/statusline-lib.sh      -> ~/.claude/statusline-lib.sh
+#                                      (sourced by both status line scripts)
 #   - claude/settings.shared.json   -> merged into ~/.claude/settings.json
 #                                      (shared keys win; local-only keys preserved)
 #   - skills/*/                      -> symlinked into ~/.claude/skills/
@@ -45,10 +49,13 @@ fi
 
 mkdir -p "$CLAUDE_DIR/skills"
 
-# 1. Statusline script ------------------------------------------------------
-log "deploy statusline-command.sh"
-cp "$REPO/claude/statusline-command.sh" "$CLAUDE_DIR/statusline-command.sh"
-chmod +x "$CLAUDE_DIR/statusline-command.sh"
+# 1. Status line scripts -----------------------------------------------------
+# The session's line, the agent panel's rows, and the helpers both source.
+for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh; do
+  log "deploy $f"
+  cp "$REPO/claude/$f" "$CLAUDE_DIR/$f"
+  chmod +x "$CLAUDE_DIR/$f"
+done
 
 # 2. settings.json (merge) --------------------------------------------------
 SHARED="$REPO/claude/settings.shared.json"

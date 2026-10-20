@@ -30,10 +30,21 @@ run_sync() { run bash "$REPO/sync.sh"; }
   assert_equal "$(jq -r '.permissions.allow[0]' "$HOME/.claude/settings.json")" "Bash(ls)"
 }
 
-@test "deploys an executable statusline script" {
+@test "deploys both status line scripts and the helpers they source" {
   run_sync
-  assert_file_exists "$HOME/.claude/statusline-command.sh"
-  assert_executable "$HOME/.claude/statusline-command.sh"
+  for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh; do
+    assert_file_exists "$HOME/.claude/$f"
+    assert_executable "$HOME/.claude/$f"
+  done
+}
+
+# The scripts source the lib from their own directory, so a deployed copy must
+# run from ~/.claude without the repo.
+@test "the deployed status line runs from ~/.claude" {
+  run_sync
+  out="$(printf '%s' '{"cwd":"/tmp","model":{"display_name":"M"}}' | bash "$HOME/.claude/statusline-command.sh")"
+  assert_contains "$out" "M"
+  refute_contains "$out" "No such file"
 }
 
 @test "symlinks every shared skill into ~/.claude/skills" {

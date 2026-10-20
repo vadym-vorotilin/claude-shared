@@ -27,6 +27,12 @@ template_tokens() { grep -oE '\{\{[A-Z0-9_]+\}\}' "$(TEMPLATE)" | sort -u; }
   grep -q 'statusline-command.sh' "$REPO/sync.sh" || fail "sync.sh does not deploy statusline-command.sh"
 }
 
+@test "settings.shared.json subagentStatusLine command matches the deployed script" {
+  cmd="$(jq -r '.subagentStatusLine.command' "$REPO/claude/settings.shared.json")"
+  assert_contains "$cmd" "subagent-statusline-command.sh"
+  grep -q 'subagent-statusline-command.sh' "$REPO/sync.sh" || fail "sync.sh does not deploy subagent-statusline-command.sh"
+}
+
 @test "CLAUDE.snippet.md carries both managed-block markers" {
   snip="$REPO/claude/CLAUDE.snippet.md"
   grep -qF '>>> claude-shared' "$snip" || fail "snippet missing START marker"

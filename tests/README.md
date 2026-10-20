@@ -1,7 +1,7 @@
 # Tests
 
 Containerized [bats](https://github.com/bats-core/bats-core) suite for the
-shell scripts (`sync.sh`, `claude/statusline-command.sh`) and the executable
+shell scripts (`sync.sh`, the status line scripts under `claude/`) and the executable
 command blocks documented in the skills.
 
 The repo is mounted **read-only** and every test runs against a throwaway

@@ -18,8 +18,10 @@ don't dump all the docs; ask, then act.
   exists, ask where the repo was cloned. If the marker file is missing, this is
   likely a **fresh machine** — the repo was cloned but never synced. Offer to run
   `"$SHARED/sync.sh"` first.
-- **Status line:** is `~/.claude/statusline-command.sh` present and referenced by
-  `statusLine.command` in `~/.claude/settings.json`?
+- **Status line:** are `~/.claude/statusline-command.sh` and
+  `~/.claude/subagent-statusline-command.sh` present and referenced by
+  `statusLine.command` and `subagentStatusLine.command` in
+  `~/.claude/settings.json`?
 - **Core settings:** do `model` / `effortLevel` / `enabledPlugins` in
   `~/.claude/settings.json` already match `"$SHARED/claude/settings.shared.json"`?
 - **Handoff:** note the user can install `/handoff` into any repo (don't scan the
@@ -34,7 +36,8 @@ user can pick several at once. Offer the options that make sense given step 1
 (e.g. say "update" vs "install" based on what's already present):
 
 - **Status line + core settings** — install/update the colored status line and
-  sync `model` / `effortLevel` / `enabledPlugins` / `statusLine`.
+  sync `model` / `effortLevel` / `enabledPlugins` / `statusLine` /
+  `subagentStatusLine`.
 - **Pull latest shared config** — `git pull` the shared repo, then re-apply.
 - **Install /handoff into a repo** — add the session-continuity skill to one of
   their projects.

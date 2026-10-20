@@ -6,9 +6,10 @@ description: Sync shared Claude Code environment settings (statusline + core set
 # Sync Claude environment settings
 
 This skill keeps Claude Code's environment settings in step across the user's
-machines via the `claude-shared` git repo. It deploys a colored statusline and
-a set of core `settings.json` keys (`model`, `effortLevel`, `enabledPlugins`,
-`statusLine`), merging them non-destructively into the local `~/.claude`.
+machines via the `claude-shared` git repo. It deploys a colored statusline, the
+per-subagent rows of the agent panel, and a set of core `settings.json` keys
+(`model`, `effortLevel`, `enabledPlugins`, `statusLine`, `subagentStatusLine`),
+merging them non-destructively into the local `~/.claude`.
 
 ## Locate the repo
 
@@ -26,7 +27,7 @@ is missing, ask the user where they cloned `claude-shared`.
 ## Pull the latest and apply (the common case)
 
 Run the repo's installer with `--pull`. It does `git pull --ff-only`, then
-deploys the statusline script and merges the shared `settings.json` keys
+deploys the status line scripts and merges the shared `settings.json` keys
 (local-only keys are preserved; the prior `settings.json` is backed up first):
 
 ```bash
@@ -43,7 +44,9 @@ other machines to get it:
 
 1. Copy the live files back into the repo:
    ```bash
-   cp ~/.claude/statusline-command.sh "$REPO/claude/statusline-command.sh"
+   for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh; do
+     cp ~/.claude/"$f" "$REPO/claude/$f"
+   done
    ```
    For `settings.json`, only the shared keys belong in
    `$REPO/claude/settings.shared.json` — update that file by hand (or with `jq`)
@@ -53,7 +56,7 @@ other machines to get it:
    `add -A`, which would sweep in unrelated local edits), and commit:
    ```bash
    git -C "$REPO" status --short
-   git -C "$REPO" diff -- claude/statusline-command.sh claude/settings.shared.json
+   git -C "$REPO" diff -- claude/
    git -C "$REPO" add -- claude/statusline-command.sh claude/settings.shared.json
    git -C "$REPO" commit -m "update shared claude env"
    ```

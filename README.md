@@ -28,8 +28,10 @@ there is no copy to restore from).
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
-| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| ctx% \| cache TTL \| 5h%` + a live subagent line |
-| `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine` |
+| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| effort \| ctx% \| cache TTL \| 5h%` |
+| `claude/subagent-statusline-command.sh` | `~/.claude/subagent-statusline-command.sh` | One row per live subagent in the agent panel: `agent \| model \| effort \| ctx% \| cache TTL \| details` |
+| `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock and cache-TTL helpers both scripts source |
+| `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see below) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
 | — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
@@ -39,7 +41,7 @@ there is no copy to restore from).
 Running `./sync.sh` touches your `~/.claude` in five ways. It is idempotent and
 backs up `settings.json` before merging:
 
-1. Copies the status line script to `~/.claude/statusline-command.sh`.
+1. Copies the status line scripts and their shared helpers to `~/.claude/`.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
    The shared keys win on conflict, so a local `model` or `effortLevel` is
@@ -173,10 +175,12 @@ Edited your status line or core settings on one machine and want the others to
 get it?
 
 ```bash
-cp ~/.claude/statusline-command.sh claude/statusline-command.sh
+for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh; do
+  cp ~/.claude/"$f" claude/"$f"
+done
 # for settings: hand-edit claude/settings.shared.json to match the changed keys
 git status                                   # confirm only the files you meant to change
-git add claude/statusline-command.sh claude/settings.shared.json
+git add claude/statusline-command.sh claude/settings.shared.json   # name the files you changed
 git commit -m "update shared claude env"
 ```
 
@@ -199,97 +203,59 @@ claude/settings.shared.json
 The status line script is portable on its own — it reads `$HOME` at runtime, so
 no paths are hardcoded.
 
-### The subagent line
+### The agent panel
 
-Claude Code only ever hands the status line **main-loop** state: `model` and
-`context_window` describe the session, never a Task subagent, and stepping into
-a subagent view doesn't re-run the script with different data. So that readout
-is derived from disk instead — since 2.1 each subagent keeps its own transcript
-beside the session's:
+Live subagents get a row each in the agent panel below the prompt, laid out in
+the session line's columns and colors:
 
 ```
-~/.claude/projects/<slug>/<session-id>/subagents/agent-<id>.jsonl
-~/.claude/projects/<slug>/<session-id>/subagents/agent-<id>.meta.json
+Explore#1        | O 5.5 | h ▅ |  22% |  10% | Finding where the TTL is computed
+builder          | S 5   | m ▃ |  12% |  93% | Waiting on the test suite
+reviewer         | O 5.5 | x ▇ |    — |    — | Review the diff
+Explore#2        | H 4.5 |     |   4% |   3% | ✓ Listing callers
 ```
 
-`transcript_path` in the status line input locates that directory. They render
-as one compact line under the session, in spawn order — oldest first, matching
-the agent list the CLI shows below the prompt:
+Agent, model, effort, context, cache TTL (see **The cache clock** below), and
+what the agent is doing. Claude Code's `subagentStatusLine` setting runs
+`subagent-statusline-command.sh` once per refresh with every row as JSON on
+stdin — `columns`, `transcript_path`, and `tasks[]` carrying each agent's `id`,
+`name`, `agentType`, `status`, `model`, `effort`, `contextWindowSize`,
+`tokenCount` and progress `label` — and takes back one `{"id","content"}` line
+per row. A row it gets no line for keeps the CLI's own rendering, so a failing
+script degrades to the stock panel; an empty `content` hides the row, so the
+script never prints one.
 
-```
-S/34%/40% · S/27%/2% · O/11%/20% · F/5%/80% · H/88%/12%
-```
+The setting needs a Claude Code that knows `subagentStatusLine` (2.1.304 does);
+without it the panel keeps its stock rows.
 
-Three fields each — model initial, context percentage, and the share of its
-cache TTL that its silence has spent (see **The cache clock** below) — enough to
-see a fan-out's shape, spot the agent about to run out of room and the one whose
-cache is about to go, without a line per agent. Each field takes its own hue, or
-the eye can't pick one out of the run: the initial in the session model's
-violet, the context percentage green, the TTL white, the slashes the gray of the
-receding weekly quota. An agent that hasn't taken its first turn yet shows its
-initial alone; past eight agents the rest collapse into `+N`.
+- **Agent** — the agent's name if it has one, otherwise its type minus any
+  plugin prefix. A type that appears more than once gets `#N` in spawn order.
+- **Model** — family initial and version: `claude-opus-5-5` → `O 5.5`,
+  `claude-haiku-4-5-20251001` → `H 4.5`.
+- **Effort** — the level's initial with the session line's bar and color.
+  `max` is a bold `M █`, which its color and bar keep apart from `m ▃`. The
+  column drops out when no agent has an effort.
+- **Context** — every input token of the agent's last turn, over the window
+  the harness sends for its model. The task's own `tokenCount` also adds every
+  output token the agent has written, so it overstates a long-running agent and
+  stands in only before a transcript can be read. Yellow, as on the session
+  line.
+- **Cache TTL** — the one reading that still comes from disk: the agent's
+  transcript sits at `<session-id>/subagents/agent-<id>.jsonl` beside the
+  session's, and an agent's task id is its agent id.
+- **Details** — the live progress label, falling back to the spawn
+  description; cut to the width that is left.
 
-Ordering is by `meta.json`'s mtime, written once when the agent spawns — not by
-the transcript's, which every running agent bumps constantly and which
-reshuffled the line about once a second.
+Before an agent's first turn, context and TTL read `—` rather than 0%. A
+finished row turns gray behind a ✓ or ✗; its TTL keeps counting, since a
+follow-up message lands on a warm cache only while it lasts. On a narrow panel
+the details shrink first and drop below 12 cells, then the effort letter goes
+and its bar stays, then the agent name is cut.
 
-Which agents are live is decided by what has *finished*, not by what has
-written recently. A running agent goes quiet for minutes waiting on a long tool
-call, so a window tight enough to retire finished agents promptly drops live
-ones instead. When an agent finishes, the session collects its result and the
-session transcript names that agent again, after the agent's own last entry;
-that ordering is the signal. `STATUSLINE_AGENT_WINDOW` (seconds, default 900)
-remains only as a backstop for an agent whose result never lands.
-
-Two kinds of entry say "done", and each covers a case the other misses:
-
-- **`toolUseResult`** — what a session writes when it collects a tool's output.
-  The marker for an agent it waited on.
-- **A task-notification** (`"origin":{"kind":"task-notification"}`) — what a
-  session receives when a background agent reports its task complete. A
-  background agent's tool result lands back at *spawn* ("launched
-  successfully"), long before it finishes, so nothing else ever retires one.
-  When the session is mid-turn that notification may be queued and absorbed
-  rather than written as a turn; the queued entries carry the same
-  `<task-id>` tag and count the same.
-
-Nothing else counts. A session names an agent for other reasons: queueing a
-message for one writes a `queue-operation` and an `attachment` naming it, and an
-agent idling on that queued message has by definition not written since, so the
-mention lands after its last entry and is indistinguishable from a result by
-timestamp alone. Counting those would retire a live agent mid-run — the one
-shape this rule must never get wrong, since an agent wrongly kept on the line
-is a stale reading you can see, while one wrongly dropped is invisible while it
-burns context. An agent given more work writes past its own notification and
-returns to the line on the next repaint, so the ordering keeps working for a
-background agent that is reused rather than finished.
-
-The percentage is the harness's own arithmetic — input + cache-creation +
-cache-read tokens over the model's context window. That window is per-model,
-moves with the lineup (Sonnet crossed to 1M at 5, Opus at 4.7), and isn't
-recorded in a transcript, so it comes from five places, in order:
-
-1. `context_window.context_window_size` from the harness, when the agent's
-   model id is exactly the session's. Agents do inherit the model, but a
-   transcript often records a dated id where the harness reports an undated
-   one, and then this misses and the table below answers.
-2. An explicit `[1m]` suffix on the model id, which names the window outright.
-3. The model table inside the installed CLI's own bundle, extracted with a
-   `grep`/`awk` pair and cached at `~/.claude/cache/statusline-model-windows`
-   against the binary's mtime and size, so it re-reads only after an upgrade.
-   The CLI is located through `/proc` (the status line runs as its descendant)
-   and falls back to `PATH`; `STATUSLINE_MODEL_WINDOWS` pins a table file
-   instead, for a machine where neither finds it. It prefix-matches, so a
-   dated id still resolves here.
-4. A built-in list of the 1M models as of 2.1.258, for when that table can't be
-   read at all.
-5. The reading itself — a turn can't exceed its own window, so anything past
-   200k is proof of a larger one.
-
-Two env knobs beyond those, read at render time: `STATUSLINE_AGENT_MAX`
-(default 8) caps the entries before the `+N`, and `STATUSLINE_CLAUDE_BIN` pins
-the CLI binary for a machine where neither `/proc` nor `PATH` finds it.
-(`STATUSLINE_NOW` exists as well, but only so the tests can fix the clock.)
+The session's status line used to carry these readings as one compact line,
+`O/22%/48% · S/12%/100%`, scraped from the transcripts on disk. The panel
+supplies the agent list itself now, so that line, and the liveness and
+model-window guessing behind it, are gone.
 
 ### The cache clock
 
@@ -297,11 +263,12 @@ A context is only cheap to come back to while its prompt cache is alive, and
 that cache outlives the request that wrote it by a fixed TTL — five minutes for
 a subagent, an hour for a main session. Past it the whole context is re-sent at
 full price. So how full a context is only tells half the story; the other half
-is how long it has been sitting there. Both lines carry it:
+is how long it has been sitting there. The session line and every agent row
+carry it:
 
 ```
 Opus 5 | ctx: 22% | TTL: 33% (-40m)
-O/11%/40% · S/25%/80%
+Explore | O 5.5 | h ▅ |  11% |  40% | Reading the parser
 ```
 
 `TTL` is the share of that window the silence since the last turn has spent,
@@ -327,17 +294,13 @@ Two things make the reading trustworthy rather than assumed:
 Timestamps are converted with plain integer arithmetic rather than `date -d`,
 which GNU and BSD spell differently.
 
-Keeping it live needs a `refreshInterval` in the `statusLine` block, which the
-shared `settings.json` sets to 15 seconds. Without one the status line repaints
-only when the main loop moves — `tokenUsage`, `mainLoopModel`, permission mode,
-the last assistant message id — none of which change while a subagent is
-working, so a fan-out would only appear once the agents had already returned.
-Every repaint runs the script, and a second-by-second cadence buys nothing over
-15s: what it reports is silence, measured against windows five minutes and an
-hour long.
-
-One thing it can't do: it shows which agents are *live*, not the one you
-stepped into. The UI leaks no focus signal to the status line.
+Keeping the session's reading live needs a `refreshInterval` in the
+`statusLine` block, which the shared `settings.json` sets to 15 seconds.
+Without one the status line repaints only when the main loop moves, and a
+session sitting idle is exactly when its TTL is running down. A second-by-second
+cadence buys nothing over 15s: what it reports is silence, measured against a
+window an hour long. The agent panel needs no such setting; the CLI re-runs
+its command on its own timer while any agent row is showing.
 
 ## Tests
 
