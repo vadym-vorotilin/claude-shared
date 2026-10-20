@@ -209,10 +209,10 @@ Live subagents get a row each in the agent panel below the prompt, laid out in
 the session line's columns and colors:
 
 ```
-Explore#1 | O 5.5 | h ▅ | 22% | 10% | Finding where the TTL is computed
-builder   | S 5   | m ▃ | 12% | 93% | Waiting on the test suite
-reviewer  | O 5.5 | x ▇ |   — |   — | Review the diff
-Explore#2 | H 4.5 |     |  4% |  3% | ✓ Listing callers
+Explore#1 | O 5.5 | h ▅ |  22% |  10% | Finding where the TTL is computed
+builder   | S 5   | m ▃ |  12% |  93% | Waiting on the test suite
+reviewer  | O 5.5 | x ▇ |    — |    — | Review the diff
+Explore#2 | H 4.5 |     |   4% |   3% | ✓ Listing callers
 ```
 
 Agent, model, effort, context, cache TTL (see **The cache clock** below), and
@@ -255,10 +255,10 @@ Before an agent's first turn, context and TTL read `—` rather than 0%. A
 finished row turns gray behind a ✓ or ✗; its TTL keeps counting, since a
 follow-up message lands on a warm cache only while it lasts. On a narrow panel
 the details shrink first and drop below 8 cells, then the effort letter goes
-and its bar stays, then the agent name is cut. The number columns are only as
-wide as their widest value, and the width budget is `columns` minus the six
-cells the panel keeps for its own pointer, status circle and right padding, so
-a 60-column terminal still shows some details.
+and its bar stays, then the agent name is cut. The width budget is `columns`
+minus the six cells the panel keeps for its own pointer, status circle and
+right padding. The two percentages keep a fixed four cells, room for `100%`, so
+a TTL running out never shifts the columns after it.
 
 The session's status line used to carry these readings as one compact line,
 `O/22%/48% · S/12%/100%`, scraped from the transcripts on disk. The panel
@@ -276,7 +276,7 @@ carry it:
 
 ```
 Opus 5 | ctx: 22% | TTL: 33% (-40m)
-Explore | O 5.5 | h ▅ | 11% | 40% | Reading the parser
+Explore | O 5.5 | h ▅ |  11% |  40% | Reading the parser
 ```
 
 `TTL` is the share of that window the silence since the last turn has spent,

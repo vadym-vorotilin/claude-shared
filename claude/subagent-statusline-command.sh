@@ -2,7 +2,7 @@
 # Claude Code per-subagent status line — one row per agent in the panel below
 # the prompt, in the session line's columns and colors:
 #
-#   Explore#1 | O 5.5 | h ▅ | 22% | 10% | Finding where the TTL is computed
+#   Explore#1 | O 5.5 | h ▅ |  22% |  10% | Finding where the TTL is computed
 #
 # agent | model | effort | context | cache TTL | what it is doing.
 #
@@ -168,13 +168,14 @@ EOF
 
 # Column widths, shared by every row so the panel reads as a table. Labels are
 # ASCII, so a byte count is a cell count.
-name_w=0; model_w=0; eff_w=0; ctx_w=1; ttl_w=1
+# The two percentages keep a fixed four cells, room for "100%": sized to their
+# widest value, every column after them would shift a cell the moment one TTL
+# ran out.
+name_w=0; model_w=0; eff_w=0; ctx_w=4; ttl_w=4
 i=0
 while [ "$i" -lt "$n" ]; do
   [ "${#names[$i]}" -le "$name_w" ] || name_w=${#names[$i]}
   [ "${#models[$i]}" -le "$model_w" ] || model_w=${#models[$i]}
-  [ -z "${ctxs[$i]}" ] || [ $(( ${#ctxs[$i]} + 1 )) -le "$ctx_w" ] || ctx_w=$(( ${#ctxs[$i]} + 1 ))
-  [ -z "${ttls[$i]}" ] || [ $(( ${#ttls[$i]} + 1 )) -le "$ttl_w" ] || ttl_w=$(( ${#ttls[$i]} + 1 ))
   if [ -n "$(effort_letter "${efforts[$i]}")" ]; then w=3; else w=${#efforts[$i]}; fi
   [ "$w" -le "$eff_w" ] || eff_w=$w
   i=$(( i + 1 ))
