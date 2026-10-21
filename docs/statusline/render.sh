@@ -22,6 +22,9 @@ OUT="$(cd -P "$OUT" && pwd)"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# A TMPDIR inside some repo would make that repo the "outside git" fixture's
+# own, so git never looks above the temp folder.
+export GIT_CEILING_DIRECTORIES="$TMP"
 export HOME="$TMP/home"
 mkdir -p "$HOME"
 # The lib writes its effort cache under CLAUDE_CONFIG_DIR before $HOME, so a

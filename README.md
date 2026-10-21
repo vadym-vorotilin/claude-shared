@@ -37,7 +37,7 @@ there is no copy to restore from).
   - [Quotas](#quotas) — the 5-hour and weekly windows with their countdowns.
 - [**The agent panel**](#the-agent-panel) — one row per live subagent, in the
   session line's columns and colors.
-- [**Shared skills**](#shared-skills) — twelve skills, symlinked into
+- [**Shared skills**](#shared-skills) — symlinked into
   `~/.claude/skills/`: guided setup and sync, installers for per-repo skills,
   long-running and multi-agent work, PR review, token reporting, briefs.
 - [**Per-repo skill templates**](#per-repo-skill-templates) — `/handoff` and
@@ -194,9 +194,9 @@ without it the panel keeps its stock rows.
   output token the agent has written, so it overstates a long-running agent and
   stands in only before a transcript can be read. Yellow, as on the session
   line.
-- **Cache TTL** — the one reading that still comes from disk: the agent's
-  transcript sits at `<session-id>/subagents/agent-<id>.jsonl` beside the
-  session's, and an agent's task id is its agent id.
+- **Cache TTL** — read, like the context, from the agent's transcript, which
+  sits at `<session-id>/subagents/agent-<id>.jsonl` beside the session's; an
+  agent's task id is its agent id.
 - **Details** — the live progress label, falling back to the spawn
   description; cut to the width that is left.
 
@@ -322,15 +322,16 @@ Code, run the **`/add-handoff`** skill, e.g. _"add /handoff to repo
    fires once `docs/HANDOFF.md` exists).
 4. Add a `Stop` hook and its script, `<target>/.claude/hooks/handoff-checkpoint.sh`,
    that rewrites an **autosave** of the session's progress after every turn, so a
-   session cut off before wrap-up still resumes. The autosave
-   (`docs/HANDOFF.autosave.md` by default) holds text from the conversation; it
-   is kept out of git through `.git/info/exclude`, which is per clone.
+   session cut off before wrap-up still resumes (opt-out). The autosave
+   (`docs/HANDOFF.autosave.md` by default) holds conversation text verbatim,
+   which may include secrets; it is kept out of git through `.git/info/exclude`,
+   which is per clone.
 
-Commit `.claude/skills/handoff/SKILL.md`, `.claude/settings.json` and
-`.claude/hooks/handoff-checkpoint.sh` in the target repo so collaborators and
-other machines get them. Never commit the autosave.
+Commit `.claude/skills/handoff/SKILL.md`, `.claude/settings.json` and, if the
+autosave was installed, `.claude/hooks/handoff-checkpoint.sh` in the target repo
+so collaborators and other machines get them. Never commit the autosave.
 
-Only the two hooks are added to the target's `settings.json`. Any keys already
+Only those hooks are added to the target's `settings.json`. Any keys already
 present are preserved (deep, non-destructive merge), and the prior file is
 backed up first.
 
