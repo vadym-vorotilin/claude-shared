@@ -327,6 +327,19 @@ location_line() { # cwd -> line 1, ANSI stripped
   assert_equal "$(location_line "$TEST_TMP/feature")" "orchard:feature | feat"
 }
 
+@test "a repo folder name with a trailing space is kept whole" {
+  make_git_repo "$TEST_TMP/orchard "
+  assert_equal "$(location_line "$TEST_TMP/orchard ")" "orchard  | main"
+}
+
+@test "an empty cwd shows no location or branch from where the script runs" {
+  make_git_repo "$TEST_TMP/orchard"
+  cd "$TEST_TMP/orchard"
+  out="$(location_line "")"
+  refute_contains "$out" "orchard"
+  refute_contains "$out" "main"
+}
+
 @test "outside git, every folder but the last is cut to its first letter" {
   mkdir -p "$HOME/projects/scratch/notes"
   assert_equal "$(location_line "$HOME/projects/scratch/notes")" "~/p/s/notes"

@@ -43,6 +43,8 @@ fi
 
 # Abbreviate a path fish-style: every folder but the last cut to its first
 # letter, or two for a leading "." or "_" so hidden folders stay told apart.
+# Letters are cut by character under a UTF-8 locale; under LC_ALL=C a
+# multibyte first letter is cut mid-byte.
 abbrev_path() { # path -> abbreviated path
   local p="$1" rest part out=""
   case "$p" in */*) ;; *) printf '%s' "$p"; return ;; esac
@@ -62,10 +64,12 @@ abbrev_path() { # path -> abbreviated path
 # Location: inside git, the repo's name rather than its path, so a long
 # checkout path never pushes the branch off the line. A linked worktree reads
 # "repo:worktree", naming the main repo it belongs to. Any subfolder follows,
-# abbreviated. Outside git, the whole path is abbreviated.
+# abbreviated. Outside git, the whole path is abbreviated, as it is inside a
+# .git dir, which has no top level to name. An empty cwd is skipped: git -C ""
+# would read the repo the status line happens to run from.
 location=$(abbrev_path "$short_cwd")
-if git_info=$(git -C "$cwd" rev-parse --show-toplevel --git-common-dir --show-prefix 2>/dev/null); then
-  { read -r top; read -r common; read -r prefix; } <<EOF
+if [ -n "$cwd" ] && git_info=$(git -C "$cwd" rev-parse --show-toplevel --git-common-dir --show-prefix 2>/dev/null); then
+  { IFS= read -r top; IFS= read -r common; IFS= read -r prefix; } <<EOF
 $git_info
 EOF
   case "$common" in /*) ;; *) common="$cwd/$common" ;; esac
@@ -91,9 +95,9 @@ fi
 
 # Git branch and status
 branch=""
-if git_branch=$(git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null); then
+if [ -n "$cwd" ] && git_branch=$(git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null); then
   branch="$git_branch"
-elif git_commit=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null); then
+elif [ -n "$cwd" ] && git_commit=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null); then
   branch="@$git_commit"
 fi
 
