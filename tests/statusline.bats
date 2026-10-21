@@ -26,7 +26,7 @@ count_lines() { printf '%s\n' "$1" | wc -l | tr -d ' '; }
   json="$(jq -n --arg c /tmp/proj --arg m 'Opus 4.8' '{cwd:$c, model:{display_name:$m}}')"
   out="$(statusline "$json")"
   assert_contains "$out" "Opus 4.8"
-  assert_contains "$out" "/tmp/proj"
+  assert_contains "$out" "/t/proj"
 }
 
 @test "renders effort level and its bar between model and context" {
@@ -172,7 +172,7 @@ effort_line() {
       rate_limits:{five_hour:{used_percentage:31}, seven_day:{used_percentage:58}}}')"
   out="$(statusline "$json")"
   assert_equal "$(count_lines "$out")" 4   # 3 content lines + spacer
-  assert_contains "$(line_n "$out" 1)" "/tmp/proj"
+  assert_contains "$(line_n "$out" 1)" "/t/proj"
   refute_contains "$(line_n "$out" 1)" "Opus 4.8"
   assert_contains "$(line_n "$out" 2)" "Opus 4.8"
   assert_contains "$(line_n "$out" 2)" "ctx: 42%"
@@ -285,6 +285,61 @@ effort_line() {
   out="$(statusline "$json")"
   assert_contains "$out" "M"
   refute_contains "$out" "main"
+}
+
+# ---- location -------------------------------------------------------------
+# Line 1 names the repo, not its path, so a long checkout path never pushes the
+# branch past the edge of the terminal. Outside git the path is abbreviated.
+
+location_line() { # cwd -> line 1, ANSI stripped
+  plain "$(line_n "$(statusline "$(jq -n --arg c "$1" '{cwd:$c, model:{display_name:"M"}}')")" 1)"
+}
+
+@test "a repo cwd shows the repo name, not its path" {
+  make_git_repo "$TEST_TMP/projects/orchard"
+  assert_equal "$(location_line "$TEST_TMP/projects/orchard")" "orchard | main"
+}
+
+@test "a subfolder of a repo follows the repo name, its parents abbreviated" {
+  make_git_repo "$TEST_TMP/orchard"
+  mkdir -p "$TEST_TMP/orchard/src/api/routes"
+  assert_equal "$(location_line "$TEST_TMP/orchard/src/api/routes")" "orchard/s/a/routes | main"
+}
+
+@test "a linked worktree shows the main repo's name and the worktree's" {
+  make_git_repo "$TEST_TMP/orchard"
+  git -C "$TEST_TMP/orchard" worktree add -q -b docs/14-login-flow "$TEST_TMP/orchard/_trees/feat-14-login"
+  assert_equal "$(location_line "$TEST_TMP/orchard/_trees/feat-14-login")" \
+    "orchard:feat-14-login | docs/14-login-flow"
+}
+
+@test "a subfolder of a linked worktree keeps both names" {
+  make_git_repo "$TEST_TMP/orchard"
+  git -C "$TEST_TMP/orchard" worktree add -q -b feat "$TEST_TMP/wt/spike"
+  mkdir -p "$TEST_TMP/wt/spike/docs"
+  assert_equal "$(location_line "$TEST_TMP/wt/spike/docs")" "orchard:spike/docs | feat"
+}
+
+@test "a worktree of a bare repo names the repo without .git" {
+  make_git_repo "$TEST_TMP/src"
+  git clone -q --bare "$TEST_TMP/src" "$TEST_TMP/orchard.git"
+  git -C "$TEST_TMP/orchard.git" worktree add -q -b feat "$TEST_TMP/feature"
+  assert_equal "$(location_line "$TEST_TMP/feature")" "orchard:feature | feat"
+}
+
+@test "outside git, every folder but the last is cut to its first letter" {
+  mkdir -p "$HOME/projects/scratch/notes"
+  assert_equal "$(location_line "$HOME/projects/scratch/notes")" "~/p/s/notes"
+}
+
+@test "outside git, a leading dot or underscore keeps the letter after it" {
+  mkdir -p "$HOME/.config/_cache/notes"
+  assert_equal "$(location_line "$HOME/.config/_cache/notes")" "~/.c/_c/notes"
+}
+
+@test "outside git, the filesystem root and a top-level folder print whole" {
+  assert_equal "$(location_line /)" "/"
+  assert_equal "$(location_line /tmp)" "/tmp"
 }
 
 # Session JSON pointing at a transcript path inside the test tmpdir.

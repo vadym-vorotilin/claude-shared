@@ -28,7 +28,7 @@ there is no copy to restore from).
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
-| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `dir \| branch \| model \| effort \| ctx% \| cache TTL \| 5h%` |
+| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line: `repo:worktree or dir \| branch \| model \| effort \| ctx% \| cache TTL \| 5h%` |
 | `claude/subagent-statusline-command.sh` | `~/.claude/subagent-statusline-command.sh` | One row per live subagent in the agent panel: `agent \| model \| effort \| ctx% \| cache TTL \| details` |
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock and cache-TTL helpers both scripts source |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |

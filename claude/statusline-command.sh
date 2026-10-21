@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Code status line — mirrors key p10k prompt elements:
-# dir | git branch+status | model
+# repo or dir | git branch+status | model
 input=$(cat)
 
 # Colors, the clock and the cache-TTL readings, shared with the agent panel's
@@ -39,6 +39,54 @@ if [ -n "$home" ]; then
     "$home")    short_cwd="~" ;;
     "$home"/*)  short_cwd="~${cwd#"$home"}" ;;
   esac
+fi
+
+# Abbreviate a path fish-style: every folder but the last cut to its first
+# letter, or two for a leading "." or "_" so hidden folders stay told apart.
+abbrev_path() { # path -> abbreviated path
+  local p="$1" rest part out=""
+  case "$p" in */*) ;; *) printf '%s' "$p"; return ;; esac
+  rest="${p%/*}/"
+  while [ -n "$rest" ]; do
+    part="${rest%%/*}"; rest="${rest#*/}"
+    case "$part" in
+      ''|'~') ;;
+      [._]?*) part="${part:0:2}" ;;
+      *)      part="${part:0:1}" ;;
+    esac
+    out="$out$part/"
+  done
+  printf '%s%s' "$out" "${p##*/}"
+}
+
+# Location: inside git, the repo's name rather than its path, so a long
+# checkout path never pushes the branch off the line. A linked worktree reads
+# "repo:worktree", naming the main repo it belongs to. Any subfolder follows,
+# abbreviated. Outside git, the whole path is abbreviated.
+location=$(abbrev_path "$short_cwd")
+if git_info=$(git -C "$cwd" rev-parse --show-toplevel --git-common-dir --show-prefix 2>/dev/null); then
+  { read -r top; read -r common; read -r prefix; } <<EOF
+$git_info
+EOF
+  case "$common" in /*) ;; *) common="$cwd/$common" ;; esac
+  common=$(cd "$common" 2>/dev/null && pwd -P)
+  wt_name="${top##*/}"
+  if [ "${common##*/}" = .git ]; then
+    # A non-bare repo: its main checkout holds the shared .git.
+    main_root="${common%/*}"; repo_name="${main_root##*/}"
+  elif [ -n "$common" ]; then
+    # A bare repo, or a submodule's dir under .git/modules.
+    main_root=""; repo_name="${common##*/}"; repo_name="${repo_name%.git}"
+  else
+    main_root=""; repo_name="$wt_name"
+  fi
+  location="$repo_name"
+  if [ -n "$main_root" ]; then
+    [ "$top" = "$main_root" ] || location="$location:$wt_name"
+  else
+    [ "$wt_name" = "$repo_name" ] || location="$location:$wt_name"
+  fi
+  [ -n "$prefix" ] && location="$location/$(abbrev_path "${prefix%/}")"
 fi
 
 # Git branch and status
@@ -104,8 +152,8 @@ SEP="${RESET} | "
 # Live subagents are drawn in the agent panel by subagent-statusline-command.sh.
 transcript=$(echo "$input" | jq -r '.transcript_path // empty')
 
-# Line 1: location — dir + git
-printf "%s%s%s" "$CYAN" "$short_cwd" "$RESET"
+# Line 1: location — repo or dir + git
+printf "%s%s%s" "$CYAN" "$location" "$RESET"
 if [ -n "$branch" ]; then
   branch_part="${git_status# | }"
   printf "%s%s%s%s" "$SEP" "$GREEN" "$branch_part" "$RESET"
