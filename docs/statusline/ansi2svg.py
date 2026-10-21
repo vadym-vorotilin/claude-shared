@@ -88,21 +88,23 @@ def main():
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}">',
         f'<rect width="{width}" height="{height}" rx="8" fill="{BG}"/>',
-        f'<g font-family="{FONT}" font-size="14" xml:space="preserve">',
+        f'<g font-family="{FONT}" font-size="14">',
     ]
+    # One <text> per character: a per-glyph x list on a shared <text> is
+    # dropped by some renderers once a glyph falls back to another font,
+    # and every column after it drifts.
     for row, runs in enumerate(parsed):
         y = PAD_Y + row * LINE_H + 15
         col = 0
-        spans = []
         for text, color, bold in runs:
-            xs = " ".join(f"{PAD_X + (col + k) * CELL_W:.1f}" for k in range(len(text)))
-            weight = ' font-weight="bold"' if bold else ""
-            body = "".join(esc(ch) for ch in text)
-            if text.strip():
-                spans.append(f'<tspan x="{xs}" fill="{color}"{weight}>{body}</tspan>')
+            chars = [
+                f'<text x="{PAD_X + (col + k) * CELL_W:.1f}" y="{y}">{esc(ch)}</text>'
+                for k, ch in enumerate(text) if not ch.isspace()
+            ]
+            if chars:
+                weight = ' font-weight="bold"' if bold else ""
+                out.append(f'<g fill="{color}"{weight}>{"".join(chars)}</g>')
             col += len(text)
-        if spans:
-            out.append(f'<text y="{y}">{"".join(spans)}</text>')
     out.append("</g></svg>")
     print("\n".join(out))
 

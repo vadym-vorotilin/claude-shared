@@ -1,9 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="645" height="133" viewBox="0 0 645 133">
 <rect width="645" height="133" rx="8" fill="#0d1117"/>
-<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" xml:space="preserve">
-<text y="29"><tspan x="16.0 24.4 32.8 41.2 49.6 58.0 66.4 74.8 83.2" fill="#f0f6fc">Explore#1</tspan><tspan x="91.6 100.0 108.4" fill="#6e7681"> | </tspan><tspan x="116.8 125.2 133.6 142.0 150.4" fill="#bc8cff">O 5.5</tspan><tspan x="158.8 167.2 175.6" fill="#6e7681"> | </tspan><tspan x="184.0 192.4 200.8" fill="#af8700">h ▅</tspan><tspan x="209.2 217.6 226.0" fill="#6e7681"> | </tspan><tspan x="242.8 251.2 259.6" fill="#d29922">22%</tspan><tspan x="268.0 276.4 284.8" fill="#6e7681"> | </tspan><tspan x="301.6 310.0 318.4" fill="#f0f6fc">10%</tspan><tspan x="326.8 335.2 343.6" fill="#6e7681"> | </tspan><tspan x="352.0 360.4 368.8 377.2 385.6 394.0 402.4 410.8 419.2 427.6 436.0 444.4 452.8 461.2 469.6 478.0 486.4 494.8 503.2 511.6 520.0 528.4 536.8 545.2 553.6 562.0 570.4 578.8 587.2 595.6 604.0 612.4 620.8" fill="#6e7681">Finding where the TTL is computed</tspan></text>
-<text y="50"><tspan x="16.0 24.4 32.8 41.2 49.6 58.0 66.4 74.8 83.2" fill="#f0f6fc">builder  </tspan><tspan x="91.6 100.0 108.4" fill="#6e7681"> | </tspan><tspan x="116.8 125.2 133.6 142.0 150.4" fill="#bc8cff">S 5  </tspan><tspan x="158.8 167.2 175.6" fill="#6e7681"> | </tspan><tspan x="184.0 192.4 200.8" fill="#5faf5f">m ▃</tspan><tspan x="209.2 217.6 226.0" fill="#6e7681"> | </tspan><tspan x="242.8 251.2 259.6" fill="#d29922">12%</tspan><tspan x="268.0 276.4 284.8" fill="#6e7681"> | </tspan><tspan x="301.6 310.0 318.4" fill="#ff7b72">93%</tspan><tspan x="326.8 335.2 343.6" fill="#6e7681"> | </tspan><tspan x="352.0 360.4 368.8 377.2 385.6 394.0 402.4 410.8 419.2 427.6 436.0 444.4 452.8 461.2 469.6 478.0 486.4 494.8 503.2 511.6 520.0 528.4 536.8 545.2 553.6" fill="#6e7681">Waiting on the test suite</tspan></text>
-<text y="71"><tspan x="16.0 24.4 32.8 41.2 49.6 58.0 66.4 74.8 83.2" fill="#f0f6fc">reviewer </tspan><tspan x="91.6 100.0 108.4" fill="#6e7681"> | </tspan><tspan x="116.8 125.2 133.6 142.0 150.4" fill="#bc8cff">O 5.5</tspan><tspan x="158.8 167.2 175.6" fill="#6e7681"> | </tspan><tspan x="184.0 192.4 200.8" fill="#d75f00">x ▇</tspan><tspan x="209.2 217.6 226.0" fill="#6e7681"> | </tspan><tspan x="259.6" fill="#d29922">—</tspan><tspan x="268.0 276.4 284.8" fill="#6e7681"> | </tspan><tspan x="318.4" fill="#f0f6fc">—</tspan><tspan x="326.8 335.2 343.6" fill="#6e7681"> | </tspan><tspan x="352.0 360.4 368.8 377.2 385.6 394.0 402.4 410.8 419.2 427.6 436.0 444.4 452.8 461.2 469.6" fill="#6e7681">Review the diff</tspan></text>
-<text y="92"><tspan x="16.0 24.4 32.8 41.2 49.6 58.0 66.4 74.8 83.2" fill="#6e7681">Explore#2</tspan><tspan x="91.6 100.0 108.4" fill="#6e7681"> | </tspan><tspan x="116.8 125.2 133.6 142.0 150.4" fill="#6e7681">H 4.5</tspan><tspan x="158.8 167.2 175.6" fill="#6e7681"> | </tspan><tspan x="184.0 192.4 200.8" fill="#6e7681">l ▁</tspan><tspan x="209.2 217.6 226.0" fill="#6e7681"> | </tspan><tspan x="251.2 259.6" fill="#6e7681">4%</tspan><tspan x="268.0 276.4 284.8" fill="#6e7681"> | </tspan><tspan x="310.0 318.4" fill="#6e7681">3%</tspan><tspan x="326.8 335.2 343.6" fill="#6e7681"> | </tspan><tspan x="352.0 360.4" fill="#3fb950">✓ </tspan><tspan x="368.8 377.2 385.6 394.0 402.4 410.8 419.2 427.6 436.0 444.4 452.8 461.2 469.6 478.0 486.4" fill="#6e7681">Listing callers</tspan></text>
-<text y="113"><tspan x="16.0 24.4 32.8 41.2 49.6 58.0 66.4 74.8 83.2" fill="#6e7681">migrator </tspan><tspan x="91.6 100.0 108.4" fill="#6e7681"> | </tspan><tspan x="116.8 125.2 133.6 142.0 150.4" fill="#6e7681">S 5  </tspan><tspan x="158.8 167.2 175.6" fill="#6e7681"> | </tspan><tspan x="184.0 192.4 200.8" fill="#6e7681">M █</tspan><tspan x="209.2 217.6 226.0" fill="#6e7681"> | </tspan><tspan x="251.2 259.6" fill="#6e7681">6%</tspan><tspan x="268.0 276.4 284.8" fill="#6e7681"> | </tspan><tspan x="301.6 310.0 318.4" fill="#6e7681">50%</tspan><tspan x="326.8 335.2 343.6" fill="#6e7681"> | </tspan><tspan x="352.0 360.4" fill="#ff7b72">✗ </tspan><tspan x="368.8 377.2 385.6 394.0 402.4 410.8 419.2 427.6 436.0 444.4 452.8 461.2 469.6 478.0 486.4 494.8 503.2 511.6 520.0 528.4 536.8 545.2 553.6 562.0" fill="#6e7681">Schema migration dry run</tspan></text>
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
+<g fill="#f0f6fc"><text x="16.0" y="29">E</text><text x="24.4" y="29">x</text><text x="32.8" y="29">p</text><text x="41.2" y="29">l</text><text x="49.6" y="29">o</text><text x="58.0" y="29">r</text><text x="66.4" y="29">e</text><text x="74.8" y="29">#</text><text x="83.2" y="29">1</text></g>
+<g fill="#6e7681"><text x="100.0" y="29">|</text></g>
+<g fill="#bc8cff"><text x="116.8" y="29">O</text><text x="133.6" y="29">5</text><text x="142.0" y="29">.</text><text x="150.4" y="29">5</text></g>
+<g fill="#6e7681"><text x="167.2" y="29">|</text></g>
+<g fill="#af8700"><text x="184.0" y="29">h</text><text x="200.8" y="29">▅</text></g>
+<g fill="#6e7681"><text x="217.6" y="29">|</text></g>
+<g fill="#d29922"><text x="242.8" y="29">2</text><text x="251.2" y="29">2</text><text x="259.6" y="29">%</text></g>
+<g fill="#6e7681"><text x="276.4" y="29">|</text></g>
+<g fill="#f0f6fc"><text x="301.6" y="29">1</text><text x="310.0" y="29">0</text><text x="318.4" y="29">%</text></g>
+<g fill="#6e7681"><text x="335.2" y="29">|</text></g>
+<g fill="#6e7681"><text x="352.0" y="29">F</text><text x="360.4" y="29">i</text><text x="368.8" y="29">n</text><text x="377.2" y="29">d</text><text x="385.6" y="29">i</text><text x="394.0" y="29">n</text><text x="402.4" y="29">g</text><text x="419.2" y="29">w</text><text x="427.6" y="29">h</text><text x="436.0" y="29">e</text><text x="444.4" y="29">r</text><text x="452.8" y="29">e</text><text x="469.6" y="29">t</text><text x="478.0" y="29">h</text><text x="486.4" y="29">e</text><text x="503.2" y="29">T</text><text x="511.6" y="29">T</text><text x="520.0" y="29">L</text><text x="536.8" y="29">i</text><text x="545.2" y="29">s</text><text x="562.0" y="29">c</text><text x="570.4" y="29">o</text><text x="578.8" y="29">m</text><text x="587.2" y="29">p</text><text x="595.6" y="29">u</text><text x="604.0" y="29">t</text><text x="612.4" y="29">e</text><text x="620.8" y="29">d</text></g>
+<g fill="#f0f6fc"><text x="16.0" y="50">b</text><text x="24.4" y="50">u</text><text x="32.8" y="50">i</text><text x="41.2" y="50">l</text><text x="49.6" y="50">d</text><text x="58.0" y="50">e</text><text x="66.4" y="50">r</text></g>
+<g fill="#6e7681"><text x="100.0" y="50">|</text></g>
+<g fill="#bc8cff"><text x="116.8" y="50">S</text><text x="133.6" y="50">5</text></g>
+<g fill="#6e7681"><text x="167.2" y="50">|</text></g>
+<g fill="#5faf5f"><text x="184.0" y="50">m</text><text x="200.8" y="50">▃</text></g>
+<g fill="#6e7681"><text x="217.6" y="50">|</text></g>
+<g fill="#d29922"><text x="242.8" y="50">1</text><text x="251.2" y="50">2</text><text x="259.6" y="50">%</text></g>
+<g fill="#6e7681"><text x="276.4" y="50">|</text></g>
+<g fill="#ff7b72"><text x="301.6" y="50">9</text><text x="310.0" y="50">3</text><text x="318.4" y="50">%</text></g>
+<g fill="#6e7681"><text x="335.2" y="50">|</text></g>
+<g fill="#6e7681"><text x="352.0" y="50">W</text><text x="360.4" y="50">a</text><text x="368.8" y="50">i</text><text x="377.2" y="50">t</text><text x="385.6" y="50">i</text><text x="394.0" y="50">n</text><text x="402.4" y="50">g</text><text x="419.2" y="50">o</text><text x="427.6" y="50">n</text><text x="444.4" y="50">t</text><text x="452.8" y="50">h</text><text x="461.2" y="50">e</text><text x="478.0" y="50">t</text><text x="486.4" y="50">e</text><text x="494.8" y="50">s</text><text x="503.2" y="50">t</text><text x="520.0" y="50">s</text><text x="528.4" y="50">u</text><text x="536.8" y="50">i</text><text x="545.2" y="50">t</text><text x="553.6" y="50">e</text></g>
+<g fill="#f0f6fc"><text x="16.0" y="71">r</text><text x="24.4" y="71">e</text><text x="32.8" y="71">v</text><text x="41.2" y="71">i</text><text x="49.6" y="71">e</text><text x="58.0" y="71">w</text><text x="66.4" y="71">e</text><text x="74.8" y="71">r</text></g>
+<g fill="#6e7681"><text x="100.0" y="71">|</text></g>
+<g fill="#bc8cff"><text x="116.8" y="71">O</text><text x="133.6" y="71">5</text><text x="142.0" y="71">.</text><text x="150.4" y="71">5</text></g>
+<g fill="#6e7681"><text x="167.2" y="71">|</text></g>
+<g fill="#d75f00"><text x="184.0" y="71">x</text><text x="200.8" y="71">▇</text></g>
+<g fill="#6e7681"><text x="217.6" y="71">|</text></g>
+<g fill="#d29922"><text x="259.6" y="71">—</text></g>
+<g fill="#6e7681"><text x="276.4" y="71">|</text></g>
+<g fill="#f0f6fc"><text x="318.4" y="71">—</text></g>
+<g fill="#6e7681"><text x="335.2" y="71">|</text></g>
+<g fill="#6e7681"><text x="352.0" y="71">R</text><text x="360.4" y="71">e</text><text x="368.8" y="71">v</text><text x="377.2" y="71">i</text><text x="385.6" y="71">e</text><text x="394.0" y="71">w</text><text x="410.8" y="71">t</text><text x="419.2" y="71">h</text><text x="427.6" y="71">e</text><text x="444.4" y="71">d</text><text x="452.8" y="71">i</text><text x="461.2" y="71">f</text><text x="469.6" y="71">f</text></g>
+<g fill="#6e7681"><text x="16.0" y="92">E</text><text x="24.4" y="92">x</text><text x="32.8" y="92">p</text><text x="41.2" y="92">l</text><text x="49.6" y="92">o</text><text x="58.0" y="92">r</text><text x="66.4" y="92">e</text><text x="74.8" y="92">#</text><text x="83.2" y="92">2</text></g>
+<g fill="#6e7681"><text x="100.0" y="92">|</text></g>
+<g fill="#6e7681"><text x="116.8" y="92">H</text><text x="133.6" y="92">4</text><text x="142.0" y="92">.</text><text x="150.4" y="92">5</text></g>
+<g fill="#6e7681"><text x="167.2" y="92">|</text></g>
+<g fill="#6e7681"><text x="184.0" y="92">l</text><text x="200.8" y="92">▁</text></g>
+<g fill="#6e7681"><text x="217.6" y="92">|</text></g>
+<g fill="#6e7681"><text x="251.2" y="92">4</text><text x="259.6" y="92">%</text></g>
+<g fill="#6e7681"><text x="276.4" y="92">|</text></g>
+<g fill="#6e7681"><text x="310.0" y="92">3</text><text x="318.4" y="92">%</text></g>
+<g fill="#6e7681"><text x="335.2" y="92">|</text></g>
+<g fill="#3fb950"><text x="352.0" y="92">✓</text></g>
+<g fill="#6e7681"><text x="368.8" y="92">L</text><text x="377.2" y="92">i</text><text x="385.6" y="92">s</text><text x="394.0" y="92">t</text><text x="402.4" y="92">i</text><text x="410.8" y="92">n</text><text x="419.2" y="92">g</text><text x="436.0" y="92">c</text><text x="444.4" y="92">a</text><text x="452.8" y="92">l</text><text x="461.2" y="92">l</text><text x="469.6" y="92">e</text><text x="478.0" y="92">r</text><text x="486.4" y="92">s</text></g>
+<g fill="#6e7681"><text x="16.0" y="113">m</text><text x="24.4" y="113">i</text><text x="32.8" y="113">g</text><text x="41.2" y="113">r</text><text x="49.6" y="113">a</text><text x="58.0" y="113">t</text><text x="66.4" y="113">o</text><text x="74.8" y="113">r</text></g>
+<g fill="#6e7681"><text x="100.0" y="113">|</text></g>
+<g fill="#6e7681"><text x="116.8" y="113">S</text><text x="133.6" y="113">5</text></g>
+<g fill="#6e7681"><text x="167.2" y="113">|</text></g>
+<g fill="#6e7681"><text x="184.0" y="113">M</text><text x="200.8" y="113">█</text></g>
+<g fill="#6e7681"><text x="217.6" y="113">|</text></g>
+<g fill="#6e7681"><text x="251.2" y="113">6</text><text x="259.6" y="113">%</text></g>
+<g fill="#6e7681"><text x="276.4" y="113">|</text></g>
+<g fill="#6e7681"><text x="301.6" y="113">5</text><text x="310.0" y="113">0</text><text x="318.4" y="113">%</text></g>
+<g fill="#6e7681"><text x="335.2" y="113">|</text></g>
+<g fill="#ff7b72"><text x="352.0" y="113">✗</text></g>
+<g fill="#6e7681"><text x="368.8" y="113">S</text><text x="377.2" y="113">c</text><text x="385.6" y="113">h</text><text x="394.0" y="113">e</text><text x="402.4" y="113">m</text><text x="410.8" y="113">a</text><text x="427.6" y="113">m</text><text x="436.0" y="113">i</text><text x="444.4" y="113">g</text><text x="452.8" y="113">r</text><text x="461.2" y="113">a</text><text x="469.6" y="113">t</text><text x="478.0" y="113">i</text><text x="486.4" y="113">o</text><text x="494.8" y="113">n</text><text x="511.6" y="113">d</text><text x="520.0" y="113">r</text><text x="528.4" y="113">y</text><text x="545.2" y="113">r</text><text x="553.6" y="113">u</text><text x="562.0" y="113">n</text></g>
 </g></svg>
