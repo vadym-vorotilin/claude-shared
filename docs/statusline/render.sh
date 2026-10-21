@@ -9,7 +9,7 @@
 # Usage:
 #   docs/statusline/render.sh [out-dir]     # default: beside this script
 #
-# Requires bash, git, jq and python3.
+# Requires bash, git 2.32 or later (for GIT_CONFIG_GLOBAL), jq and python3.
 set -euo pipefail
 
 HERE="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
@@ -24,6 +24,12 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home"
 mkdir -p "$HOME"
+# The lib writes its effort cache under CLAUDE_CONFIG_DIR before $HOME, so a
+# set one would point it at a real config folder.
+unset CLAUDE_CONFIG_DIR XDG_CONFIG_HOME
+# Run from a git hook or `rebase --exec`, GIT_DIR and friends would aim every
+# git command below at the caller's repo.
+unset $(git rev-parse --local-env-vars)
 
 # Fixed identity, dates and config, so commit ids — and so the renders — are
 # the same on every machine.
@@ -41,14 +47,17 @@ svg() { python3 "$HERE/ansi2svg.py" > "$OUT/$1"; echo "wrote $OUT/$1" >&2; }
 
 # demo-app: on main, two commits ahead of origin, one staged, three modified,
 # one untracked. A linked worktree on fix/search, and one detached.
-git init -q --bare -b main "$TMP/origin.git"
-git clone -q "$TMP/origin.git" "$TMP/demo-app" 2>/dev/null
+# SHA-1 pinned, so the detached worktree's commit id stays the committed one
+# if git's default object format moves on.
 A="$TMP/demo-app"
+git init -q --bare -b main --object-format=sha1 "$TMP/origin.git"
+git init -q -b main --object-format=sha1 "$A"
+git -C "$A" remote add origin "$TMP/origin.git"
 mkdir -p "$A/src/components"
 for f in a b c d; do echo "$f" > "$A/src/components/$f.txt"; done
-git -C "$A" add -A && git -C "$A" commit -q -m init && git -C "$A" push -q -u origin main 2>/dev/null
-git -C "$A" worktree add -q -b fix/search "$TMP/search-fix" 2>/dev/null
-git -C "$A" worktree add -q --detach "$TMP/review" HEAD 2>/dev/null
+git -C "$A" add -A && git -C "$A" commit -q -m init && git -C "$A" push -q -u origin main
+git -C "$A" worktree add -q -b fix/search "$TMP/search-fix"
+git -C "$A" worktree add -q --detach "$TMP/review" HEAD
 echo e > "$A/src/components/e.txt"; git -C "$A" add -A; git -C "$A" commit -q -m e
 echo f > "$A/src/components/f.txt"; git -C "$A" add -A; git -C "$A" commit -q -m f
 echo g > "$A/src/components/g.txt"; git -C "$A" add "$A/src/components/g.txt"

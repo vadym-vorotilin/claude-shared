@@ -5,6 +5,11 @@ Understands the SGR codes the status line scripts emit: reset, bold, the
 eight standard and eight bright foreground colors, and 256-color foregrounds
 (38;5;N). Every character is placed on its own cell, so a glyph the font
 lacks can't push the columns after it out of line.
+
+Limits, none of which the scripts hit today: other escape sequences (cursor
+moves, OSC links) are not stripped and would leave a raw ESC in the XML;
+24-bit colors (38;2;R;G;B) are not understood; and every character takes one
+cell, so wide CJK or emoji glyphs would overlap the next one.
 """
 import re
 import sys

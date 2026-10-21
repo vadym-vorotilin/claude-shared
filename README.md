@@ -62,16 +62,15 @@ on you can manage everything from inside Claude Code by running **`/claude-share
 
 ## The status line
 
-`claude/statusline-command.sh` draws three lines, each dropping out when Claude
-Code sends nothing for it:
+`claude/statusline-command.sh` draws three lines, the one at the top of this
+README:
 
 1. **Location** — the repo (cyan) and its branch with git state (green).
 2. **Session** — the model (magenta), effort level, context used (yellow) and
-   the cache clock.
+   the cache clock. A field Claude Code sends nothing for drops out.
 3. **Quotas** — the 5-hour window (white) and the weekly one (gray), each with
-   the time until it resets. Shown only when Claude Code sends rate-limit data.
-
-![The session status line](docs/statusline/session.svg)
+   the time until it resets. The whole line is shown only when Claude Code
+   sends rate-limit data.
 
 A trailing blank line keeps the status from gluing to the CLI chrome below it.
 The script reads `$HOME` at runtime, so no paths are hardcoded, and it runs on
@@ -223,7 +222,7 @@ The images in this README are drawn by the real scripts, not mocked up.
 and converts their ANSI output to SVG with `docs/statusline/ansi2svg.py`:
 
 ```bash
-docs/statusline/render.sh       # needs bash, git, jq and python3
+docs/statusline/render.sh       # needs bash, git 2.32+, jq and python3
 ```
 
 Re-run it after changing either status line script; `tests/renders.bats` fails
@@ -321,12 +320,19 @@ Code, run the **`/add-handoff`** skill, e.g. _"add /handoff to repo
 3. Add a `SessionStart` hook to `<target>/.claude/settings.json` so `/handoff`
    **auto-resumes at the start of every session** in that repo (opt-out, and only
    fires once `docs/HANDOFF.md` exists).
+4. Add a `Stop` hook and its script, `<target>/.claude/hooks/handoff-checkpoint.sh`,
+   that rewrites an **autosave** of the session's progress after every turn, so a
+   session cut off before wrap-up still resumes. The autosave
+   (`docs/HANDOFF.autosave.md` by default) holds text from the conversation; it
+   is kept out of git through `.git/info/exclude`, which is per clone.
 
-Commit both files in the target repo so collaborators and other machines get them.
+Commit `.claude/skills/handoff/SKILL.md`, `.claude/settings.json` and
+`.claude/hooks/handoff-checkpoint.sh` in the target repo so collaborators and
+other machines get them. Never commit the autosave.
 
-Only the hook is added to the target's `settings.json`. Any keys already present
-are preserved (deep, non-destructive merge), and the prior file is backed up
-first.
+Only the two hooks are added to the target's `settings.json`. Any keys already
+present are preserved (deep, non-destructive merge), and the prior file is
+backed up first.
 
 ### Adding /work-on-gh-issue to another project
 
