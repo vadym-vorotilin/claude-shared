@@ -299,6 +299,8 @@ of these are available in every project on the machine.
   `skills/token-report/SKILL.md` (notably the hand-maintained price table).
 - **`/short-brief`** — a one-screen status brief that replaces reading a long
   session, rather than summarising it.
+- **`/progress`** — a mid-task pulse: timestamped count/%/ETA header, a few
+  short lines, then the session carries on.
 
 ## Per-repo skill templates
 
