@@ -8,6 +8,9 @@
 #                                    -> ~/.claude/subagent-statusline-command.sh
 #   - claude/statusline-lib.sh      -> ~/.claude/statusline-lib.sh
 #                                      (sourced by both status line scripts)
+#   - claude/checkpoint.sh          -> ~/.claude/checkpoint.sh
+#                                      (the PreCompact / SessionStart hooks and
+#                                      the /checkpoint skill call it)
 #   - claude/settings.shared.json   -> merged into ~/.claude/settings.json
 #                                      (shared keys win; local-only keys preserved)
 #   - skills/*/                      -> symlinked into ~/.claude/skills/
@@ -57,6 +60,10 @@ for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh;
   chmod +x "$CLAUDE_DIR/$f"
 done
 
+log "deploy checkpoint.sh"
+cp "$REPO/claude/checkpoint.sh" "$CLAUDE_DIR/checkpoint.sh"
+chmod +x "$CLAUDE_DIR/checkpoint.sh"
+
 # 2. settings.json (merge) --------------------------------------------------
 SHARED="$REPO/claude/settings.shared.json"
 TARGET="$CLAUDE_DIR/settings.json"
@@ -65,8 +72,18 @@ if [ -f "$TARGET" ]; then
   cp "$TARGET" "$TARGET.bak.$(date +%Y%m%d%H%M%S)"
   # Deep merge: existing first, shared second -> shared keys override,
   # local-only keys are preserved (recursive object merge via '*').
+  # '*' replaces arrays, so each shared hooks.<event> list is merged instead:
+  # the user's own hooks for that event stay, and a local entry that runs the
+  # same command as a shared one is replaced by it (so a changed timeout does
+  # not leave the hook registered twice).
   tmp="$(mktemp)"
-  jq -s '.[0] * .[1]' "$TARGET" "$SHARED" > "$tmp"
+  jq -s '.[0] as $local | .[1] as $shared
+    | reduce (($shared.hooks // {}) | keys[]) as $e ($local * $shared;
+        ([$shared.hooks[$e][].hooks[]?.command]) as $sc
+        | .hooks[$e] = ([($local.hooks[$e] // [])[]
+                         | select([.hooks[]?.command] | any(. as $c | $sc | index($c)) | not)]
+                        + $shared.hooks[$e]))' \
+    "$TARGET" "$SHARED" > "$tmp"
   mv "$tmp" "$TARGET"
 else
   log "create settings.json from shared template"

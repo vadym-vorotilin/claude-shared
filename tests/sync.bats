@@ -112,3 +112,42 @@ run_sync() { run bash "$REPO/sync.sh"; }
   # BUG: `rm -rf "$link"` blows away the user's real directory before symlinking.
   assert_file_exists "$HOME/.claude/skills/sync-claude-env/USER_FILE.md"
 }
+
+# ------------------------------------------------------------ CHECKPOINT ----
+
+@test "deploys an executable checkpoint.sh" {
+  run_sync
+  assert_executable "$HOME/.claude/checkpoint.sh"
+  cmp -s "$REPO/claude/checkpoint.sh" "$HOME/.claude/checkpoint.sh" || fail "deployed copy differs"
+}
+
+@test "merging adds the checkpoint hooks and keeps the user's own hooks for the same events" {
+  mkdir -p "$HOME/.claude"
+  echo '{"hooks":{
+     "PostToolUse":[{"hooks":[{"type":"command","command":"echo local-post"}]}],
+     "SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"echo local-start"}]}],
+     "PreCompact":[{"hooks":[{"type":"command","command":"echo local-pre"}]}]}}' \
+    > "$HOME/.claude/settings.json"
+  run_sync
+  s="$HOME/.claude/settings.json"
+  # BUG: jq '*' replaces arrays, so the user's SessionStart/PreCompact hooks vanish.
+  assert_equal "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$s")" "echo local-post"
+  assert_equal "$(jq -r '[.hooks.SessionStart[].hooks[].command] | join(",")' "$s")" \
+    "echo local-start,bash ~/.claude/checkpoint.sh restore"
+  assert_equal "$(jq -r '[.hooks.PreCompact[].hooks[].command] | join(",")' "$s")" \
+    "echo local-pre,bash ~/.claude/checkpoint.sh precompact || true"
+  assert_equal "$(jq -r '.hooks.SessionStart[1].matcher' "$s")" "compact"
+}
+
+@test "re-running sync registers each checkpoint hook once, with the shared timeout" {
+  mkdir -p "$HOME/.claude"
+  # An older deploy: the same command with a different timeout.
+  echo '{"hooks":{"PreCompact":[{"hooks":[{"type":"command","command":"bash ~/.claude/checkpoint.sh precompact || true","timeout":30}]}]}}' \
+    > "$HOME/.claude/settings.json"
+  run_sync
+  run_sync
+  s="$HOME/.claude/settings.json"
+  assert_equal "$(jq '[.hooks.PreCompact[].hooks[]] | length' "$s")" 1
+  assert_equal "$(jq '[.hooks.SessionStart[].hooks[]] | length' "$s")" 1
+  assert_equal "$(jq '.hooks.PreCompact[0].hooks[0].timeout' "$s")" 300
+}

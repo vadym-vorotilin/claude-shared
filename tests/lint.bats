@@ -226,3 +226,37 @@ PY
   ! grep -rniE "(scratch(pad)? (file|directory)[^.]*(ledger|report)|(ledger|report)[^.]*scratch(pad)? (file|directory))" \
       "$REPO/skills" --include=*.md --exclude-dir=full || fail "run state still placed in a scratch file or directory"
 }
+
+# ------------------------------------------------------------ CHECKPOINT ----
+
+@test "the PreCompact hook can never block a compaction (exit 2 blocks it)" {
+  # Every PreCompact command must swallow its exit code, so even a syntax error
+  # in the deployed script cannot stop /compact.
+  n="$(jq '[.hooks.PreCompact[].hooks[]] | length' "$REPO/claude/settings.shared.json")"
+  [ "$n" -gt 0 ] || fail "no PreCompact hook"
+  jq -r '.hooks.PreCompact[].hooks[].command' "$REPO/claude/settings.shared.json" | while read -r cmd; do
+    case "$cmd" in *"|| true") : ;; *) fail "PreCompact command can fail: $cmd"; exit 1 ;; esac
+  done
+}
+
+@test "the PreCompact hook outlives the automatic Rich section's time limit" {
+  t="$(jq '.hooks.PreCompact[0].hooks[0].timeout' "$REPO/claude/settings.shared.json")"
+  limit="$(sed -n 's/^RICH_TIMEOUT="\${CHECKPOINT_RICH_TIMEOUT:-\([0-9]*\)}".*/\1/p' "$REPO/claude/checkpoint.sh")"
+  [ -n "$limit" ] || fail "no default RICH_TIMEOUT in checkpoint.sh"
+  [ "$t" -gt "$limit" ] || fail "hook timeout $t is not above the model run's limit $limit"
+}
+
+@test "every hook script settings.shared.json names under ~/.claude is deployed by sync.sh" {
+  jq -r '.. | .command? // empty' "$REPO/claude/settings.shared.json" \
+    | grep -oE '~/\.claude/[A-Za-z0-9._-]+' | sort -u | while read -r p; do
+      f="${p#\~/.claude/}"
+      # Deployed by name, or by the status line loop: for f in a.sh b.sh; do cp … "$CLAUDE_DIR/$f"
+      grep -qF "\$CLAUDE_DIR/$f\"" "$REPO/sync.sh" \
+        || grep -qE "^for f in .*(^| )$f( |;)" "$REPO/sync.sh" \
+        || { fail "sync.sh does not deploy $f"; exit 1; }
+    done
+}
+
+@test "SessionStart restores only after a compaction" {
+  assert_equal "$(jq -r '[.hooks.SessionStart[].matcher] | unique | join(",")' "$REPO/claude/settings.shared.json")" "compact"
+}

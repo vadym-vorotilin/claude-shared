@@ -277,6 +277,17 @@ of these are available in every project on the machine.
   agent continues from; the main session reads its own size with
   `tools/context-size.py` and offers a handover past its soft ceiling. Its
   `brief.md` is the block to paste into a long-running subagent's brief.
+- **`/checkpoint`** — keep a session's working state across compaction. One
+  Checkpoint note per session in `~/.claude/checkpoints/` (terms in
+  `CONTEXT.md`): a `PreCompact` hook writes the Safety snapshot (git state, the
+  last 10 user messages verbatim) and, when the Rich section is missing or older
+  than 15 minutes, has a headless `claude -p --model opus --effort xhigh` write
+  it from the transcript (bounded by a time limit); a `SessionStart` hook with matcher
+  `compact` puts the note back after the compaction. So a plain `/compact` keeps
+  the goal, the next step, rejected options and what is still running — send
+  any message afterwards and the session checks the note and continues. Run
+  `/checkpoint` by hand for a note built from checked evidence; a fresh one is
+  kept as it is. `CHECKPOINT_AUTO_RICH=0` turns the automatic run off.
 
 ### Review and reporting
 
@@ -355,7 +366,8 @@ eligible issue). Commit the written file in the target repo.
 | `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line, three lines: `repo:worktree/subdir \| branch ⇡⇣+!?` · `model \| effort \| ctx% \| cache TTL` · `5h% \| 1w%` |
 | `claude/subagent-statusline-command.sh` | `~/.claude/subagent-statusline-command.sh` | One row per live subagent in the agent panel: `agent \| model \| effort \| ctx% \| cache TTL \| details` |
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock and cache-TTL helpers both scripts source |
-| `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
+| `claude/checkpoint.sh` | `~/.claude/checkpoint.sh` | The Checkpoint note: `PreCompact` writes the Safety snapshot (and, when stale, the Rich section via a headless Opus run), `SessionStart` (`compact`) restores the note, `/checkpoint` writes the Rich section |
+| `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine`, the `PreCompact` and `SessionStart` (`compact`) checkpoint hooks |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
 | — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
@@ -365,11 +377,14 @@ eligible issue). Commit the written file in the target repo.
 Running `./sync.sh` touches your `~/.claude` in five ways. It is idempotent and
 backs up `settings.json` before merging:
 
-1. Copies the status line scripts and their shared helpers to `~/.claude/`.
+1. Copies the status line scripts, their shared helpers and `checkpoint.sh`
+   to `~/.claude/`.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
    The shared keys win on conflict, so a local `model` or `effortLevel` is
-   overwritten.
+   overwritten. Hooks are the exception: for each event the shared file names
+   (`PreCompact`, `SessionStart`), your own hooks for that event are kept and
+   the shared ones are added next to them.
 3. Symlinks **every** `skills/*/` directory into `~/.claude/skills/` — the whole
    set listed under **Shared skills** above, not just one. A real (non-symlink)
    directory already at that name is left untouched, so an existing local copy of
