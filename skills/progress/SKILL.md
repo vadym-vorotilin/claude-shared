@@ -21,7 +21,7 @@ time that did not come from `date` output in this turn.**
 included.**
 
 ```markdown
-**<timestamp, verbatim> — Progress: <n/m> · ~<pct>% · ETA <~duration>**
+**<timestamp, verbatim> - Progress: <n/m> · ~<pct>% · ETA <~duration>**
 - **Done:** <what finished>
 - **Now:** <the one thing in hand, incl. running agents or CI>
 - **Next:** <what remains>
@@ -29,6 +29,9 @@ included.**
 - **ETA:** ≈<clock> · <high|medium|low> — <main unknown>
 ```
 
+- The separator before `Progress` is a plain hyphen (` - `), as in the
+  orchestrating-issue-runs and unattended-run progress lines, so one stamp
+  check reads all three. Never an en or em dash.
 - `n/m`: plan or task-list steps; else the steps behind Done, Now and Next.
 - `~pct%`: estimated *work* done, not `n/m` as a fraction. Round to 5.
 - ETA: wall-clock duration, a range if the spread is real. The bullet's clock
@@ -36,7 +39,7 @@ included.**
   5 min. Never "soon".
 - If the last update's ETA differs, append it to the ETA bullet: `was ≈14:40`.
 - Done: header `m/m · 100% · ETA done`, then only `Done` and `Next`.
-- Idle (nothing started yet): `<timestamp> — Progress: idle`, then only
+- Idle (nothing started yet): `<timestamp> - Progress: idle`, then only
   `Next: you — <what>`, then stop.
 
 **Then resume the work in the same turn.** No question, offer or summary after
@@ -45,7 +48,7 @@ the update.
 Fictional example:
 
 ```markdown
-**2026-04-14 14:32 CEST — Progress: 3/5 · ~55% · ETA ~20–30 min**
+**2026-04-14 14:32 CEST - Progress: 3/5 · ~55% · ETA ~20–30 min**
 - **Done:** CSV parser, tests, `--strict` flag
 - **Now:** parser into import command
 - **Next:** `--strict` docs, full test run
