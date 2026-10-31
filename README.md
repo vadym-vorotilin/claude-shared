@@ -294,10 +294,12 @@ of these are available in every project on the machine.
 - **`/grill-review`** — the loop around a review: a fresh reviewer agent reviews
   the PR, every finding gets fixed in the PR, and another reviewer checks the
   delta, until the last review on the current head ends in `VERDICT: SATISFIED`.
-  It stops after four rounds without one. Unlike `/review-pr`, it **posts and
-  pushes without asking per round**: `COMMENT` reviews on the PR and fast-forward
-  pushes to its branch, never a merge or a force-push. See *What this assumes* in
-  `skills/grill-review/SKILL.md`.
+  It stops after four rounds without one, and a fork PR gets one review and no
+  fixes. Unlike `/review-pr`, it **posts and pushes without asking per round**,
+  once you've asked for the loop by name: `COMMENT` reviews, fast-forward pushes
+  to the PR's branch, and a comment or body edit for a finding left on purpose.
+  It never force-pushes, and merges only if you said "merge when ready" for that
+  PR. See *What this assumes* in `skills/grill-review/SKILL.md`.
 - **`/token-report`** — measure where token spend actually goes across this
   machine's transcripts: by day, model, project, subagent and context size, with
   a `--json` total for scripted budget checks. Read-only, and local — it walks
