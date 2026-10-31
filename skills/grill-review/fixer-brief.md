@@ -19,8 +19,8 @@ Findings to fix (from <review URL>):
 - Tests: <the repo's test command>.
 - <Public repo: commits are world-readable. No private names, paths or logs in them.>
 - Commit in the repo's style, then push as a fast-forward to the base repo by URL:
-  `git push https://github.com/<owner>/<repo>.git HEAD:refs/heads/<branch>`. Never force-push. If
-  the push is rejected, stop and report it.
+  `git push https://github.com/<owner>/<repo>.git HEAD:<branch>`. Never force-push. If the push is
+  rejected, stop and report it: the branch may have moved, or been deleted with a merge.
 - When the push is done, remove your worktree: `git -C <repo path> worktree remove <worktree path>`,
   without `--force`.
 - If a tool call is denied, report it and stop.

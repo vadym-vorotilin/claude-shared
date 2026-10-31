@@ -35,27 +35,31 @@ loop on this PR. If the user did not, ask before the first post.
 ## The loop
 
 1. Record the facts: `gh pr view N -R <owner>/<repo> --json
-   headRefOid,headRefName,baseRefName,isCrossRepository`. For a delta round, check the last reviewed
-   sha is still an ancestor (`git merge-base --is-ancestor <old> <head>`). If it isn't (a
+   state,headRefOid,headRefName,baseRefName,isCrossRepository`. If `state` isn't `OPEN`, stop and
+   say so. For a delta round, check the last reviewed sha is still an ancestor (`git merge-base --is-ancestor <old> <head>`). If it isn't (a
    force-push), or git can't find the sha, review the whole PR again.
 2. Dispatch a **reviewer** agent, on the strongest model you have, with `reviewer-brief.md` filled
    in. One review per round, and a fresh agent each round.
 3. Read its numbered findings. No findings means step 6. Otherwise every finding is fixed **in this
    PR**, blocking or not, when the fix is cheap.
-   - A finding that needs the user's call ends the loop: stop and ask, with the findings listed.
-   - A finding that needs another repo's merged code is left. Record it and why in a PR comment, and
-     list it in the next reviewer's brief.
+   - A finding that needs the user's call, or isn't cheap to fix, ends the loop: stop and ask, with
+     the findings listed.
+   - A finding that needs another repo's merged code, or that you can show is wrong with the line
+     that proves it, is left. Record it and why in a PR comment, and list it in the next reviewer's
+     brief.
 4. Fix: small text or code fixes yourself, in a worktree as `fixer-brief.md` describes, never in the
    user's checkout; bigger ones through a **fixer** agent with that brief. Run the repo's tests for
    code changes. Push a fast-forward commit, never a force-push.
 5. Run a fresh reviewer round on the delta (`<reviewed sha>..<new head>`), or on the same head if the
    only change is a finding left on purpose. Back to 3.
-6. Stop when both checks below pass. After **4 rounds** without them (counted since the last
-   `SATISFIED`), stop and ask the user, with the open findings listed.
+6. Finish when the verdict below passes and the checks below are done. If the verdict doesn't pass
+   (the head moved, or no review landed), go back to step 1. After **4 rounds** without finishing
+   (counted since the last `SATISFIED`), stop and ask the user, with the open findings listed.
 
 **The verdict.** Read it from GitHub, not from the agent's reply. Re-read the head first, because it
-may have moved. Only reviews by the login that runs this loop count. Anyone else's review, including
-a bot's, neither passes nor blocks. The last counted review must have `commit_id` equal to the
+may have moved. Only reviews by the login that runs this loop count toward the verdict. Report
+anyone else's reviews, including a bot's, and ask before merging over a `CHANGES_REQUESTED`. The last
+counted review must have `commit_id` equal to the
 current head and a body whose last line is exactly `VERDICT: SATISFIED`.
 
 ```bash
@@ -65,10 +69,12 @@ gh api --paginate repos/<owner>/<repo>/pulls/N/reviews \
   --jq ".[] | select(.user.login == \"$login\") | {commit_id, submitted_at, body}"
 ```
 
-**The checks.** `gh pr checks N -R <owner>/<repo> --watch` waits for them to finish. Red checks are a
-finding: back to step 4. "No checks reported" straight after a push may mean CI hasn't started, so
-look again after a minute. If it stays that way, the repo has no CI: that isn't a failure, but it is
-not a pass either, so say in your report that no CI ran.
+**The checks.** `gh pr checks N -R <owner>/<repo> --watch` waits for them to finish. It has no
+timeout of its own, so cap the wait with your harness's command timeout, say 30 minutes; a check
+still pending after that is something to report, so stop there. Red checks are a finding: back to
+step 4. "No checks reported" straight after a push may mean CI hasn't started, so look again after a
+minute. If it stays that way, the repo has no CI. The loop can finish, but say in your report that no
+CI ran, so nobody reads it as a pass.
 
 Merging is the user's call unless they said "merge when ready" for this PR, which means merge after
 `SATISFIED` on the head, not before. The user being in a hurry, or "it's reviewed already", never

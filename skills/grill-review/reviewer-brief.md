@@ -5,13 +5,17 @@ Review GitHub PR <owner>/<repo>#<N> "<title>". <One line on what the project is,
 - Scope: <full PR | only the delta <old sha>..<new sha>; earlier rounds covered the rest at <old sha>>.
 - Head: `<head sha>`. Spec: the linked issue(s) <#…> and any design or plan doc they link; the PR
   body; the repo's own instructions (CLAUDE.md, AGENTS.md, CONTRIBUTING).
-- Read the code without touching any checkout. From `<repo path>`, fetch from the base repo by URL:
+- Read the code without touching any checkout. Fetch from the base repo by URL:
   ```bash
-  git fetch -q https://github.com/<owner>/<repo>.git <base branch> && base="$(git rev-parse FETCH_HEAD)"
-  git fetch -q https://github.com/<owner>/<repo>.git pull/<N>/head && head="$(git rev-parse FETCH_HEAD)"
+  git -C <repo path> fetch -q https://github.com/<owner>/<repo>.git <base branch>
+  git -C <repo path> rev-parse FETCH_HEAD    # the base sha: note it
+  git -C <repo path> fetch -q https://github.com/<owner>/<repo>.git pull/<N>/head
+  git -C <repo path> rev-parse FETCH_HEAD    # must print <head sha>
   ```
-  If `$head` isn't `<head sha>`, the PR moved: stop and report it. Then use `git show "$head:<path>"`
-  and `git diff "$base...$head"`.
+  If the last line isn't `<head sha>`, the PR moved: stop and report it. From here on use literal
+  shas, not shell variables, which don't survive between tool calls and fail silently when empty:
+  `git -C <repo path> show <head sha>:<path>`, and `git -C <repo path> diff <base sha>...<head sha>`
+  for a full PR or `git -C <repo path> diff <old sha> <head sha>` for a delta.
 - <Delta round with a merge of the base branch: review only `git log --first-parent <old>..<head>`
   commits other than the merge, plus the merge's conflict resolutions (`git show --cc <merge sha>`).
   The base branch's own changes are out of scope.>
