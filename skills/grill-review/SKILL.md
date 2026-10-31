@@ -60,7 +60,8 @@ loop on this PR. If the user did not, ask before the first post.
 may have moved. Only reviews by the login that runs this loop count toward the verdict. The last
 counted review must have `commit_id` equal to the current head and a body whose last line is exactly
 `VERDICT: SATISFIED`. Report anyone else's reviews, including a bot's, and ask before merging if any
-author's latest state is `CHANGES_REQUESTED`.
+author's latest review other than a `COMMENTED` one is `CHANGES_REQUESTED`, unless it was dismissed.
+A later comment doesn't withdraw a change request.
 
 ```bash
 gh pr view N -R <owner>/<repo> --json headRefOid --jq .headRefOid
