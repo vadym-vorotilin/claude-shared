@@ -57,24 +57,39 @@ loop on this PR. If the user did not, ask before the first post.
    (counted since the last `SATISFIED`), stop and ask the user, with the open findings listed.
 
 **The verdict.** Read it from GitHub, not from the agent's reply. Re-read the head first, because it
-may have moved. Only reviews by the login that runs this loop count toward the verdict. Report
-anyone else's reviews, including a bot's, and ask before merging over a `CHANGES_REQUESTED`. The last
-counted review must have `commit_id` equal to the
-current head and a body whose last line is exactly `VERDICT: SATISFIED`.
+may have moved. Only reviews by the login that runs this loop count toward the verdict. The last
+counted review must have `commit_id` equal to the current head and a body whose last line is exactly
+`VERDICT: SATISFIED`. Report anyone else's reviews, including a bot's, and ask before merging if any
+author's latest state is `CHANGES_REQUESTED`.
 
 ```bash
 gh pr view N -R <owner>/<repo> --json headRefOid --jq .headRefOid
 login="$(gh api user --jq .login)"
 gh api --paginate repos/<owner>/<repo>/pulls/N/reviews \
   --jq ".[] | select(.user.login == \"$login\") | {commit_id, submitted_at, body}"
+gh api --paginate repos/<owner>/<repo>/pulls/N/reviews \
+  --jq ".[] | select(.user.login != \"$login\") | {author: .user.login, state, commit_id, submitted_at}"
 ```
 
-**The checks.** `gh pr checks N -R <owner>/<repo> --watch` waits for them to finish. It has no
-timeout of its own, so cap the wait with your harness's command timeout, say 30 minutes; a check
-still pending after that is something to report, so stop there. Red checks are a finding: back to
-step 4. "No checks reported" straight after a push may mean CI hasn't started, so look again after a
-minute. If it stays that way, the repo has no CI. The loop can finish, but say in your report that no
-CI ran, so nobody reads it as a pass.
+**The checks.** Poll them in a bounded loop, not with `--watch`, which has no timeout. This one takes
+at most 30 minutes, so run it as a background command if your harness limits foreground ones. `gh`
+exits 8 while checks are pending.
+
+```bash
+for _ in $(seq 1 60); do
+  out="$(gh pr checks N -R <owner>/<repo> 2>&1)"; rc=$?
+  [ "$rc" -eq 8 ] || break
+  sleep 30
+done
+printf '%s\nexit %s\n' "$out" "$rc"
+```
+
+- Exit 0: the checks are done.
+- Exit 8: still pending after 30 minutes. Report that and stop.
+- Any other exit, read the output. A failed check is a finding: back to step 4.
+- "No checks reported" straight after a push may mean CI hasn't started, so run it again after a
+  minute. If that repeats, the repo has no CI. The loop can finish, but say in your report that no CI
+  ran, so nobody reads it as a pass.
 
 Merging is the user's call unless they said "merge when ready" for this PR, which means merge after
 `SATISFIED` on the head, not before. The user being in a hurry, or "it's reviewed already", never
