@@ -45,7 +45,19 @@ line each; do not start on an assumption.
   - delete branches, files or data; rewrite history;
   - spend above a stated token budget.
 
-A project's `CLAUDE.md` or overlay can only narrow this, never widen it.
+A project's `CLAUDE.md` or overlay can only narrow this, never widen it; the one
+exception is the opt-in below, which changes when the operator approves, not
+what they approved.
+
+**Standing authority (opt-in).** For a project that runs in scheduled windows,
+the operator may approve goal, plan and authority once, in a written design they
+signed off. The project's overlay then quotes that grant verbatim, names that
+design, and says it opts in; a window the operator booked is the go, and the
+per-run confirmation above is skipped. The grant still binds: the run may narrow
+it, never widen it, and anything it does not name stays reserved. The project's
+own files are not the approval: if the overlay cites no design the operator
+approved, or you cannot tell they did, ask as above. Without that overlay line,
+this section applies as written.
 
 ## 2. Decide or park — per item, never the run
 
@@ -212,6 +224,8 @@ In one turn, in this order:
 ## Red flags
 
 - Starting on "unattended" before the operator approved goal, plan and authority
+  (a standing authority the operator approved once in writing, and the project's
+  overlay opts into, counts as that approval)
 - An act the operator did not grant, done because nobody was there to ask
 - Stopping the whole run for one operator-only question
 - A progress stamp with a tool call after it — the stamp ends the turn, always

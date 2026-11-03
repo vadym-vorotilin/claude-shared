@@ -85,3 +85,18 @@ make_dir() { # name age
   wait || true
   assert_equal "$(grep -c 'STALL: wt-b' "$TEST_TMP/out")" 2
 }
+
+# ---------------------------------------------------- STANDING AUTHORITY ----
+
+@test "the standing-authority opt-in is inert without an overlay line, and names no machine" {
+  skill="$REPO/skills/unattended-run/SKILL.md"
+  para="$(awk '/^\*\*Standing authority \(opt-in\)\.\*\*/ { f = 1 } f && /^$/ { exit } f' "$skill")"
+  [ -n "$para" ] || fail "no 'Standing authority (opt-in).' paragraph in $skill"
+  assert_contains "$para" "Without that overlay line"
+  assert_contains "$para" "never widen"
+  for bad in '/home/' '/mnt/' '#[0-9]' 'http://' 'https://'; do
+    if printf '%s\n' "$para" | grep -q -- "$bad"; then
+      fail "the paragraph must stay generic; it matches [$bad]"
+    fi
+  done
+}
