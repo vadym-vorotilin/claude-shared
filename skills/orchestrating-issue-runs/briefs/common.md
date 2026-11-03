@@ -37,14 +37,16 @@ one shared output file clobber each other.
   class, and quote each chunk's total: a filter may be exact-match and silently
   drop what it did not match.
 
-**The return.** At most about 40 lines — everything else goes in a report file
-at the absolute path your brief names — never a path relative to your
-worktree, which is deleted with it — named in the return:
+**The return.** At most about 15 lines. The orchestrator acts on it in one turn
+and opens your report only for a question the return cannot settle. Everything
+else (full numbers, tables, call lists, evidence) goes in a report file at the
+absolute path your brief names, never a path relative to your worktree, which
+is deleted with it. Name that file in the return, and do not repeat it there:
 
 ```
 STATUS:      done | CHECKPOINT | running | blocked
 GOAL:        what your deliverable moved on the run's goal line, in one sentence, or `nothing`
-NUMBERS:     quoted, not summarised — counts, SHAs, measured figures
+NUMBERS:     quoted, not summarised — the counts, SHAs and figures a ruling needs
 DEVIATIONS:  each, with the line that proves it — or `none`
 REPORT:      <path>
 ```

@@ -64,6 +64,11 @@ too large — ask the reviewer for the scope ruling.
 **Merge.** Review clean + CI green + no open human gate (and the Authority line
 grants it) → a merge-mechanics agent (`merge` block) does the squash, close,
 labels and board sync; a single trivial gate-plus-merge may stay one command.
+When a run's merge recipe is fixed, write it once as `$RUN/tools/merge.sh`:
+verify the verdict on the pinned head, gate, merge pinned to that head, check
+what landed, close the issue, delete the branch, and remove the card's worktree
+when clean. It prints one line and exits with a distinct code per failure.
+Watch its first live run in full.
 Cross-repo groups merge producer first, all-or-nothing. A docs-only wording nit
 on a clean docs PR: fix it on the branch yourself. A card straddling the wave
 boundary closes in the wave that did its work; the remainder is filed fresh.
@@ -101,6 +106,10 @@ task-output call in your own turn.
   `sleep 3000; echo HEARTBEAT`. When it fires, re-arm it first, then check the
   agents' output-file mtimes and `pgrep` — never a transcript — and reply in one
   line if nothing moved. Stop re-arming it only at the wrap.
+
+**Between notifications.** Write the next leg's spec part while its predecessor
+runs. Re-review by a short `SendMessage` to the same reviewer: new head,
+mapping comment, fix report's path, what to recheck.
 
 **Liveness sweep.** At the first fixer dispatch, arm `$S/../unattended-run/tools/sweep.sh`
 as **one** persistent `Monitor`, with `SCRATCH` set. On `STALL`, verify with

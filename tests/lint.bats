@@ -184,6 +184,30 @@ PY
   ! brief "$out" 2>/dev/null || fail "no blocks passed"
 }
 
+@test "leg assembles each role's row in order, adds run.md, and refuses an unknown role" {
+  # leg is the one call the orchestrator makes per dispatch, so its rows must
+  # match the table: a fixer without the ceiling block runs unbounded.
+  fn="$TEST_TMP/leg.sh"
+  sed -n -e '/^brief() {/,/^}/p' -e '/^leg() {/,/^}/p' "$REPO/skills/orchestrating-issue-runs/SKILL.md" > "$fn"
+  grep -q '^leg() {' "$fn" || fail "no leg() function found in SKILL.md"
+  . "$fn"
+  S="$TEST_TMP/s/orch"; RUN="$TEST_TMP/run"
+  mkdir -p "$S/briefs" "$S/../cache-warmth" "$S/../context-ceiling" "$RUN/briefs"
+  for f in common issue fixer reviewer approach adjudicator; do echo "$f" > "$S/briefs/$f.md"; done
+  echo warmth > "$S/../cache-warmth/brief.md"; echo ceiling > "$S/../context-ceiling/brief.md"
+  for l in 1-fixer-1 1-review-1 1-approach-1; do echo "spec $l" > "$RUN/briefs/spec-$l.md"; done
+  out=$(leg fixer 1-fixer-1) || fail "a fixer leg was refused"
+  assert_equal "$out" "$RUN/briefs/brief-1-fixer-1.md"
+  assert_equal "$(grep -v '^$' "$out" | tr '\n' ' ')" "common issue warmth ceiling fixer spec 1-fixer-1 "
+  leg reviewer 1-review-1 >/dev/null || fail "a reviewer leg was refused"
+  ! grep -q ceiling "$RUN/briefs/brief-1-review-1.md" || fail "a reviewer got the ceiling block"
+  echo "run cap" > "$RUN/briefs/run.md"
+  leg approach 1-approach-1 ceiling >/dev/null || fail "an approach leg was refused"
+  assert_equal "$(grep -v '^$' "$RUN/briefs/brief-1-approach-1.md" | tr '\n' ' ')" "common issue warmth ceiling approach run cap spec 1-approach-1 "
+  ! leg scope 1-scope-1 2>/dev/null || fail "an unknown role passed"
+  ! leg fixer 9-fixer-1 >/dev/null 2>&1 || fail "a missing spec part passed"
+}
+
 @test "run state lives under .orchestration/<run>; worktrees never do" {
   # A fixed place is what lets a fresh orchestrator find the ledger; a worktree
   # inside the repo gets built, grepped and committed.

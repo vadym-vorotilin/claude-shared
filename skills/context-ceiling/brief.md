@@ -19,5 +19,8 @@ checkpoint note — do not push on. Hard stop at **~200k**, whatever the state.
   named deliverable left, no open decision. Say so in the note.
 - A job that would outlast you: launch it detached and return `STATUS: running`
   with its log path, done marker and verified PID.
+- **Read for the step in hand.** Find a long document's headings with `grep -n`
+  and read only the ranges you need; read source a function at a time. A leg
+  that spends its context reading hands back a checkpoint and no code.
 - In a worktree, commit after every plan step (and push, where your brief allows it), so the
   note can point at a committed head.
