@@ -12,5 +12,30 @@
   "subagentStatusLine": {
     "type": "command",
     "command": "bash ~/.claude/subagent-statusline-command.sh"
+  },
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/checkpoint.sh precompact || true",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/checkpoint.sh restore",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }
