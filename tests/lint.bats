@@ -184,6 +184,13 @@ PY
   ! brief "$out" 2>/dev/null || fail "no blocks passed"
 }
 
+@test "every test's XDG base directories live under its throwaway HOME" {
+  # common_setup ran in setup(); a host value left in place points at the real home.
+  for v in XDG_STATE_HOME XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME; do
+    [[ "${!v}" == "$TEST_TMP"/* ]] || fail "$v=${!v} is outside the test's HOME"
+  done
+}
+
 @test "leg assembles each role's row in order, adds run.md, and refuses an unknown role" {
   # leg is the one call the orchestrator makes per dispatch, so its rows must
   # match the table: a fixer without the ceiling block runs unbounded.

@@ -11,6 +11,10 @@ common_setup() {
   export TEST_TMP
   export HOME="$TEST_TMP/home"
   mkdir -p "$HOME"
+  # A host session exports XDG_*_HOME to the real home; left set, a test run on
+  # the host writes there (statusline.bats once replaced the live rate-limits.json).
+  export XDG_STATE_HOME="$HOME/.local/state" XDG_CONFIG_HOME="$HOME/.config" \
+    XDG_CACHE_HOME="$HOME/.cache" XDG_DATA_HOME="$HOME/.local/share"
   export REPO="$REPO_ROOT"
 }
 
