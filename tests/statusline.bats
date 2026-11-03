@@ -478,3 +478,147 @@ plain() { printf '%s' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }
   out="$(printf '%s' '{"cwd":"/tmp"}' | bash "$TEST_TMP/bin/statusline-command.sh" 2>&1)"
   assert_equal "$out" "statusline-lib.sh is missing beside this script; re-run sync.sh"
 }
+
+# ---- the quota reading kept on disk -------------------------------------
+# Fictional readings. The file lets a tool outside any session read the last
+# quota; observed_at is when the reading last changed or a main-conversation
+# request went out, written_at when the script last ran.
+
+rl_file() { printf '%s/claude/rate-limits.json' "${XDG_STATE_HOME:-$HOME/.local/state}"; }
+
+# rl_json session five-pct seven-pct [requests] [seven-resets]; an empty pct
+# leaves that window out.
+rl_json() {
+  jq -n --arg s "$1" --arg f "$2" --arg w "$3" --arg q "${4:-}" --arg r "${5:-1767600000}" '
+    {cwd:"/tmp", session_id:$s, model:{display_name:"M"},
+     rate_limits:(
+       (if $f == "" then {} else {five_hour:{used_percentage:($f|tonumber), resets_at:1767240000}} end)
+       + (if $w == "" then {} else {seven_day:{used_percentage:($w|tonumber), resets_at:($r|tonumber)}} end))}
+    + (if $q == "" then {} else {prompt_cache:{requests:($q|tonumber)}} end)'
+}
+
+@test "rate-limits: writes both windows, unrounded, with both clocks" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  assert_equal "$(jq -cS . "$(rl_file)")" \
+    '{"five_hour":{"resets_at":1767240000,"used_percentage":12.5},"observed_at":1767225640,"requests":3,"session_id":"s1","seven_day":{"resets_at":1767600000,"used_percentage":41.25},"written_at":1767225640}'
+}
+
+@test "rate-limits: no rate_limits in the input writes no file and the output is unchanged" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  json="$(jq -n '{cwd:"/tmp", session_id:"s1", model:{display_name:"M"}}')"
+  out="$(statusline "$json")"
+  [ ! -e "$(rl_file)" ] || fail "wrote a file without rate_limits"
+  [ ! -e "$XDG_STATE_HOME/claude" ] || fail "created the state dir without rate_limits"
+  assert_equal "$(count_lines "$out")" 3
+}
+
+@test "rate-limits: a missing weekly window stays missing" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 "")" >/dev/null
+  assert_equal "$(jq -c '.seven_day' "$(rl_file)")" null
+  assert_equal "$(jq -c '.five_hour.used_percentage' "$(rl_file)")" 12.5
+}
+
+# The script re-runs on a timer with the last data it was given. Stamping
+# "now" each run would make a frozen reading look fresh.
+@test "rate-limits: the same reading a minute later keeps observed_at and moves written_at" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  assert_equal "$(jq -c '[.observed_at, .written_at]' "$(rl_file)")" '[1767225640,1767225700]'
+}
+
+@test "rate-limits: the same reading with no request count keeps observed_at" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s1 12.5 41.25)" >/dev/null
+  assert_equal "$(jq -c '[.observed_at, .written_at]' "$(rl_file)")" '[1767225640,1767225700]'
+}
+
+@test "rate-limits: a changed percentage moves observed_at" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s1 12.5 41.5 3)" >/dev/null
+  assert_equal "$(jq -c '[.observed_at, .seven_day.used_percentage]' "$(rl_file)")" '[1767225700,41.5]'
+}
+
+@test "rate-limits: a new main-conversation request moves observed_at though the reading is the same" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s1 12.5 41.25 4)" >/dev/null
+  assert_equal "$(jq -c '[.observed_at, .requests]' "$(rl_file)")" '[1767225700,4]'
+}
+
+@test "rate-limits: a lower reading from another session leaves the file alone" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  before="$(cat "$(rl_file)")"
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 12.0 40.0 9)" >/dev/null
+  assert_equal "$(cat "$(rl_file)")" "$before"
+}
+
+@test "rate-limits: a higher reading from another session replaces the file" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 13 42 1)" >/dev/null
+  assert_equal "$(jq -c '[.session_id, .seven_day.used_percentage, .observed_at]' "$(rl_file)")" '["s2",42,1767225700]'
+}
+
+@test "rate-limits: another session in a later weekly window replaces a higher reading" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 97.0 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 1 2 1 1768200000)" >/dev/null
+  assert_equal "$(jq -c '[.session_id, .seven_day]' "$(rl_file)")" '["s2",{"used_percentage":2,"resets_at":1768200000}]'
+}
+
+@test "rate-limits: another session without a weekly window does not drop the file's" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  before="$(cat "$(rl_file)")"
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 50 "" 1)" >/dev/null
+  assert_equal "$(cat "$(rl_file)")" "$before"
+}
+
+@test "rate-limits: the same reading from another session moves only written_at" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 12.5 41.25 7)" >/dev/null
+  assert_equal "$(jq -c '[.session_id, .requests, .observed_at, .written_at]' "$(rl_file)")" '["s1",3,1767225640,1767225700]'
+}
+
+@test "rate-limits: falls back to ~/.local/state without XDG_STATE_HOME" {
+  unset XDG_STATE_HOME
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  assert_file_exists "$HOME/.local/state/claude/rate-limits.json"
+}
+
+@test "rate-limits: an unwritable state dir changes neither the output nor the exit code" {
+  json="$(rl_json s1 12.5 41.25 3)"
+  export XDG_STATE_HOME="$TEST_TMP/ok"
+  expected="$(statusline "$json")"
+  # A file where the directory should be: no user, root included, can make it.
+  export XDG_STATE_HOME="$TEST_TMP/blocked"
+  printf 'x' > "$XDG_STATE_HOME"
+  rc=0
+  out="$(statusline "$json" 2>"$TEST_TMP/err")" || rc=$?
+  assert_equal "$rc" 0
+  assert_equal "$out" "$expected"
+  assert_equal "$(cat "$TEST_TMP/err")" ""
+}
+
+@test "rate-limits: an unreadable old file is replaced, not kept" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  mkdir -p "$XDG_STATE_HOME/claude"
+  printf 'not json' > "$(rl_file)"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  assert_equal "$(jq -r .session_id "$(rl_file)")" s1
+}
+
+@test "rate-limits: leaves no temp file behind" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s1 12.5 41.5 4)" >/dev/null
+  statusline "$(rl_json s2 1 1 1)" >/dev/null
+  assert_equal "$(ls -A "$XDG_STATE_HOME/claude")" rate-limits.json
+}

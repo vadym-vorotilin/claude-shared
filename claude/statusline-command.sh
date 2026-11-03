@@ -128,6 +128,73 @@ week_pct=$(echo "$input" | jq -r '(.rate_limits.seven_day.used_percentage // emp
 five_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
+# Keep the last quota reading on disk, for tools that run outside a session
+# (a scheduler checking the weekly cap before it starts one). The file is
+#   ${XDG_STATE_HOME:-$HOME/.local/state}/claude/rate-limits.json
+# with the windows the harness sent (unrounded), session_id, the session's
+# main-conversation request count, and two clocks:
+#   written_at  - this script last ran for the writer: the session is alive.
+#   observed_at - the reading last changed, or a new main-conversation API
+#                 response arrived. This script re-runs on a timer with the
+#                 last data it was given, so "now" on every run would stamp a
+#                 frozen number as fresh. A reader judges staleness by this.
+# Another session's reading replaces the file only when it is for a later
+# window, or at least as high in the same one (within a window, use only
+# rises), so a session holding an old reading cannot roll it back. The block
+# prints nothing and never changes the status line's output or exit code.
+persist_rate_limits() {
+  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude"
+  local file="$dir/rate-limits.json" prev="" next tmp
+  [ -r "$file" ] && prev=$(cat "$file" 2>/dev/null)
+  next=$(printf '%s' "$input" | jq -c --arg prev "$prev" --argjson now "$now" '
+    def win($w): if ($w | type) == "object" and ($w.used_percentage | type) == "number"
+                 then {used_percentage: $w.used_percentage, resets_at: $w.resets_at}
+                 else null end;
+    def same_vals($a; $b): ($a.seven_day == $b.seven_day) and ($a.five_hour == $b.five_hour);
+    (.rate_limits // {}) as $rl
+    | ({} + (if win($rl.seven_day) then {seven_day: win($rl.seven_day)} else {} end)
+          + (if win($rl.five_hour) then {five_hour: win($rl.five_hour)} else {} end)) as $wins
+    | if $wins == {} then empty else
+      ($prev | try fromjson catch null) as $old
+      | ($wins + {session_id: (.session_id // ""),
+                  requests: (.prompt_cache.requests // null),
+                  observed_at: $now, written_at: $now}) as $new
+      | if ($old | type) != "object" then $new
+        elif $old.session_id == $new.session_id then
+          # Same session: its own latest reading always lands. The data time
+          # carries over unless the reading changed or a request went out.
+          if same_vals($old; $new)
+             and ($new.requests == null or ($old.requests // -1) >= $new.requests)
+          then $new + {observed_at: ($old.observed_at // $now)}
+          else $new end
+        elif same_vals($old; $new) then
+          # Another session with the very same reading: the file stays with
+          # the session that wrote it, and only the liveness clock moves.
+          $old + {written_at: $now}
+        else
+          # Decide on the weekly window when either reading has one.
+          (if ($old.seven_day | type) == "object" or ($new.seven_day | type) == "object"
+           then "seven_day" else "five_hour" end) as $k
+          | $old[$k] as $o | $new[$k] as $n
+          | if ($n | type) != "object" then empty
+            elif ($o | type) != "object" then $new
+            elif ($n.resets_at // 0) > ($o.resets_at // 0) then $new
+            elif ($n.resets_at // 0) == ($o.resets_at // 0)
+                 and $n.used_percentage >= $o.used_percentage then $new
+            else empty end
+        end
+      end' 2>/dev/null) || return 0
+  [ -n "$next" ] || return 0
+  mkdir -p "$dir" 2>/dev/null || return 0
+  tmp=$(mktemp "$dir/.rate-limits.json.XXXXXX" 2>/dev/null) || return 0
+  if printf '%s\n' "$next" > "$tmp" 2>/dev/null && mv -f "$tmp" "$file" 2>/dev/null; then
+    return 0
+  fi
+  rm -f "$tmp" 2>/dev/null
+  return 0
+}
+persist_rate_limits 2>/dev/null
+
 # Time left until a quota window recycles: "-Xd Yh", "-Xh YYm", or "-Xm".
 # resets_at is Unix epoch seconds, read against the lib's "now". Integer printf
 # (%02d) is safe under bash 3.2 — only %f floats fail.
