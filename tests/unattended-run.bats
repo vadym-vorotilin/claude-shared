@@ -94,6 +94,10 @@ make_dir() { # name age
   [ -n "$para" ] || fail "no 'Standing authority (opt-in).' paragraph in $skill"
   assert_contains "$para" "Without that overlay line"
   assert_contains "$para" "never widen"
+  flat="$(printf '%s' "$para" | tr '\n' ' ')"   # the paragraph is hard-wrapped; phrases may span lines
+  assert_contains "$flat" "own files are not the approval"
+  assert_contains "$flat" "names that design"
+  assert_contains "$flat" "verbatim"
   for bad in '/home/' '/mnt/' '#[0-9]' 'http://' 'https://'; do
     if printf '%s\n' "$para" | grep -q -- "$bad"; then
       fail "the paragraph must stay generic; it matches [$bad]"
