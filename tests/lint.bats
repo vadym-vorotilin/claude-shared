@@ -213,6 +213,8 @@ PY
   assert_equal "$(grep -v '^$' "$RUN/briefs/brief-1-approach-1.md" | tr '\n' ' ')" "common issue warmth ceiling approach run cap spec 1-approach-1 "
   ! leg scope 1-scope-1 2>/dev/null || fail "an unknown role passed"
   ! leg approach 1-approach-1 --ceiling >/dev/null 2>&1 || fail "a mistyped ceiling argument passed"
+  ! leg reviewer 1-review-1 ceiling >/dev/null 2>&1 || fail "a reviewer took a ceiling argument"
+  ! leg fixer 1-fixer-1 x >/dev/null 2>&1 || fail "a fixer took a third argument"
   ! leg fixer 9-fixer-1 >/dev/null 2>&1 || fail "a missing spec part passed"
 }
 

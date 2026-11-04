@@ -588,6 +588,13 @@ rl_json() {
   assert_equal "$(cat "$(rl_file)")" "$before"
 }
 
+@test "rate-limits: a file window past its reset does not block another session's reading" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 50 40 3 1767600000 1767225000)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 "" 2 1 1768200000)" >/dev/null
+  assert_equal "$(jq -c '[.session_id, .seven_day.used_percentage, .five_hour]' "$(rl_file)")" '["s2",2,null]'
+}
+
 @test "rate-limits: a new 5-hour window from another session replaces the expired one" {
   export XDG_STATE_HOME="$TEST_TMP/state"
   statusline "$(rl_json s1 90 41.25 3)" >/dev/null

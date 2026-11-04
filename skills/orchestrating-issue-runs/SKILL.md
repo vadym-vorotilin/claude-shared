@@ -92,12 +92,10 @@ commit identity), written once, not per spec part:
 ```bash
 leg() { # leg <fixer|reviewer|approach|adjudicator> <leg> [ceiling]
   local role="$1" l="$2" b=("$S/briefs/common.md" "$S/briefs/issue.md" "$S/../cache-warmth/brief.md")
-  case "$role" in
-    fixer) b+=("$S/../context-ceiling/brief.md") ;;
-    approach|adjudicator) case "${3:-}" in ceiling) b+=("$S/../context-ceiling/brief.md") ;; "") ;;
-      *) echo "leg: bad arg $3" >&2; return 1 ;; esac ;;
-    reviewer) ;;
-    *) echo "leg: no row for $role; call brief directly" >&2; return 1 ;;
+  case "$role:${3:-}" in
+    fixer:|approach:ceiling|adjudicator:ceiling) b+=("$S/../context-ceiling/brief.md") ;;
+    reviewer:|approach:|adjudicator:) ;;
+    *) echo "leg: no row for $role ${3:-}; call brief directly" >&2; return 1 ;;
   esac
   b+=("$S/briefs/$role.md")
   if [ -s "$RUN/briefs/run.md" ]; then b+=("$RUN/briefs/run.md"); fi

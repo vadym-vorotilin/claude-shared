@@ -140,10 +140,10 @@ week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 #                 This script re-runs on a timer with the
 #                 last data it was given, so "now" on every run would stamp a
 #                 frozen number as fresh. A reader judges staleness by this.
-# Another session's reading replaces the file only when neither window in the
-# file is newer (a later reset, or the same reset at a higher share; within a
-# window, use only rises), so a session holding an old reading cannot roll
-# either window back. The block
+# Another session's reading replaces the file only when neither live window in
+# the file is newer (a later reset, or the same reset at a higher share; within
+# a window, use only rises), so a session holding an old reading cannot roll
+# either window back. A window already past its reset never blocks. The block
 # prints nothing and never changes the status line's output or exit code.
 persist_rate_limits() {
   local dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude"
@@ -177,8 +177,10 @@ persist_rate_limits() {
         else
           # Another session, a different reading: it lands only when no window
           # in the file is newer than its own (a later reset, or the same reset
-          # at a higher share) and it drops no window the file has.
+          # at a higher share) and it drops no live window the file has. A
+          # window past its reset never counts, or it would pin the file.
           def older($o; $n): ($o | type) == "object"
+            and (($o.resets_at | type) != "number" or $o.resets_at > $now)
             and (($n | type) != "object"
                  or ($o.resets_at // 0) > ($n.resets_at // 0)
                  or (($o.resets_at // 0) == ($n.resets_at // 0)

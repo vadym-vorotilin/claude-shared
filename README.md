@@ -167,8 +167,9 @@ though not necessarily the one named; `observed_at` is when the reading last
 changed or, when the input carries a `prompt_cache.requests` count, that count
 went up. The script re-runs on a timer with the data it last got, so judge
 staleness by `observed_at`. A reading from another session replaces the file
-only when neither window in the file is newer (a later reset, or the same
-reset at a higher share), so an old reading never rolls either window back. Nothing is printed, and a state folder it can't write leaves the status
+only when neither live window in the file is newer (a later reset, or the same
+reset at a higher share), so an old reading never rolls either window back; a
+window already past its reset never blocks one. Nothing is printed, and a state folder it can't write leaves the status
 line as it was.
 
 ## The agent panel
