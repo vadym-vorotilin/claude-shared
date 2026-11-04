@@ -158,6 +158,20 @@ until it resets: `-2h 13m` within a day, `-3d 5h` beyond. The 5-hour window is
 the one you actively burn through, so it stays white; the slow-moving weekly
 window renders gray to recede next to it.
 
+The script also keeps the last reading on disk, for tools that run outside a
+session (a scheduler checking the weekly window before it starts one), in
+`${XDG_STATE_HOME:-~/.local/state}/claude/rate-limits.json`: the windows as
+sent, unrounded, the `session_id`, and two clocks. `written_at` is when a
+session last ran the script with this reading, so some session is alive,
+though not necessarily the one named; `observed_at` is when the reading last
+changed or, when the input carries a `prompt_cache.requests` count, that count
+went up. The script re-runs on a timer with the data it last got, so judge
+staleness by `observed_at`. A reading from another session replaces the file
+only when neither live window in the file is newer (a later reset, or the same
+reset at a higher share), so an old reading never rolls either window back; a
+window already past its reset never blocks one. Nothing is printed, and a state folder it can't write leaves the status
+line as it was.
+
 ## The agent panel
 
 Live subagents get a row each in the agent panel below the prompt, laid out in

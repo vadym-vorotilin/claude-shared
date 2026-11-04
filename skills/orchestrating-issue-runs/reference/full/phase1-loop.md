@@ -420,7 +420,7 @@ next specific part instead of waiting. Only the just-landed PR and branch facts
 get filled in when the agent returns.
 
 **What the orchestrator reads itself is small.** A return (the shape is in
-`briefs/common.md`: at most ~40 lines plus a report path), a grep of a report
+`briefs/common.md`: at most ~15 lines plus a report path), a grep of a report
 for a named question, a field-selecting tracker one-liner, a file of at most
 ~200 lines. A raw tracker view, a transcript, a diff or an image is read by a
 **reader leg** at the cheapest tier that returns at most ten lines — the

@@ -85,6 +85,24 @@ brief "$RUN/briefs/brief-<leg>.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
   "$RUN/briefs/spec-<leg>.md" || echo "STOP: fix the brief before dispatching"
 ```
 
+For the four common roles, `leg` builds the table's row and prints the brief's
+path, adding `$RUN/briefs/run.md` if present: the run's binding lines (such as
+commit identity), written once, not per spec part:
+
+```bash
+leg() { # leg <fixer|reviewer|approach|adjudicator> <leg> [ceiling]
+  local role="$1" l="$2" b=("$S/briefs/common.md" "$S/briefs/issue.md" "$S/../cache-warmth/brief.md")
+  case "$role:${3:-}" in
+    fixer:|approach:ceiling|adjudicator:ceiling) b+=("$S/../context-ceiling/brief.md") ;;
+    reviewer:|approach:|adjudicator:) ;;
+    *) echo "leg: no row for $role ${3:-}; call brief directly" >&2; return 1 ;;
+  esac
+  b+=("$S/briefs/$role.md")
+  if [ -s "$RUN/briefs/run.md" ]; then b+=("$RUN/briefs/run.md"); fi
+  brief "$RUN/briefs/brief-$l.md" "${b[@]}" "$RUN/briefs/spec-$l.md" && echo "$RUN/briefs/brief-$l.md"
+}
+```
+
 | Role | Blocks after `briefs/common.md` and `../cache-warmth/brief.md` |
 |---|---|
 | fixer, continuation | `briefs/issue.md`, `../context-ceiling/brief.md`, `briefs/fixer.md` |

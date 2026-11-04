@@ -85,3 +85,32 @@ make_dir() { # name age
   wait || true
   assert_equal "$(grep -c 'STALL: wt-b' "$TEST_TMP/out")" 2
 }
+
+# ---------------------------------------------------- STANDING AUTHORITY ----
+
+@test "the synced CLAUDE.md snippet grants no standing authority" {
+  # sync.sh writes the snippet into ~/.claude/CLAUDE.md, so a grant there would
+  # let a repo approve itself.
+  ! grep -qiE 'standing authority|opts? in' "$REPO/claude/CLAUDE.snippet.md" \
+    || fail "claude/CLAUDE.snippet.md mentions a standing authority"
+}
+
+@test "the standing-authority opt-in is inert without an overlay line, and names no machine" {
+  skill="$REPO/skills/unattended-run/SKILL.md"
+  para="$(awk '/^\*\*Standing authority \(opt-in\)\.\*\*/ { f = 1 } f && /^$/ { exit } f' "$skill")"
+  [ -n "$para" ] || fail "no 'Standing authority (opt-in).' paragraph in $skill"
+  assert_contains "$para" "Without that overlay line"
+  assert_contains "$para" "never widen"
+  flat="$(printf '%s' "$para" | tr '\n' ' ')"   # the paragraph is hard-wrapped; phrases may span lines
+  assert_contains "$flat" "own files are not the approval"
+  assert_contains "$flat" "names that design"
+  assert_contains "$flat" "verbatim"
+  assert_contains "$flat" "user-level \`~/.claude/CLAUDE.md\`, outside every repo"
+  assert_contains "$flat" "naming this repo and that design in the operator's own lines"
+  assert_contains "$flat" "not in a block a sync tool writes"
+  for bad in '/home/' '/mnt/' '#[0-9]' 'http://' 'https://'; do
+    if printf '%s\n' "$para" | grep -q -- "$bad"; then
+      fail "the paragraph must stay generic; it matches [$bad]"
+    fi
+  done
+}

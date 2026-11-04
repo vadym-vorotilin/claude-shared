@@ -30,11 +30,14 @@ check (the command's own list is empty) is what makes it harmless. Repeat the
 bans verbatim in each brief and check their trace after each return.
 
 **The return contract has a shape, and it is short.** A return is at most
-about 40 lines: STATUS, GOAL, the quoted numbers (suite line, counts, SHAs), PR
+about 15 lines: STATUS, GOAL, the quoted numbers (suite line, counts, SHAs), PR
 number and head, DEVIATIONS, DESIGN_QUESTIONS, and one path to a report file in
 the run's `reports/` directory that holds everything else. The orchestrator greps
 the report for a named question and does not read it; a 200-line return is
 read at whatever context the orchestrator has reached, on every later turn.
+A 40-line cap still filled the orchestrator fast once returns came in several
+an hour. At 15 lines, with the detail in the report, the returns still carried
+every fact a ruling or merge needed.
 **The goal line goes in the brief and comes back in the return contract.** Add
 a line to every return contract — *"GOAL: what your deliverable moved on the
 run's goal line, in one sentence, or `nothing`"*. Two things fall out of it and
