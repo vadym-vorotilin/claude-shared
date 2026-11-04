@@ -86,15 +86,16 @@ brief "$RUN/briefs/brief-<leg>.md" "$S/briefs/common.md" "$S/briefs/issue.md" \
 ```
 
 For the four common roles, `leg` builds the table's row and prints the brief's
-path. It adds `$RUN/briefs/run.md` if present: the run's own binding lines
-(commit identity, a tighter return cap), written once, not in every spec part:
+path, adding `$RUN/briefs/run.md` if present: the run's binding lines (such as
+commit identity), written once, not per spec part:
 
 ```bash
 leg() { # leg <fixer|reviewer|approach|adjudicator> <leg> [ceiling]
   local role="$1" l="$2" b=("$S/briefs/common.md" "$S/briefs/issue.md" "$S/../cache-warmth/brief.md")
   case "$role" in
     fixer) b+=("$S/../context-ceiling/brief.md") ;;
-    approach|adjudicator) if [ "${3:-}" = ceiling ]; then b+=("$S/../context-ceiling/brief.md"); fi ;;
+    approach|adjudicator) case "${3:-}" in ceiling) b+=("$S/../context-ceiling/brief.md") ;; "") ;;
+      *) echo "leg: bad arg $3" >&2; return 1 ;; esac ;;
     reviewer) ;;
     *) echo "leg: no row for $role; call brief directly" >&2; return 1 ;;
   esac

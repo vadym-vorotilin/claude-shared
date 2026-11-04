@@ -66,9 +66,9 @@ grants it) → a merge-mechanics agent (`merge` block) does the squash, close,
 labels and board sync; a single trivial gate-plus-merge may stay one command.
 When a run's merge recipe is fixed, write it once as `$RUN/tools/merge.sh`:
 verify the verdict on the pinned head, gate, merge pinned to that head, check
-what landed, close the issue, delete the branch, and remove the card's worktree
-when clean. It prints one line and exits with a distinct code per failure.
-Watch its first live run in full.
+what landed, close the issue, delete only that PR's branch (`git branch -d`,
+never `-D`), and remove only that card's worktree, unforced, when clean. It
+prints one line and exits with a distinct code per failure. Watch its first run.
 Cross-repo groups merge producer first, all-or-nothing. A docs-only wording nit
 on a clean docs PR: fix it on the branch yourself. A card straddling the wave
 boundary closes in the wave that did its work; the remainder is filed fresh.

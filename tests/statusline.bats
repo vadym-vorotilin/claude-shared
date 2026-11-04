@@ -486,13 +486,13 @@ plain() { printf '%s' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*m//g"; }
 
 rl_file() { printf '%s/claude/rate-limits.json' "${XDG_STATE_HOME:-$HOME/.local/state}"; }
 
-# rl_json session five-pct seven-pct [requests] [seven-resets]; an empty pct
-# leaves that window out.
+# rl_json session five-pct seven-pct [requests] [seven-resets] [five-resets];
+# an empty pct leaves that window out.
 rl_json() {
-  jq -n --arg s "$1" --arg f "$2" --arg w "$3" --arg q "${4:-}" --arg r "${5:-1767600000}" '
+  jq -n --arg s "$1" --arg f "$2" --arg w "$3" --arg q "${4:-}" --arg r "${5:-1767600000}" --arg h "${6:-1767240000}" '
     {cwd:"/tmp", session_id:$s, model:{display_name:"M"},
      rate_limits:(
-       (if $f == "" then {} else {five_hour:{used_percentage:($f|tonumber), resets_at:1767240000}} end)
+       (if $f == "" then {} else {five_hour:{used_percentage:($f|tonumber), resets_at:($h|tonumber)}} end)
        + (if $w == "" then {} else {seven_day:{used_percentage:($w|tonumber), resets_at:($r|tonumber)}} end))}
     + (if $q == "" then {} else {prompt_cache:{requests:($q|tonumber)}} end)'
 }
@@ -568,8 +568,31 @@ rl_json() {
 @test "rate-limits: another session in a later weekly window replaces a higher reading" {
   export XDG_STATE_HOME="$TEST_TMP/state"
   statusline "$(rl_json s1 12.5 97.0 3)" >/dev/null
-  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 1 2 1 1768200000)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 1 2 1 1768200000 1767258000)" >/dev/null
   assert_equal "$(jq -c '[.session_id, .seven_day]' "$(rl_file)")" '["s2",{"used_percentage":2,"resets_at":1768200000}]'
+}
+
+@test "rate-limits: another session at the same weekly share but a lower 5-hour share leaves the file alone" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 12.5 41.25 3)" >/dev/null
+  before="$(cat "$(rl_file)")"
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 9 41.25 1)" >/dev/null
+  assert_equal "$(cat "$(rl_file)")" "$before"
+}
+
+@test "rate-limits: an expired 5-hour window from another session does not replace the new one" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 2 41.25 3 1767600000 1767258000)" >/dev/null
+  before="$(cat "$(rl_file)")"
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 90 41.25 1)" >/dev/null
+  assert_equal "$(cat "$(rl_file)")" "$before"
+}
+
+@test "rate-limits: a new 5-hour window from another session replaces the expired one" {
+  export XDG_STATE_HOME="$TEST_TMP/state"
+  statusline "$(rl_json s1 90 41.25 3)" >/dev/null
+  STATUSLINE_NOW=$((STATUSLINE_NOW + 60)) statusline "$(rl_json s2 2 41.25 1 1767600000 1767258000)" >/dev/null
+  assert_equal "$(jq -c '[.session_id, .five_hour.used_percentage]' "$(rl_file)")" '["s2",2]'
 }
 
 @test "rate-limits: another session without a weekly window does not drop the file's" {

@@ -132,15 +132,18 @@ week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 # (a scheduler checking the weekly cap before it starts one). The file is
 #   ${XDG_STATE_HOME:-$HOME/.local/state}/claude/rate-limits.json
 # with the windows the harness sent (unrounded), session_id, the session's
-# main-conversation request count, and two clocks:
-#   written_at  - this script last ran for the writer: the session is alive.
-#   observed_at - the reading last changed, or a new main-conversation API
-#                 response arrived. This script re-runs on a timer with the
+# main-conversation request count when the input carries one
+# (prompt_cache.requests), and two clocks:
+#   written_at  - a session last ran this script with this reading: some
+#                 session is alive, not necessarily the one named.
+#   observed_at - the reading last changed, or the request count went up.
+#                 This script re-runs on a timer with the
 #                 last data it was given, so "now" on every run would stamp a
 #                 frozen number as fresh. A reader judges staleness by this.
-# Another session's reading replaces the file only when it is for a later
-# window, or at least as high in the same one (within a window, use only
-# rises), so a session holding an old reading cannot roll it back. The block
+# Another session's reading replaces the file only when neither window in the
+# file is newer (a later reset, or the same reset at a higher share; within a
+# window, use only rises), so a session holding an old reading cannot roll
+# either window back. The block
 # prints nothing and never changes the status line's output or exit code.
 persist_rate_limits() {
   local dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude"
@@ -172,16 +175,16 @@ persist_rate_limits() {
           # the session that wrote it, and only the liveness clock moves.
           $old + {written_at: $now}
         else
-          # Decide on the weekly window when either reading has one.
-          (if ($old.seven_day | type) == "object" or ($new.seven_day | type) == "object"
-           then "seven_day" else "five_hour" end) as $k
-          | $old[$k] as $o | $new[$k] as $n
-          | if ($n | type) != "object" then empty
-            elif ($o | type) != "object" then $new
-            elif ($n.resets_at // 0) > ($o.resets_at // 0) then $new
-            elif ($n.resets_at // 0) == ($o.resets_at // 0)
-                 and $n.used_percentage >= $o.used_percentage then $new
-            else empty end
+          # Another session, a different reading: it lands only when no window
+          # in the file is newer than its own (a later reset, or the same reset
+          # at a higher share) and it drops no window the file has.
+          def older($o; $n): ($o | type) == "object"
+            and (($n | type) != "object"
+                 or ($o.resets_at // 0) > ($n.resets_at // 0)
+                 or (($o.resets_at // 0) == ($n.resets_at // 0)
+                     and $o.used_percentage > $n.used_percentage));
+          if older($old.seven_day; $new.seven_day) or older($old.five_hour; $new.five_hour)
+          then empty else $new end
         end
       end' 2>/dev/null) || return 0
   [ -n "$next" ] || return 0
