@@ -1,6 +1,6 @@
 ---
 name: research
-description: Run a research spike or investigation — split it into legs (code surveys, web research, measurements, design), dispatch each to a subagent on the model and effort the leg needs rather than the session's own, and synthesise a recommendation. Use when the user says "/research <question>", "research X", "spike X", "investigate how we could…", "find out whether…", or asks for options and a recommendation that need code reading, web sources or benchmarks.
+description: Run a research spike or investigation — split it into legs (code surveys, web research, measurements, design), dispatch each to a subagent on the model and effort the leg needs rather than the session's own, and synthesise a recommendation. Use when the user says "/research <question>", "research X", "spike X", "investigate how we could…", "find out whether…", or asks for options and a recommendation that need code reading, web sources or benchmarks. Not for a single lookup one grep, one file or one page answers.
 ---
 
 # research — legs on the right model, judgment at the top
@@ -8,7 +8,8 @@ description: Run a research spike or investigation — split it into legs (code 
 A research request usually needs several kinds of work at once: locate code,
 read sources on the web, measure something, and then judge. Those kinds need
 very different models. A subagent dispatched without `model` and `effort`
-**inherits the session's** — so a session running on the top tier at high
+**inherits the session's**, unless its agent definition or a configured default
+subagent model says otherwise — so a session running on the top tier at high
 effort silently runs three read-only code surveys on the top tier at high
 effort. Stopping and relaunching them costs the minutes already spent, and the
 user should not have to point it out.
@@ -28,7 +29,8 @@ instruction the Agent tool's `effort` setting asks for.
   project's instructions name it (a `CLAUDE.md` line, a memory); otherwise run
   locally and say so.
 - **git** is optional. Research makes no commits in the user's repos unless asked;
-  throwaway scripts go in the scratchpad or the spike's own worktree.
+  throwaway scripts go in the scratchpad. A leg that must change code works in
+  a worktree you create for it, and only that worktree is removed at the end.
 
 ## 1. Frame — one short block, before any dispatch
 
@@ -66,7 +68,7 @@ reply before dispatching:
 | Web research: gather and summarise sources | `general-purpose` | mid (Sonnet-class) | medium |
 | Web research on niche, recent or version-specific facts | `general-purpose` | mid (Sonnet-class) | high |
 | Write and run a benchmark or throwaway prototype | `general-purpose` | mid (Sonnet-class) | medium |
-| Design a candidate approach later work builds on | `general-purpose` | top (Opus-class) | high |
+| Design a candidate approach later work builds on, where no spec exists yet (an implementation approach for a specified issue is `orchestrating-issue-runs`' cheaper row) | `general-purpose` | top (Opus-class) | high |
 | Adversarial check of the recommendation | fresh `general-purpose` | top (Opus-class) | high |
 | Framing, synthesis, the recommendation | **you** | — | — |
 
@@ -136,7 +138,7 @@ In the log, and a short version in the reply:
 
 ## Red flags — stop
 
-- A dispatch with no `model` or no `effort` — it inherits the session's
+- A dispatch with no `model` or no `effort` — it falls back to the session's
 - A top-tier or high-effort leg whose job is to locate or summarise
 - Relaunching every leg because one came back weak
 - A heavy benchmark on the user's laptop when a compute host is named
