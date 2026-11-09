@@ -30,7 +30,8 @@ instruction the Agent tool's `effort` setting asks for.
   locally and say so.
 - **git** is optional. Research makes no commits in the user's repos unless asked;
   throwaway scripts go in the scratchpad. A leg that must change code works in
-  a worktree you create for it, and only that worktree is removed at the end.
+  a worktree you create for it outside the repo (in the scratchpad), and only
+  that worktree is removed at the end.
 
 ## 1. Frame — one short block, before any dispatch
 
@@ -68,10 +69,12 @@ reply before dispatching:
 | Web research: gather and summarise sources | `general-purpose` | mid (Sonnet-class) | medium |
 | Web research on niche, recent or version-specific facts | `general-purpose` | mid (Sonnet-class) | high |
 | Write and run a benchmark or throwaway prototype | `general-purpose` | mid (Sonnet-class) | medium |
-| Design a candidate approach later work builds on, where no spec exists yet (an implementation approach for a specified issue is `orchestrating-issue-runs`' cheaper row) | `general-purpose` | top (Opus-class) | high |
+| Design a candidate approach later work builds on, where no spec exists yet | `general-purpose` | top (Opus-class) | high |
 | Adversarial check of the recommendation | fresh `general-purpose` | top (Opus-class) | high |
 | Framing, synthesis, the recommendation | **you** | — | — |
 
+- **A spec already exists?** Then it is an implementation approach, not
+  research: `../orchestrating-issue-runs/SKILL.md` runs those on the mid tier.
 - **Locating and summarising are not judgment.** They go cheap even when the
   topic is hard; the hard part is yours, in step 5.
 - **The session's own effort is not a default for legs.** A session at xhigh
