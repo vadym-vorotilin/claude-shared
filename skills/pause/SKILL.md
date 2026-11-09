@@ -77,8 +77,9 @@ this order:
    and agent ID this session launched, found in its own tool calls or, after a
    compaction, in the handoff's or summary's running list, each confirmed by
    its status or output; `pgrep -f '<the command it launched>'` for a detached
-   process, and `pgrep -fl 'sleep 3000'` for a heartbeat whose launch is no
-   longer in view — report any hit by PID, do not kill it. Write down what is
+   process, and `pgrep -fl 'sleep 3000|sweep\.sh'` for a heartbeat or liveness
+   sweep whose launch is no longer in view — report any hit by PID, do not kill
+   it: the pattern can match another session's timer. Write down what is
    still alive and why; "nothing running" only after the check. In **You**,
    ask the user to confirm with `/tasks`.
 
