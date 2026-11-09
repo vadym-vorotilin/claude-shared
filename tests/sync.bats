@@ -30,9 +30,9 @@ run_sync() { run bash "$REPO/sync.sh"; }
   assert_equal "$(jq -r '.permissions.allow[0]' "$HOME/.claude/settings.json")" "Bash(ls)"
 }
 
-@test "deploys both status line scripts and the helpers they source" {
+@test "deploys both status line scripts, the helpers they source and the progress writer" {
   run_sync
-  for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh; do
+  for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh statusline-progress.sh; do
     assert_file_exists "$HOME/.claude/$f"
     assert_executable "$HOME/.claude/$f"
   done

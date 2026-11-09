@@ -8,6 +8,7 @@
 #                                    -> ~/.claude/subagent-statusline-command.sh
 #   - claude/statusline-lib.sh      -> ~/.claude/statusline-lib.sh
 #                                      (sourced by both status line scripts)
+#   - claude/statusline-progress.sh -> ~/.claude/statusline-progress.sh
 #   - claude/settings.shared.json   -> merged into ~/.claude/settings.json
 #                                      (shared keys win; local-only keys preserved)
 #   - skills/*/                      -> symlinked into ~/.claude/skills/
@@ -51,7 +52,7 @@ mkdir -p "$CLAUDE_DIR/skills"
 
 # 1. Status line scripts -----------------------------------------------------
 # The session's line, the agent panel's rows, and the helpers both source.
-for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh; do
+for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh statusline-progress.sh; do
   log "deploy $f"
   cp "$REPO/claude/$f" "$CLAUDE_DIR/$f"
   chmod +x "$CLAUDE_DIR/$f"
