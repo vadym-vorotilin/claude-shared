@@ -207,7 +207,8 @@ In one turn, in this order:
    **exactly what waits on the operator** — each held item with the decision it
    needs — the record's path, and that the heartbeat is off. Any extra task the
    operator attached (a report, an analysis) comes after the stop, in this same
-   message.
+   message. When the operator asked to pause or drain, end it with the
+   `/compact` line from `pause` step 4.
 
 ## Red flags
 
