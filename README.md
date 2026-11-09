@@ -301,6 +301,10 @@ of these are available in every project on the machine.
   session, rather than summarising it.
 - **`/progress`** — a mid-task pulse: timestamped count/%/ETA header, a few
   short lines, then the session carries on.
+- **`/pause`** — end a working stretch in one request: work until a cutoff
+  (from an optional deadline, e.g. `/pause 13:00`), drain helpers and timers,
+  save the handoff, and end with a ready-to-paste `/compact` line. It never
+  pushes without the project's or your say-so.
 
 ## Per-repo skill templates
 
