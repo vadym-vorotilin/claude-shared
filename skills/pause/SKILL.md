@@ -74,17 +74,21 @@ this order:
    heartbeat, the cutoff wake, the sweep and any other `Monitor`. A timer that
    fires after the pause re-reads the whole context for nothing.
 3. **Check, by named means, not from memory:** `CronList` for crons; every task
-   and agent ID this session launched, found in its own tool calls, each
-   confirmed by its status or output; `pgrep -f '<the command it launched>'`
-   for a detached process. Write down what is still alive and why; "nothing
-   running" only after the check. In **You**, ask the user to confirm with
-   `/tasks`.
+   and agent ID this session launched, found in its own tool calls or, after a
+   compaction, in the handoff's or summary's running list, each confirmed by
+   its status or output; `pgrep -f '<the command it launched>'` for a detached
+   process, and `pgrep -fl 'sleep 3000'` for a heartbeat whose launch is no
+   longer in view — report any hit by PID, do not kill it. Write down what is
+   still alive and why; "nothing running" only after the check. In **You**,
+   ask the user to confirm with `/tasks`.
 
 ## 3. Save
 
 **Inside an unattended run**, its record is the state: write the RESUME PACKET
-and save it per `unattended-run` §8 steps 2–4, in place of this step, and
-name it as the state in step 4. Step 2 above covers §8's drain and timer stop.
+and save it per `unattended-run` §8 steps 2–4, in place of this step, folding
+any push or commit offer the handoff makes into **You**. Name the record as the
+state in step 4, and add §8 step 6's goal line (items met) to **Done** and its
+held items to **You**. Step 2 above covers §8's drain and timer stop.
 
 1. Run the project's handoff (`/handoff wrap`, or update its handoff doc), and
    fold any push or commit offer it makes into **You** rather than asking now.
