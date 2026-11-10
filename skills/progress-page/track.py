@@ -384,6 +384,11 @@ def cmd_record(a):
         k, h = m.groups()
         if state["datasets"].get(k, {}).get("pending") != h:
             die(f"{key} is not the pending batch for {k}; nothing recorded")
+        sent = state["datasets"][k].get("sent") or {}
+        if "pin" in sent and sent["pin"] is None and int(v) != 1:
+            die(f"{k} was created by an unpinned --first set but is at version {v}, not 1: it may have "
+                f"existed and been replaced. Tell the user and ask what was there; then track.py record "
+                f"{a.dir} --version-only {k}={v}. Nothing recorded")
         todo.append((k, h, int(v)))
     for k, h, v in todo:
         ds = state["datasets"].setdefault(k, {})
@@ -413,8 +418,9 @@ def cmd_resolve(a):
             f"If {k} is missing: ask the user whether to create it, and only then track.py record {a.dir} "
             f"--version-only {k}=0 and batch --first {k}")
     first, pin = sent["pin"] is None, sent["pin"]
-    review = (f"Follow SKILL.md's 'When a pinned write is refused': read the rows its source.url names and "
-              f"its title and description, fold a real edit into status.json or ask the user, then "
+    review = (f"Follow SKILL.md's 'When a pinned write is refused': read the rows its source.url names, "
+              f"fold a real edit into status.json or ask the user (a changed title or description is safe), "
+              f"then "
               f"track.py record {a.dir} --version-only {k}=<v>")
     if a.missing:
         if not first:
