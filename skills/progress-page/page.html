@@ -50,7 +50,7 @@
 <div class="pp">
   <header class="pp-head" id="summary">
     <h1 class="pp-title" data-draw="title" data-source="track" data-field="title" data-row="0">—</h1>
-    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. Next phase: <b data-draw="nextphase">—</b>.<span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
+    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. <span data-draw="nextphase">Next phase: —.</span><span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
     <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log" data-field="at" data-row="0">—</time>. Claude updates this page as work lands.</p>
   </header>
   <section class="pp-card" id="roadmap">
@@ -158,8 +158,10 @@
     const d = window.ppTrack().deadline;
     const day = d ? window.ppParse(d) : null;
     if (!day) { el.textContent = ''; return; }
-    const left = Math.max(0, d3.utcDay.count(d3.utcDay.floor(new Date()), day));
-    el.textContent = ` Deadline ${fmtDay(day)}, ${left} days from today.`;
+    const left = d3.utcDay.count(d3.utcDay.floor(new Date()), day);
+    const when = left > 0 ? `${left} day${left === 1 ? '' : 's'} from today`
+      : left === 0 ? 'today' : `passed ${-left} day${left === -1 ? '' : 's'} ago`;
+    el.textContent = ` Deadline ${fmtDay(day)}, ${when}.`;
   });
   dash.draw('overall-done', (el) => { const v = one('overall', 'done'); el.textContent = v == null ? '—' : String(v); });
   dash.draw('overall-total', (el) => { const v = one('overall', 'total'); el.textContent = v == null ? '—' : String(v); });
@@ -167,11 +169,13 @@
 
   dash.draw('nextphase', (el) => {
     const g = dash.data('phases');
-    if (g.status !== 'ok') { el.textContent = '—'; return; }
+    if (g.status !== 'ok') { el.textContent = 'Next phase: —.'; return; }
     const today = d3.utcDay.floor(new Date());
     const next = g.data.slice().sort((a, b) => a.order - b.order)
       .find((r) => window.ppParse(r.target) >= today);
-    el.textContent = next ? `${next.name}, due ${fmtDay(window.ppParse(next.target))}` : 'none left';
+    if (!next) { el.textContent = 'No phase left.'; return; }
+    const label = window.ppParse(next.start) <= today ? 'Current phase' : 'Next phase';
+    el.textContent = `${label}: ${next.name}, due ${fmtDay(window.ppParse(next.target))}.`;
   });
 
   dash.draw('stamp', (el) => {

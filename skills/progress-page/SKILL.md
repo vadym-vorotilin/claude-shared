@@ -46,10 +46,12 @@ permission prompt or refusal.
    a ref's number, or an object of ref prefix → template when refs span
    repos, e.g. `{"api#": ".../api/issues/{n}", "web@": ".../web/commit/{n}"}`), and
    delete `"example": true`. `build` refuses the file until then.
-4. **Install the page: `$S/page.html`, unchanged.** `track.py page DIR`
-   prints the `ArtifactData` write that stores it as `files/index.html`
-   (if the page already has one, `get` it and pass `--version`); set
-   `dash/meta`'s title as the type's instructions say. The template is the
+4. **Install the page: `$S/page.html`, unchanged.** `ArtifactData` `get`
+   collection `files`, doc `index.html`. If it exists, read its `text`: the
+   type's starter page may be replaced; anything else is someone's page, so
+   ask first. Then `track.py page DIR --version <its version>`, or `--new` if
+   there is none, prints the pinned write that stores the template as
+   `files/index.html`. Set `dash/meta`'s title as the type's instructions say. The template is the
    layout, so don't redesign it: a one-sentence summary rather than number
    tiles, "In progress now" and "Recent activity" side by side, compact rows,
    and caption-size tables keep the whole track to a short scroll. It reads
@@ -66,13 +68,14 @@ permission prompt or refusal.
 
    If the track truly needs something else (a section of its own), change a
    copy of the template as little as possible, keep its classes and layout,
-   and follow the type's page rules for the new part.
+   follow the type's page rules for the new part, and install the copy with
+   `track.py page DIR --file <copy> --version <v>`.
 5. Do the first update (below), then read how the page ran: the type's
-   `check` and `runs` documents (its instructions say where). If neither
-   appears after a couple of minutes, nobody has the page open, and a page
-   of attached files has no query you could run instead: give the user the
-   link, ask them to open it, then read `check` again. Don't call the page
-   working until `check` passed.
+   `check` document (its instructions say where; a `runs` document may not
+   appear at all). If `check` hasn't appeared after a couple of minutes,
+   nobody has the page open, and a page of attached files has no query you
+   could run instead: give the user the link, ask them to open it, then read
+   `check` again. Don't call the page working until `check` passed.
 6. **Record it in the handoff** (`/handoff`, or the session's notes; leave
    the URL out of a handoff that is committed to a public repo): page URL,
    track directory, and that `track.py show DIR` prints the versions. A later
@@ -100,7 +103,7 @@ the answer must be yes.
    Edit the file directly only for phases and the track block; a stamp you
    need there comes from `track.py now`. **Never type a time** (hand stamps
    drift by the time-zone offset). Starting mid-track, past events and done
-   items take `--at` with a time read from a record (`git log -1
+   items (`log`, `item`, `add-item`) take `--at` with a time read from a record (`git log -1
    --format=%cI <sha>`, `gh pr view N --json mergedAt`), never from memory.
 2. New images: make a thumbnail of each, at most 150 KB (an ~800 px JPEG:
    `sips -Z 800 -s format jpeg in.png --out t.jpg` on macOS, `magick in.png
@@ -109,9 +112,9 @@ the answer must be yes.
    `build` embeds it as a `data:` URI, because the Data type's pages load
    nothing from the network. Show what is worth seeing: drop superseded
    images rather than growing the gallery past a couple of dozen.
-3. `track.py build DIR` checks the file (states, phase ids, UTC stamps,
-   thumbnail files and sizes, duplicate ids, link templates, the example
-   marker) and writes each changed dataset as `out/<name>-<hash>.json`.
+3. `track.py build DIR` checks the file (states, phase ids, order and
+   YYYY-MM-DD dates, UTC stamps, thumbnail files and sizes, duplicate ids,
+   https link templates, the example marker) and writes each changed dataset as `out/<name>-<hash>.json`.
    Upload each file it prints with `Artifact` publish, `url` = the page,
    `asset: true`, one call per JSON file (a file outside the working
    directory, such as a track directory kept out of the repo, can't share a
@@ -125,7 +128,8 @@ the answer must be yes.
    `build` printed, prints one `ArtifactData` batch with `if_version` pins and
    fresh stamps (stdout only; hints go to stderr, and the same batch is saved
    as `out/batch-<stamp>.json` in case the output is lost). Send it as
-   printed, then `track.py record DIR
+   printed (if the output was lost, send the saved file only if the batch
+   was never sent, and never one holding a `--first` set), then `track.py record DIR
    items-<hash>.json=<v> ...` (the same file names) with the versions the
    result returns. Only `record` marks content as live;
    until then the next `build` offers it again.
@@ -152,8 +156,10 @@ version it shows. `batch` refuses a repeat while one is pending. Pointing `init`
 at a different page URL forgets the old page's versions, so its first update
 goes through this step.
 
-**Page code changes** are rare: re-read the stored page with `Artifact`
-`read` first — the user may have edited it — and build on that copy.
+**Page code changes** are rare: `get` `files/index.html` first — the user
+may have edited it — save its `text` as your copy, change that, and install it
+with `track.py page DIR --file <copy> --version <the version get showed>`.
+Plain `track.py page` would put the stock template back over their edits.
 
 ## Rules
 

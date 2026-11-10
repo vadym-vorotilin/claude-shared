@@ -10,7 +10,7 @@ version is ever typed by hand.
   track.py init   DIR URL                 start status.json from the example; record the page URL
   track.py now                            print the clock's UTC stamp
   track.py log    DIR TEXT [--ref R] [--at ISO]   add a log entry, stamped now or at --at
-  track.py item   DIR ID STATE [--stage S]   change an item's state, stamped
+  track.py item   DIR ID STATE [--stage S] [--at ISO]   change an item's state, stamped now or at --at
   track.py add-item   DIR ID PHASE NAME [--ref R] [--state S] [--stage S] [--at ISO]
   track.py add-visual DIR TITLE CAPTION IMAGE_FILE [--item ID]
 
@@ -19,7 +19,8 @@ version is ever typed by hand.
   track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
   track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
   track.py show   DIR                     print the page URL, versions and pending uploads
-  track.py page   DIR [--version V]       print the write that installs page.html as the page
+  track.py page   DIR (--version V | --new) [--file F]   print the pinned write that installs the page
+                                          (F: an edited copy; default this skill's page.html)
 
 --at takes a time read from a record (git log --format=%cI, gh's mergedAt),
 with any UTC offset; it is stored as UTC. Never a time typed from memory.
@@ -46,6 +47,7 @@ STATES = ("done", "review", "building", "queued", "blocked", "cut")
 HERE = pathlib.Path(__file__).resolve().parent
 BLOB = re.compile(r"^(/_blob/\S+|https://\S+)$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
 MAX_IMAGE_KB = 150
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 TITLES = {
@@ -118,6 +120,16 @@ def rows_of(status, k, d):
     return rows
 
 
+def is_day(v):
+    if not isinstance(v, str) or not DAY.match(v):
+        return False
+    try:
+        datetime.date.fromisoformat(v)
+    except ValueError:
+        return False
+    return True
+
+
 def check(s, d):
     if not isinstance(s.get("track"), dict):
         return ["status.json needs an object 'track' (title, goal, deadline, ref_url)"]
@@ -132,9 +144,13 @@ def check(s, d):
     ru = s["track"].get("ref_url")
     if ru is not None:
         bad = [x for x in ([ru] if isinstance(ru, str) else ru.values() if isinstance(ru, dict) else [None])
-               if not isinstance(x, str) or "{n}" not in x]
+               if not isinstance(x, str) or "{n}" not in x or not x.startswith("https://")]
         if bad:
-            errs.append("track.ref_url: a link template with {n}, or an object of ref prefix -> template")
+            errs.append("track.ref_url: an https:// link template with {n}, or an object of ref prefix -> "
+                        "template (the page shows only https links)")
+    dl = s["track"].get("deadline")
+    if dl and not is_day(dl):
+        errs.append(f"track.deadline {dl!r}: a date as YYYY-MM-DD")
     for k in ("phases", "items"):
         ids = [r.get("id") for r in s[k]]
         for dup in sorted({i for i in ids if ids.count(i) > 1}, key=str):
@@ -144,6 +160,13 @@ def check(s, d):
         for f in ("id", "name", "start", "target"):
             if not p.get(f):
                 errs.append(f"phase {p.get('id', '?')}: missing {f}")
+        for f in ("start", "target"):
+            if p.get(f) and not is_day(p[f]):
+                errs.append(f"phase {p.get('id', '?')}: {f} {p[f]!r} must be a date as YYYY-MM-DD")
+        if is_day(p.get("start")) and is_day(p.get("target")) and p["start"] > p["target"]:
+            errs.append(f"phase {p.get('id', '?')}: start is after target")
+        if not isinstance(p.get("order"), (int, float)) or isinstance(p.get("order"), bool):
+            errs.append(f"phase {p.get('id', '?')}: 'order' must be a number (the roadmap's row order)")
     for i in s["items"]:
         if i.get("state") not in STATES:
             errs.append(f"item {i.get('id', '?')}: state {i.get('state')!r} not one of {', '.join(STATES)}")
@@ -215,7 +238,7 @@ def cmd_item(a):
         if not hits:
             die(f"no item {a.id!r}; add it with track.py add-item")
         for i in hits:
-            i["state"], i["updated"] = a.state, now()
+            i["state"], i["updated"] = a.state, utc(a.at) if a.at else now()
             if a.stage is not None:
                 i["stage"] = a.stage
         return f"{a.id}: {a.state} at {hits[0]['updated']}"
@@ -296,7 +319,7 @@ def cmd_batch(a):
         if not f.exists() or digest(load(f)) != h:
             die(f"{f.name} is missing or was changed after build; run build again and upload what it prints")
         ds = state["datasets"].setdefault(k, {})
-        if ds.get("pending") and (ds["pending"] != h or k in a.first):
+        if ds.get("pending") and (ds["pending"] != h or k in a.first or not ds.get("version")):
             die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. ArtifactData get "
                 f"collection 'datasets' doc_id '{k}'. If it applied: track.py record {a.dir} "
                 f"{k}-{ds['pending']}.json=<version>; if it exists but was not this write: "
@@ -319,11 +342,20 @@ def cmd_batch(a):
         writes.append(w)
         ds["pending"] = h
     body = {"action": "batch", "url": state["url"], "writes": writes}
-    bf = out / f"batch-{at.replace(':', '')}.json"
+    stem = f"batch-{at.replace(':', '')}-" + "-".join(sorted(seen))
+    bf, n = out / f"{stem}.json", 2
+    while bf.exists():
+        bf, n = out / f"{stem}-{n}.json", n + 1
     save(bf, body)
     save(st, state)
     print(json.dumps(body, indent=1))
-    print(f"\nalso saved as {bf}; if this output is lost, send that file's batch", file=sys.stderr)
+    if any(w["op"] == "set" for w in writes):
+        print(f"\nalso saved as {bf}. It holds an unpinned set (--first): send it only if this batch was "
+              f"never sent. If you can't tell, get each dataset and record what it shows; never re-send it",
+              file=sys.stderr)
+    else:
+        print(f"\nalso saved as {bf}; if this output is lost before you sent it, send that file's batch "
+              f"(its pins refuse it if it already applied)", file=sys.stderr)
     print(f"after it succeeds: track.py record {a.dir} " +
           " ".join(f"{p.partition('=')[0]}=<its new version>" for p in a.pairs), file=sys.stderr)
     print("record only the writes the result says applied; for a refused one see SKILL.md", file=sys.stderr)
@@ -364,15 +396,21 @@ def cmd_page(a):
     state = load(st, {})
     if not state.get("url"):
         die("no page url recorded; run track.py init DIR URL")
+    if a.version is None and not a.new:
+        die("pass --version V, the version ArtifactData get shows for collection 'files' doc_id "
+            "'index.html' (read its text first: replace only the type's starter page or a copy you made, "
+            "never a user's edit unseen), or --new if get finds no such document")
+    src = pathlib.Path(a.file).expanduser().resolve() if a.file else HERE / "page.html"
+    if not src.is_file():
+        die(f"no page file {src}")
     out.mkdir(exist_ok=True)
     doc = out / "index.doc.json"
-    save(doc, {"text": (HERE / "page.html").read_text(), "edit": {"via": "claude", "at": now()}})
+    save(doc, {"text": src.read_text(), "edit": {"via": "claude", "at": now()}})
     w = {"op": "set", "collection": "files", "doc_id": "index.html", "file_path": str(doc)}
-    if a.version:
+    if a.version is not None:
         w["if_version"] = a.version
     print(json.dumps({"action": "batch", "url": state["url"], "writes": [w]}, indent=1))
-    if not a.version:
-        print("\nif the page already has files/index.html, get it first and pass --version", file=sys.stderr)
+    print(f"\ninstalls {src}", file=sys.stderr)
 
 
 def cmd_show(a):
@@ -389,7 +427,7 @@ def main():
     p.add_argument("--at")
     p.set_defaults(f=cmd_log)
     p = sub.add_parser("item"); p.add_argument("dir"); p.add_argument("id"); p.add_argument("state")
-    p.add_argument("--stage"); p.set_defaults(f=cmd_item)
+    p.add_argument("--stage"); p.add_argument("--at"); p.set_defaults(f=cmd_item)
     p = sub.add_parser("add-item")
     for n in ("dir", "id", "phase", "name"):
         p.add_argument(n)
@@ -402,7 +440,9 @@ def main():
     p.add_argument("--item"); p.set_defaults(f=cmd_add_visual)
     for name, f in (("build", cmd_build), ("show", cmd_show)):
         p = sub.add_parser(name); p.add_argument("dir"); p.set_defaults(f=f)
-    p = sub.add_parser("page"); p.add_argument("dir"); p.add_argument("--version", type=int)
+    p = sub.add_parser("page"); p.add_argument("dir"); p.add_argument("--file")
+    g = p.add_mutually_exclusive_group(); g.add_argument("--version", type=int)
+    g.add_argument("--new", action="store_true")
     p.set_defaults(f=cmd_page)
     p = sub.add_parser("batch"); p.add_argument("dir"); p.add_argument("pairs", nargs="+")
     p.add_argument("--first", action="append", default=[], choices=DATASETS); p.set_defaults(f=cmd_batch)
