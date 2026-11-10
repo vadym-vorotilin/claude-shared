@@ -88,7 +88,8 @@ of the session, under ~1,500 characters, in this order:
    line (below). Write `no heartbeat: arm one (cache-warmth)` when work is
    running and no heartbeat ID is confirmed running by task status. One that
    cannot be checked is listed as `unconfirmed` (do not kill it) and does not
-   count, so the arm line is still written. For a loop: `/loop: keep calling ScheduleWakeup with <prompt>`;
+   count, so the arm line is still written. For a loop: `/loop: keep calling
+   ScheduleWakeup with <prompt>`;
 5. next steps, literal and in order — usually what to do when each running
    item reports;
 6. decisions the user made that are not yet written in a file.
