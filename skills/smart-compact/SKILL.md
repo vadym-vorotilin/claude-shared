@@ -85,9 +85,9 @@ of the session, under ~1,500 characters, in this order:
    their reports.` For a timer, say how it keeps going:
    `heartbeat <task ID> (<command>, armed <time>): re-arm when it fires
    (cache-warmth)` — the ID is its current one, since a re-arm refreshes the
-   line (below). Write `no heartbeat: arm one (cache-warmth)` only when work is
-   running, no heartbeat ID was carried or launched, and none is confirmed by
-   task status. For a loop: `/loop: keep calling ScheduleWakeup with <prompt>`;
+   line (below). Write `no heartbeat: arm one (cache-warmth)` when work is
+   running and no heartbeat ID is confirmed running by task status; one that
+   cannot be checked is carried as `unconfirmed`, not replaced. For a loop: `/loop: keep calling ScheduleWakeup with <prompt>`;
 5. next steps, literal and in order — usually what to do when each running
    item reports;
 6. decisions the user made that are not yet written in a file.
