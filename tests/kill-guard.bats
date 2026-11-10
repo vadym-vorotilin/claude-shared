@@ -124,6 +124,12 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'pkill -U 1000 2>/dev/null || true'
   blocked 'killall -u "$USER" -9 2>/dev/null'
   blocked 'pkill -u "$USER" # stop everything'
+  blocked 'pkill 2>&- -u me'
+  # A # ends the command, not the line: the line may be inside a string.
+  blocked $'git commit -m "fix\n\nCloses #12" && pkill -u "$USER"'
+  blocked 'echo $(date)#x; pkill -u me'
+  blocked 'echo `date`#x; pkill -u me'
+  blocked $'k\\\nill -9 -1'
   # killall reads a lower-case signal as options: -usr1 is -u sr1.
   blocked 'killall -usr1'
   blocked 'killall -quit'
@@ -222,6 +228,16 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   SECONDS=0
   blocked "$line; kill -9 -1"
   [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for ${#line} bytes"
+  # One long word on a line that names a tool, and long quote-dense text
+  # that names none.
+  line="echo skill $(head -c 200000 /dev/zero | tr '\0' a)"
+  SECONDS=0
+  allowed "$line"
+  [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for a ${#line}-byte word"
+  line="$(printf '"a" %.0s' $(seq 1 100000))"
+  SECONDS=0
+  allowed "$line"
+  [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for ${#line} bytes naming no tool"
 }
 
 @test "hook names the matched command" {

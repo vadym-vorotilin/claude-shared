@@ -34,8 +34,9 @@
 #
 # The command is split into simple commands at ; & | ( ) { } ` $( outside
 # quotes and at newlines, then into words at blanks outside quotes, with
-# redirections (2>/dev/null, >&2) and comments left out, and every word is
-# looked at; each quoted part is also checked as a command of its own. This
+# redirections (2>/dev/null, >&2) left out and a # ending the command, and
+# every word is looked at; each quoted part is also checked as a command of
+# its own. This
 # is not real shell parsing: text inside a heredoc, a commit message or an
 # echo can be blocked too. Reword it, or put it in a file. Needs bash and jq; without jq
 # it lets everything through and says so (exit 1, a non-blocking error the
@@ -225,6 +226,9 @@ check_words() {
   local i w base
   local -a ws=("$@")
   for ((i = 0; i < ${#ws[@]}; i++)); do
+    # Only a word that ends in a tool's name; ${w##*/} costs the square of
+    # a long word's length.
+    case ${ws[i]} in *kill|*killall|*killall5|*loginctl|*hyprctl|*uwsm|*systemctl) ;; *) continue ;; esac
     w=${ws[i]#\\}; base=${w##*/}
     case $base in
       kill) check_kill "${ws[@]:i+1}" ;;
@@ -270,7 +274,9 @@ check_line() {
 #   escapes the next character, and ${...} stays inside its word.
 # - A redirection is not a word: `2>/dev/null`, `>&2`, `2>&1`, `</dev/null`,
 #   `&>log` and a heredoc's delimiter are dropped, the fd number with them.
-# - A # that starts a word starts a comment.
+# - A # that starts a word ends the command. The words after it are still
+#   read, as a command of their own: a line that looks like a comment may
+#   be inside a multi-line string (`git commit -m "...` then `Closes #12"`).
 # Each quoted part is also checked as a line of its own, for bash -c '...'
 # and sh -c "...". The line is walked in chunks of CH bytes, because a
 # substring costs the length of the string it is taken from.
@@ -312,7 +318,9 @@ check_seg() {
         w+=$c; [ "$c" = '}' ] && br=0; continue
       fi
       if [ $redir -eq 1 ]; then
-        case $c in '<'|'>'|'&'|'|'|'-') [ $have -eq 0 ] && continue ;; esac
+        # `2>&-` closes the fd: it has no target word.
+        [ "$c" = - ] && [ $have -eq 0 ] && { tgt=0; continue; }
+        case $c in '<'|'>'|'&'|'|') [ $have -eq 0 ] && continue ;; esac
         redir=0
       fi
       if [[ ${chunk:j:$CH-j} =~ $re_pl ]]; then
@@ -334,7 +342,7 @@ check_seg() {
             '{') w+='${'; have=1 br=1 skip=1 ;;
             *) w+=$c; have=1 ;;
           esac ;;
-        '#') if [ $have -eq 0 ]; then break 2; fi; w+=$c ;;
+        '#') if [ $have -eq 0 ]; then cmdend; else w+=$c; fi ;;
         *) w+=$c; have=1 ;;
       esac
     done
@@ -347,18 +355,19 @@ check_seg() {
   return 0
 }
 
+# Byte-wise from here: string expansions are many times slower in UTF-8.
+export LC_ALL=C
+# A backslash-newline continues the line (k\<newline>ill is kill).
+cmd=${cmd//$'\\\n'/}
 # Nothing to look at unless the command names one of the tools at all.
 names_tool "$cmd" || exit 0
 
-export LC_ALL=C
 CH=256
 # Runs of characters that end nothing: inside '...', inside "...", and
 # outside quotes. (Inside brackets a backslash is a literal character.)
 re_sq="^[^']+"
 re_dq='^[^"\]+'
 re_pl='^[^[:space:]'\''"\<>&;|(){}`$#]+'
-# A backslash-newline continues the line.
-cmd=${cmd//$'\\\n'/ }
 set -f
 check_line "$cmd"
 exit 0

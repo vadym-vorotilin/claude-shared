@@ -390,19 +390,22 @@ What it does not do:
   agent's shell), not the desktop.
 - **It does not parse shell.** It splits the line at `;`, `&`, `|`, brackets,
   braces, backticks and `$(` outside quotes, then into words at blanks
-  outside quotes. It leaves out redirections (`2>/dev/null`, `>&2`) and
-  comments, and looks at every other word. It also checks each quoted part as a command of its
-  own, which is how it catches `bash -c '…'`. So text that only mentions such
-  a command, in a heredoc, a commit message or a `grep` pattern, can be
-  blocked too. Put the text in a file, or write the
+  outside quotes. It leaves out redirections (`2>/dev/null`, `>&2`), and
+  looks at every other word. A `#` that starts a word ends the command, but
+  the words after it are still checked, since a line it reads as a comment
+  may be inside a multi-line string. It also checks each quoted part as a
+  command of its own, which is how it catches `bash -c '…'`. So text that
+  only mentions such a command, in a heredoc, a commit message, a comment or
+  a `grep` pattern, can be blocked too. Put the text in a file, or write the
   word with a bracket in a grep pattern (`p[k]ill`).
 - **It needs `jq`.** Without it the hook lets everything through and says so
   (exit 1, a non-blocking error you see).
-- **It is slow on long text that keeps naming the tools.** A line that names
-  none of them is skipped, so most commands take about 10 ms. Text that
-  names one on nearly every line takes about 3 s per 100 KB. A hook that
-  runs past Claude Code's timeout does not block, so a few MB of such text
-  would get through unchecked.
+- **It is slow on very long commands.** An everyday command takes about
+  10 ms, and a line that names none of the tools is skipped. A long command
+  takes longer: text that names a tool on nearly every line costs about 3 s
+  per 100 KB, and text that names none costs about 1.5 s per MB just to be
+  skipped. A hook that runs past Claude Code's timeout (60 s by default)
+  does not block, so a command of several MB would get through unchecked.
 
 ### pidjail
 
