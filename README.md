@@ -182,12 +182,12 @@ At most one line, below the quotas, and none when there is nothing to show.
 It joins up to three parts with ` · `: the estimate, the newest running job,
 and counts of the jobs that finished in the last 30 min.
 
-```
-60% ~25m · test suite 38% · ✓2 ✗1
-```
+![The progress line under the quotas: an estimate at 60% with about 25 minutes to go, a test suite at 38% with one more job running, two jobs done and one failed](docs/statusline/progress.svg)
 
 The line refreshes every 15 s, but a reading moves only when something writes
 it, so a reading that has gone quiet says how old it is: `60% ~5m (20m ago)`.
+
+![More progress lines: a job with no percentage yet showing its run time, an estimate past its ETA with a stopped job, a job silent for 16 minutes in gray, and a finished task](docs/statusline/progress-states.svg)
 
 - **The estimate: `<pct>% ~<time>`.** Taken from the last `/progress` update in the
   session's transcript (its `n/m · ~pct%` header and `≈HH:MM` ETA), or an
