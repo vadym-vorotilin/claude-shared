@@ -136,7 +136,11 @@ the answer must be yes.
    the batch and run `track.py resolve DIR <name> --version <v> --url
    <its source.url>` (or `--missing`). It compares with what the batch sent,
    records a write that applied, re-arms one that never did, and stops for
-   review when someone else changed or deleted the dataset in between.
+   review when someone else changed a dataset or deleted one the page had
+   (a `--first` dataset found missing counts as never created). It takes a
+   write to raise a version by one; a page where versions jump makes it stop
+   for review, never record. Until
+   `resolve` or `record` settles a dataset, `batch` refuses it.
 
 **When a pinned write is refused**, someone (often the user) changed that
 dataset on the page. `ArtifactData` `get` it; the rows are in the asset its

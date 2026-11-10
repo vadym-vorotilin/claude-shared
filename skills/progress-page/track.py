@@ -33,8 +33,10 @@ thumbnail of at most 150 KB.
 
 State lives in DIR/track-state.json, per dataset: `hash` (content the page
 shows), `version` (the dataset document's version), `pending` (content sent in
-the last printed batch, not yet confirmed by `record`). One batch per dataset
-may be pending at a time.
+the last printed batch, not yet confirmed by `record`) and `sent` (that
+write's asset url and pin, which `resolve` compares with what get shows). A
+dataset with a pending write is in no other batch until `record` or `resolve`
+settles it, so a batch is never re-sent.
 
 Assumed write shape (from the Data type as first used): collection "datasets",
 doc_id = dataset name, fields title/description/source/fixed/updated/edit;
@@ -321,7 +323,7 @@ def cmd_batch(a):
         if not f.exists() or digest(load(f)) != h:
             die(f"{f.name} is missing or was changed after build; run build again and upload what it prints")
         ds = state["datasets"].setdefault(k, {})
-        if ds.get("pending") and (ds["pending"] != h or k in a.first or not ds.get("version")):
+        if ds.get("pending"):
             die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. ArtifactData get "
                 f"collection 'datasets' doc_id '{k}', then: track.py resolve {a.dir} {k} "
                 f"--version <its version> --url <its source.url>, or --missing if get finds nothing")
@@ -401,20 +403,26 @@ def cmd_resolve(a):
         die(f"nothing pending for {k}")
     sent = ds.get("sent")
     if not sent:
-        die(f"this pending write predates resolve: find its source.url in the newest out/batch-*.json "
-            f"that writes {k}; if get shows that url, track.py record {a.dir} {k}-{ds['pending']}.json=<v>; "
-            f"otherwise follow SKILL.md's 'When a pinned write is refused'")
+        die(f"this pending write predates resolve. Find its source.url in the newest out/batch-*.json that "
+            f"writes {k}. If get shows that url: track.py record {a.dir} {k}-{ds['pending']}.json=<v>. If get "
+            f"shows another url, or there is no such file: follow SKILL.md's 'When a pinned write is refused'. "
+            f"If {k} is missing: ask the user whether to create it, and only then track.py record {a.dir} "
+            f"--version-only {k}=0 and batch --first {k}")
     first, pin = sent["pin"] is None, sent["pin"]
     review = (f"Follow SKILL.md's 'When a pinned write is refused': read the rows its source.url names, fold a "
               f"real edit into status.json or ask the user, then track.py record {a.dir} --version-only {k}=<v>")
     if a.missing:
         if not first:
-            die(f"{k} was on the page (pinned at {pin}) and is gone: someone deleted it. Ask the user before "
-                f"creating it again; nothing recorded")
+            die(f"{k} was on the page (pinned at {pin}) and is gone: someone deleted it. Ask the user whether "
+                f"to create it again; only if they agree: track.py record {a.dir} --version-only {k}=0, then "
+                f"batch with --first {k}. Nothing recorded")
         ds["version"] = 0
         msg = f"{k}: the --first write never applied; run batch again with --first {k}"
     elif a.version is None or not a.url:
         die("give --version and --url from get, or --missing")
+    elif a.url == sent["url"] and a.version != (pin or 0) + 1:
+        die(f"{k} shows the asset this batch sent, but at version {a.version}, not {(pin or 0) + 1}: someone "
+            f"changed it after the write applied. {review}; nothing recorded")
     elif a.url == sent["url"]:
         ds["version"], ds["hash"], ds["at"] = a.version, ds["pending"], now()
         msg = f"{k}: the write applied; recorded {k}-{ds['pending']}.json at version {a.version}"
