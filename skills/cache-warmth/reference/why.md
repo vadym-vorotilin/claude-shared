@@ -25,9 +25,11 @@ than rewriting it. A sweep interval longer than the cache lifetime pays the
 rewrite the sweep exists to save.
 
 **A headless `claude -p` session gets the hour too**, but it cannot wait the
-way the main session does: a `-p` run ends with its turn, so nothing wakes it.
-It keeps every wait inside the turn, and its bounded polls may run past four
-minutes without paying a rewrite; the subagents it dispatches still poll.
+way the main session does: depending on the version, a `-p` run exits when its
+turn ends, or holds on for background work only up to a ceiling and then stops
+it. So it keeps every wait inside the turn, polling with a bound of about nine
+minutes (under the Bash tool's ten-minute ceiling) without paying a rewrite;
+the subagents it dispatches still poll at four.
 Measured on 2026-11-05 (Claude Code 2.1.314, Haiku, Sonnet and Opus, inside the weekly
 quota): every cache write of the headless session itself went to the one-hour
 bucket, also with restricted tools and a stripped environment, and a session

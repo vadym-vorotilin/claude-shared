@@ -11,21 +11,21 @@ turn rewrites the whole context at the cache-**write** rate — about ten reads'
 worth. The expensive moment is not a long command but **idle time past the
 cache's lifetime**, so waiting is where the cost hides.
 
-There are two lifetimes and each gets its own rule:
+There are two lifetimes and three rules:
 
 | Who | Cache lifetime | The rule |
 |---|---|---|
 | A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns within about four minutes |
 | The **main session** | about **an hour** | **Never take a turn to wait** — wake on a notification or a 50-minute heartbeat |
-| A **headless `claude -p` session** | about **an hour**, as the main session | **Wait inside the turn** — a `-p` run ends with its turn, so it cannot be woken; its bounded polls may run past four minutes. The subagents it dispatches still poll |
+| A **headless `claude -p` session** | about **an hour**, as the main session | **Wait inside the turn** — it cannot rely on a wake-up, so it polls, but each poll may return within about **nine minutes** (`timeout 540`, Bash `timeout: 600000`). The subagents it dispatches still poll at four |
 
 ## What this assumes
 
 - **Claude Code**, with the `Bash` tool's `run_in_background` and its exit
   notification, and the `Monitor` tool.
 - **The two lifetimes above.** The harness and the plan set them, not you. If
-  the main session is on the short cache too (it is when usage falls back to
-  the five-minute TTL), the main-session rules collapse into the subagent ones:
+  the main or a headless session is on the short cache too (it is when usage
+  falls back to the five-minute TTL), its rules collapse into the subagent ones:
   every wait returns within about four minutes. The shared status line shows
   each live agent's cache TTL.
 - **GNU `timeout`** in the poll forms (`gtimeout` on macOS from coreutils).
