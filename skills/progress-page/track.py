@@ -321,7 +321,8 @@ def cmd_batch(a):
         ds = state["datasets"].setdefault(k, {})
         if ds.get("pending") and (ds["pending"] != h or k in a.first or not ds.get("version")):
             die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. ArtifactData get "
-                f"collection 'datasets' doc_id '{k}'. If it applied: track.py record {a.dir} "
+                f"collection 'datasets' doc_id '{k}'. If it applied (its source.url is the asset url that batch "
+                f"sent): track.py record {a.dir} "
                 f"{k}-{ds['pending']}.json=<version>; if it exists but was not this write: "
                 f"track.py record {a.dir} --version-only {k}=<version>; pass --first only if get finds nothing, "
                 f"after track.py record {a.dir} --version-only {k}=0 clears the pending batch")
@@ -351,8 +352,11 @@ def cmd_batch(a):
     print(json.dumps(body, indent=1))
     if any(w["op"] == "set" for w in writes):
         print(f"\nalso saved as {bf}. It holds an unpinned set (--first): never send that file. If this "
-              f"output is lost, get each dataset: record what exists; for one still missing, "
-              f"track.py record {a.dir} --version-only <name>=0, then batch --first again", file=sys.stderr)
+              f"output is lost, get each dataset in it: if its source.url is the asset url you gave here, "
+              f"the write applied: track.py record {a.dir} <its file>=<version>; if it exists with another "
+              f"url: track.py record {a.dir} --version-only <name>=<version>; if it is missing: "
+              f"track.py record {a.dir} --version-only <name>=0, then batch --first <name> again",
+              file=sys.stderr)
     else:
         print(f"\nalso saved as {bf}; if this output is lost before you sent it, send that file's batch "
               f"(its pins refuse it if it already applied)", file=sys.stderr)

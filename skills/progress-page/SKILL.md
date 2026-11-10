@@ -151,9 +151,13 @@ with its datasets already there): `batch` stops rather than send an unpinned
 write. Get each dataset and `record --version-only` its version. Only for a
 dataset the page does not have yet, add `--first <name>` after the pairs
 (the flag once per such dataset); that write is a `set`, which creates it and
-would replace one that exists, so never re-send a `--first` batch: if its
-result was lost, get the dataset and `record` the pending file with the
-version it shows. `batch` refuses a repeat while one is pending. Pointing `init`
+would replace one that exists, so never re-send a `--first` batch or its
+saved file. If its result was lost, get every dataset in it and compare its
+`source.url` with the asset url you gave `batch`: the same url means the write
+applied, so `record` that file with the version get shows; another url means
+it didn't, so `record --version-only <name>=<version>`; a dataset still
+missing gets `record --version-only <name>=0`, then `batch --first <name>`
+again. `batch` refuses a repeat while one is pending. Pointing `init`
 at a different page URL forgets the old page's versions, so its first update
 goes through this step.
 
