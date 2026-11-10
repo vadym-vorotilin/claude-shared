@@ -312,7 +312,7 @@ file_has() { # file text
 
 @test "run: a signal the wrapper starts with ignored (nohup) stays ignored, and the exit code is kept" {
   nohup bash "$REPO/claude/statusline-progress.sh" run nh -- \
-    sh -c 'echo 30%; sleep 1.5; echo finished; exit 4' > "$TEST_TMP/out" 2>&1 3>&- &
+    sh -c 'echo 30%; sleep 4; echo finished; exit 4' > "$TEST_TMP/out" 2>&1 3>&- &
   w=$!
   row_reads nh "30%"
   kill -HUP "$w"
@@ -427,6 +427,202 @@ file_has() { # file text
   ends_within "$pid" 5
   wait || true                            # the producer ends on its next write
   assert_equal "$(progress_line)" "✗1"
+}
+
+# follow: the output file of a Claude Code background command, grown here by
+# hand, closing lines included.
+FOLLOW() { bash "$REPO/claude/statusline-progress.sh" follow "$@" 3>&- & }
+
+@test "follow: reads the percentage as the file grows, and ends done at exit code 0" {
+  f="$TEST_TMP/b1.output"; : > "$f"
+  FOLLOW "tests" bg-b1 "$f"; w=$!
+  printf '10%%\nerr-line\n' >> "$f"
+  row_reads tests "10%"
+  printf '60%%\n' >> "$f"
+  row_reads tests "60%"
+  printf '100%%\n\n[exited with code 0]\n' >> "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "✓1"
+}
+
+@test "follow: another exit code fails with it, at the last percentage" {
+  f="$TEST_TMP/b2.output"; printf '40%%\n' > "$f"
+  FOLLOW "build" bg-b2 "$f"; w=$!
+  row_reads build "40%"
+  printf '\n[exited with code 3]\n' >> "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "✗1"
+  assert_contains "$(cat "$(JOBS_DIR)/bg-b2")" $'\t40\tfail:3\t'
+}
+
+@test "follow: a stopped command ([killed]) counts as ended" {
+  f="$TEST_TMP/b3.output"; printf '20%%\n' > "$f"
+  FOLLOW "server" bg-b3 "$f"; w=$!
+  row_reads server "20%"
+  printf '\n[killed]\n' >> "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "■1"
+}
+
+@test "follow: a closing line inside the output is not the end" {
+  f="$TEST_TMP/b4.output"; printf '[exited with code 0] in a log line\n30%%\n' > "$f"
+  FOLLOW "logs" bg-b4 "$f"; w=$!
+  row_reads logs "30%"
+  kill -0 "$w" || fail "stopped at a closing line mid-output"
+  printf '\n[exited with code 0]\n' >> "$f"
+  ends_within "$w" 5
+}
+
+@test "follow: it ends when the session it follows for exits" {
+  f="$TEST_TMP/b5.output"; printf '50%%\n' > "$f"
+  sleep 30 & owner=$!
+  FOLLOW "long" bg-b5 "$f" "$owner"; w=$!
+  row_reads long "50%"
+  kill "$owner"; wait "$owner" 2>/dev/null || true
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "■1"
+}
+
+@test "follow: it ends when the file is removed" {
+  f="$TEST_TMP/b6.output"; printf '50%%\n' > "$f"
+  FOLLOW "gone" bg-b6 "$f"; w=$!
+  row_reads gone "50%"
+  rm -f "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "■1"
+}
+
+@test "follow: a link at the file is never read" {
+  printf '70%%\n\n[exited with code 0]\n' > "$TEST_TMP/real"
+  ln -s "$TEST_TMP/real" "$TEST_TMP/b7.output"
+  FOLLOW "link" bg-b7 "$TEST_TMP/b7.output"; w=$!
+  ends_within "$w" 20
+  assert_equal "$(progress_line)" "■1"
+}
+
+@test "follow: two commands with one name keep a row each" {
+  printf '10%%\n' > "$TEST_TMP/x.output"; printf '20%%\n' > "$TEST_TMP/y.output"
+  FOLLOW "tests" bg-x "$TEST_TMP/x.output"; w1=$!
+  FOLLOW "tests" bg-y "$TEST_TMP/y.output"; w2=$!
+  i=0; until [ -n "$(progress_line | grep -F '+1')" ]; do
+    i=$(( i + 1 )); [ "$i" -le 50 ] || fail "no second row: $(progress_line)"; sleep 0.1; done
+  printf '\n[exited with code 0]\n' >> "$TEST_TMP/x.output"
+  printf '\n[exited with code 0]\n' >> "$TEST_TMP/y.output"
+  ends_within "$w1" 5; ends_within "$w2" 5
+  assert_equal "$(progress_line)" "✓2"
+}
+
+@test "follow: a percentage inside a longer number or a version is not one" {
+  f="$TEST_TMP/c8.output"; printf 'Extracting...20%%\n1234.5%%\nv1.2.50%%\n\n[killed]\n' > "$f"
+  FOLLOW "versions" bg-c8 "$f"; w=$!
+  ends_within "$w" 5
+  assert_contains "$(cat "$(JOBS_DIR)/bg-c8")" $'\t20\tend\t'
+}
+
+@test "follow: a closing line split across two reads is joined" {
+  f="$TEST_TMP/c1.output"; printf '30%%\n\n[exited wi' > "$f"
+  FOLLOW "split" bg-c1 "$f"; w=$!
+  row_reads split "30%"
+  sleep 1.5
+  printf 'th code 0]\n' >> "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "✓1"
+}
+
+@test "follow: text like a closing line, not on a line of its own, is not one" {
+  f="$TEST_TMP/c2.output"; printf '30%%\nfoo[killed]\n' > "$f"
+  FOLLOW "lookalike" bg-c2 "$f"; w=$!
+  row_reads lookalike "30%"
+  sleep 2.5
+  kill -0 "$w" || fail "ended at a lookalike"
+  printf '\n[killed]\n' >> "$f"
+  ends_within "$w" 5
+}
+
+@test "follow: a closing line that more output follows is not the end" {
+  f="$TEST_TMP/c3.output"; : > "$f"
+  FOLLOW "cat" bg-c3 "$f"; w=$!
+  printf '\n[exited with code 0]\n' >> "$f"; sleep 0.3; printf '40%%\n' >> "$f"
+  row_reads cat "40%"
+  kill -0 "$w" || fail "ended at a printed closing line"
+  printf '\n[exited with code 0]\n' >> "$f"
+  ends_within "$w" 5
+}
+
+@test "follow: a file cut short or replaced ends the row" {
+  f="$TEST_TMP/c4.output"; printf '30%%\n' > "$f"
+  FOLLOW "cut" bg-c4 "$f"; w=$!
+  row_reads cut "30%"
+  : > "$f"
+  ends_within "$w" 5
+  printf '30%%\n' > "$TEST_TMP/c5.output"
+  FOLLOW "moved" bg-c5 "$TEST_TMP/c5.output"; w=$!
+  i=0; until [ "$(progress_line)" = "moved 30% · ■1" ]; do
+    i=$(( i + 1 )); [ "$i" -le 50 ] || fail "never read: $(progress_line)"; sleep 0.1; done
+  printf 'new\n' > "$TEST_TMP/c5.new"; mv "$TEST_TMP/c5.new" "$TEST_TMP/c5.output"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "■2"
+}
+
+@test "follow: a long line, or a long run of digits, is read in one pass" {
+  f="$TEST_TMP/c6.output"; : > "$f"
+  FOLLOW "minified" bg-c6 "$f"; w=$!
+  { head -c 2000000 /dev/zero | tr '\0' 'x'; printf '\n'
+    head -c 2000000 /dev/zero | tr '\0' '7'; printf '\n55%%\n\n[exited with code 4]\n'; } >> "$f"
+  ends_within "$w" 10
+  assert_contains "$(cat "$(JOBS_DIR)/bg-c6")" $'\t55\tfail:4\t'
+}
+
+@test "follow: waiting on an idle file costs next to no CPU" {
+  [ -r /proc/self/stat ] || skip "needs /proc"
+  f="$TEST_TMP/c7.output"; printf '10%%\n' > "$f"
+  FOLLOW "idle" bg-c7 "$f"; w=$!
+  row_reads idle "10%"
+  sleep 3
+  # utime + stime, in clock ticks (100 a second): under 0.3 s over 3 s idle.
+  ticks=$(awk '{print $14 + $15}' "/proc/$w/stat")
+  [ "$ticks" -lt 30 ] || fail "busy at EOF: $ticks ticks"
+  printf '\n[killed]\n' >> "$f"
+  ends_within "$w" 5
+}
+
+# The hook: a PostToolUse event in, a follower on the task's output file out.
+hook_event() { # background? task-id [description]
+  jq -cn --argjson bg "$1" --arg id "$2" --arg d "${3:-}" --arg s "$SID" \
+    --arg t "$TEST_TMP/projects/-demo-proj/$SID.jsonl" \
+    '{hook_event_name:"PostToolUse", session_id:$s, transcript_path:$t,
+      tool_name:"Bash", tool_input:{command:"make", description:$d, run_in_background:$bg},
+      tool_response:{stdout:"", stderr:"", backgroundTaskId:$id}}'
+}
+task_file() { echo "/tmp/claude-$(id -u)/-demo-proj/$SID/tasks/$1.output"; }
+
+@test "hook: a background command gets a follower on its output file, and prints nothing" {
+  mkdir -p "$(dirname "$(task_file t1)")"; printf '35%%\n' > "$(task_file t1)"
+  # Not under $(...): the follower stops with the hook's parent, the session
+  # in real use, and a command substitution's shell would end at once.
+  hook_event true t1 "Run the suite" | bash "$REPO/claude/statusline-progress-hook.sh" > "$TEST_TMP/hook.out"
+  assert_equal "$(cat "$TEST_TMP/hook.out")" ""
+  row_reads "Run the suite" "35%"
+  printf '\n[exited with code 0]\n' >> "$(task_file t1)"
+  i=0; until [ "$(progress_line)" = "✓1" ]; do
+    i=$(( i + 1 )); [ "$i" -le 50 ] || fail "never done: $(progress_line)"; sleep 0.1; done
+  rm -rf "/tmp/claude-$(id -u)/-demo-proj"
+}
+
+@test "hook: a backslash in the description reaches the row as it is" {
+  mkdir -p "$(dirname "$(task_file t3)")"; printf '5%%\n' > "$(task_file t3)"
+  hook_event true t3 'a\b' | bash "$REPO/claude/statusline-progress-hook.sh" > /dev/null
+  row_reads 'a\b' "5%"
+  printf '\n[killed]\n' >> "$(task_file t3)"
+  sleep 2.5; rm -rf "/tmp/claude-$(id -u)/-demo-proj"
+}
+
+@test "hook: a foreground command, or a bad id, starts nothing" {
+  hook_event false t2 "fg" | bash "$REPO/claude/statusline-progress-hook.sh"
+  hook_event true '../x' "bad" | bash "$REPO/claude/statusline-progress-hook.sh"
+  echo 'not json' | bash "$REPO/claude/statusline-progress-hook.sh"
+  sleep 0.5
+  [ ! -d "$(JOBS_DIR)" ] || assert_equal "$(ls "$(JOBS_DIR)")" ""
 }
 
 @test "job: set by hand, shown as name and percentage, the percentage in cyan" {

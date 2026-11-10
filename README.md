@@ -201,7 +201,17 @@ it, so a reading that has gone quiet says how old it is: `60% ≈16:28 (20m ago)
   passed is drawn in red, and a finished task reads `100% done`. Past 5 min
   old it adds its age, dim; it goes gray after 30 min, a finished task leaves
   after 30 min, and any estimate after 4 hours.
-- **Jobs: real progress of long commands.** Wrap the command:
+- **Jobs: real progress of long commands.** A background Bash command
+  (`run_in_background`) shows up on its own: `sync.sh` adds a PostToolUse hook,
+  `statusline-progress-hook.sh`, that follows the output file Claude Code
+  already writes for the command. It is named after the command's
+  description, and ends at Claude Code's closing line: done for exit code 0,
+  failed for any other, ended when it was stopped. The command, its
+  permissions and its output are untouched; nothing is added to the
+  session's context. It relies on where Claude Code keeps that file
+  (`/tmp/claude-<uid>/<project>/<session>/tasks/<id>.output`), which is not a
+  documented interface: if it moves, the job reads ended at 0% after 15 s.
+  It needs `jq` and `perl`. For a foreground command, wrap it:
   `bash ~/.claude/statusline-progress.sh run "test suite" -- pytest -q`. Output
   passes through byte for byte as it arrives (stderr merged into stdout) and
   the exit code is the command's. The job reads the last `NN%` in the output,
@@ -461,6 +471,7 @@ eligible issue). Commit the written file in the target repo.
 | `claude/subagent-statusline-command.sh` | `~/.claude/subagent-statusline-command.sh` | One row per live subagent in the agent panel: `agent \| model \| effort \| ctx% \| cache TTL \| details` |
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
+| `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |

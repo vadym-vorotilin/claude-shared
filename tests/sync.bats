@@ -32,10 +32,22 @@ run_sync() { run bash "$REPO/sync.sh"; }
 
 @test "deploys both status line scripts, the helpers they source and the progress writer" {
   run_sync
-  for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh statusline-progress.sh; do
+  for f in statusline-command.sh subagent-statusline-command.sh statusline-lib.sh statusline-progress.sh statusline-progress-hook.sh; do
     assert_file_exists "$HOME/.claude/$f"
     assert_executable "$HOME/.claude/$f"
   done
+}
+
+@test "adds the progress hook once, keeping PostToolUse hooks already there" {
+  mkdir -p "$HOME/.claude"
+  echo '{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"mine.sh"}]}]}}' \
+    > "$HOME/.claude/settings.json"
+  run_sync; run_sync
+  assert_equal "$status" 0
+  s="$HOME/.claude/settings.json"
+  assert_equal "$(jq -r '.hooks.PostToolUse[0].hooks[0].command' "$s")" "mine.sh"
+  assert_equal "$(jq '[.hooks.PostToolUse[].hooks[] | select(.command == "bash ~/.claude/statusline-progress-hook.sh")] | length' "$s")" 1
+  assert_equal "$(jq -r '.hooks.PostToolUse[] | select(.hooks[0].command | test("progress-hook")) | .matcher' "$s")" Bash
 }
 
 # The scripts source the lib from their own directory, so a deployed copy must

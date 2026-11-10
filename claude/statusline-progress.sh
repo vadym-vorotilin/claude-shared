@@ -22,6 +22,15 @@
 #       The row ends as "ended" at end of input (killed after a Ctrl-C);
 #       watch cannot see an exit code. A TERM or HUP stops it at once, and
 #       the row reads killed.
+#   statusline-progress.sh follow <name> <key> <file> [<owner-pid>]
+#       Follow the output file of a Claude Code background command, as the
+#       PostToolUse hook (statusline-progress-hook.sh) starts it: nothing is
+#       copied anywhere, the command and its permissions are untouched. The
+#       row ends at Claude Code's closing line: done for "[exited with code
+#       0]", failed with the code for any other, ended for "[killed]". It also
+#       ends when the file goes, when <owner-pid> (the session) exits, or
+#       after 6 hours. <key> names the row, so two commands with one name
+#       keep a row each.
 #   statusline-progress.sh job <name> <pct>|done|clear
 #       Set a job row by hand.
 #
@@ -42,7 +51,7 @@ SID="${CLAUDE_CODE_SESSION_ID:-}"
 # STATUSLINE_NOW pins it, as it does for the status line, for tests.
 stamp_now() { printf '%s' "${STATUSLINE_NOW:-$(date +%s)}"; }
 
-usage() { sed -n '3,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '3,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 no_session() {
   echo "statusline-progress: CLAUDE_CODE_SESSION_ID is unset or unusable; nothing shown" >&2
@@ -134,6 +143,10 @@ STREAM_PL='
 use strict; use warnings; use Fcntl; use POSIX ();
 my ($file, $name, $ns, $now) = @ENV{qw(SP_FILE SP_NAME SP_NS STATUSLINE_NOW)};
 my @cmd = @ARGV;
+# follow: read a growing file to its closing line, and copy nothing.
+my ($follow, $owner) = @ENV{qw(SP_FOLLOW SP_OWNER)};
+$owner = undef unless defined $owner && $owner =~ /^[1-9][0-9]*$/;
+my ($fin, $tail, $began, $pos, $pending) = ("", "", time, 0, 0);
 my %orig = map { $_ => $SIG{$_} } qw(INT TERM HUP PIPE);
 my %num = (INT => 2, HUP => 1, TERM => 15);
 my ($child, $reaped, $got, $fwd) = (0, 0, "", 0);
@@ -176,7 +189,18 @@ sub put { # state pct
 }
 
 my $in = \*STDIN;
-if (@cmd) {
+if (defined $follow) {
+  # Claude Code writes the file as the command runs; it may appear a
+  # moment after the hook starts this. Only a regular file is read.
+  my $fh;
+  for (1 .. 30) {
+    last if !-l $follow && -f $follow && open($fh, "<", $follow);
+    undef $fh;
+    select(undef, undef, undef, 0.5);
+  }
+  if (!$fh) { put("end", 0); exit 0 }
+  $in = $fh;
+} elsif (@cmd) {
   my ($r, $w);
   # Hold TERM and HUP from before the fork until each side is ready for them:
   # the command until its own signal settings are back, this process until
@@ -226,20 +250,53 @@ while (!stop()) {
   }
   my $got_n = sysread($in, my $buf, 65536);
   if (!defined $got_n) { next if $!{EINTR}; last }
+  if ($got_n == 0 && defined $follow) {
+    # The end of what is written so far. Claude Code closes the file with
+    # "\n[exited with code N]\n" or "\n[killed]\n" after the output, adding a
+    # line end first if the output had none. Output that only looks like it
+    # is told apart by the file then staying unchanged for a poll.
+    if ($tail =~ /\n\[(exited with code ([0-9]+)|killed)\]\n\z/) {
+      if ($pending) { $fin = defined $2 ? $2 : "killed"; last }
+      $pending = 1;
+    }
+    # Gone, replaced or cut short: there is nothing more to read here.
+    my @at = stat $follow; my @fh = stat $in;
+    if (!@at || $at[0] != $fh[0] || $at[1] != $fh[1] || $at[7] < $pos
+        || ($owner && !kill(0, $owner)) || time - $began >= 21600) {
+      $fin = "lost"; last;
+    }
+    select(undef, undef, undef, 1);
+    next;
+  }
   last if $got_n == 0;
-  for (my $off = 0; $out && $off < $got_n; ) {
+  if (defined $follow) { $tail = substr($tail . $buf, -80); $pos += $got_n; $pending = 0 }
+  for (my $off = 0; $out && !defined $follow && $off < $got_n; ) {
     my $w = syswrite(STDOUT, $buf, $got_n - $off, $off);
     if (!defined $w) { next if $!{EINTR}; $out = 0; last }
     $off += $w;
   }
   last unless $out;  # stdout is gone: stop reading, as a closed pipe would
   my $s = $carry . $buf;
-  while ($s =~ /([0-9]+)(?:\.[0-9]+)?%/g) { $last = $1 + 0 if $1 <= 100 }
+  # At most three digits, not inside a longer number ("1234.5%", "v1.2.50%"
+  # read nothing; "Extracting...50%" reads 50): a long run of digits
+  # is then read in one pass, not once from each of its positions.
+  while ($s =~ /(?<![0-9])(?<![0-9]\.)([0-9]{1,3})(?:\.[0-9]+)?%/g) { $last = $1 + 0 if $1 <= 100 }
   # Keep what follows the last line end, for a number split across reads.
-  ($carry) = $s =~ /([^\r\n]*)\z/;
+  # Found with rindex: a regex for it retries from every position of a
+  # long line, and a 100 KB line took seconds of CPU.
+  my $cut = rindex($s, "\n"); my $cr = rindex($s, "\r");
+  $cut = $cr if $cr > $cut;
+  $carry = substr($s, $cut + 1);
   if (length $carry > 64) { $carry = substr($carry, -64); $carry =~ s/^[0-9.]+// }
 }
 my $pct = $last < 0 ? 0 : $last;
+if (defined $follow) {
+  if ($got)                  { put("fail:sig", $pct); exit 128 + $num{$got} }
+  if ($fin eq "0")           { put("done", 100) }
+  elsif ($fin =~ /^[0-9]+$/) { put("fail:$fin", $pct) }
+  else                       { put("end", $pct) }
+  exit 0;
+}
 if (!@cmd) {
   if ($got) { put("fail:sig", $pct); exit 128 + $num{$got} }
   put("end", $pct); exit 0;
@@ -264,7 +321,7 @@ exit $rc;
 
 stream() { # name [command args...]: execs the reader, never returns
   export SP_FILE SP_NAME SP_NS
-  SP_FILE="$(job_file "$1")"; SP_NAME="$(job_name "$1")"; SP_NS="$(pid_ns)"
+  SP_FILE="${SP_FILE:-$(job_file "$1")}"; SP_NAME="$(job_name "$1")"; SP_NS="$(pid_ns)"
   shift
   exec perl -e "$STREAM_PL" -- "$@"
 }
@@ -308,6 +365,17 @@ case "$cmd" in
     if [ -z "$(job_file "$name")" ]; then no_session; exec cat; fi
     command -v perl >/dev/null 2>&1 || { no_perl; exec cat; }
     job_set "$name" 0 run "$$" || exec cat
+    stream "$name"
+    ;;
+  follow)
+    name="${1:-}"; key="${2:-}"; file="${3:-}"; owner="${4:-}"
+    [ -n "$name" ] && [ -n "$key" ] && [ -n "$file" ] || usage
+    SP_FILE=$(job_file "$key")
+    [ -n "$SP_FILE" ] || { no_session; exit 2; }
+    command -v perl >/dev/null 2>&1 || { no_perl; exit 1; }
+    case "$owner" in ''|*[!0-9]*) owner="" ;; esac
+    put "$SP_FILE" "$(stamp_now)	0	run	$(job_name "$name")	$$	$(pid_ns)" || exit 1
+    export SP_FOLLOW="$file" SP_OWNER="$owner"
     stream "$name"
     ;;
   run)
