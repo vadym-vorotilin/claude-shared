@@ -11,7 +11,7 @@
 # documented interface: <tmp>/claude-<uid>/<project>/<session>/tasks/<id>.output,
 # <project> being the name of the transcript's directory, and a closing
 # "[exited with code N]" or "[killed]" line. If the file is not there, the
-# follower gives up after 15 seconds and the row reads ended at 0%.
+# follower gives up after 15 seconds and removes its row.
 #
 # A command that itself prints a closing line ("\n[exited with code 0]\n",
 # say by catting another task's output) and then stays quiet for a second
@@ -24,8 +24,13 @@
 here="$(dirname "${BASH_SOURCE[0]}")"
 command -v jq >/dev/null 2>&1 || exit 0
 
+# A bare "sleep N" (a heartbeat or a wake-up timer), followed by nothing
+# but an echo, printf, true or ":", is waiting, not working, so it gets no
+# row. "sleep 5 && make" is work after a delay, and is followed.
 row=$(jq -r '
   select(.tool_input.run_in_background == true)
+  | select((.tool_input.command // "")
+      | test("^\\s*sleep\\s+[0-9.]+[smhd]?\\s*((;|&&)\\s*(echo|printf|true|:)(\\s[^;&|]*)?)?\\s*$") | not)
   | [ (.tool_response.backgroundTaskId // ""), (.session_id // ""),
       (.transcript_path // ""),
       ((.tool_input.description // "") | if . == "" then "background" else . end) ]

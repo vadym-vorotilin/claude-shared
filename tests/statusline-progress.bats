@@ -298,7 +298,7 @@ file_has() { # file text
   # (Two INTs that arrive together reach a shell's trap as one, so the test
   # above cannot see a forwarded INT; this one sends the wrapper its only INT.)
   own_group bash "$REPO/claude/statusline-progress.sh" run k0 -- \
-    sh -c 'trap "echo got INT" INT; echo 30%; sleep 1.5; echo finished' > "$TEST_TMP/out" 3>&- &
+    sh -c 'trap "echo got INT" INT; echo 30%; sleep 4; echo finished' > "$TEST_TMP/out" 3>&- &
   w=$!
   row_reads k0 "30%"
   kill -INT "$w"
@@ -492,12 +492,68 @@ FOLLOW() { bash "$REPO/claude/statusline-progress.sh" follow "$@" 3>&- & }
   assert_equal "$(progress_line)" "■1"
 }
 
-@test "follow: a link at the file is never read" {
+@test "follow: a link at the file is never read, and leaves no row" {
   printf '70%%\n\n[exited with code 0]\n' > "$TEST_TMP/real"
   ln -s "$TEST_TMP/real" "$TEST_TMP/b7.output"
   FOLLOW "link" bg-b7 "$TEST_TMP/b7.output"; w=$!
   ends_within "$w" 20
-  assert_equal "$(progress_line)" "■1"
+  assert_equal "$(progress_line)" ""
+}
+
+@test "follow: with no percentage it shows name and run time; stopped, it leaves no row; failed, it counts" {
+  f="$TEST_TMP/b8.output"; printf 'listening on :8080\n' > "$f"
+  FOLLOW "server" bg-b8 "$f"; w=$!
+  row_reads server "0s"
+  printf 'still no number\n\n[killed]\n' >> "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" ""
+  [ ! -e "$(JOBS_DIR)/bg-b8" ] || fail "a stopped job kept its row"
+  f="$TEST_TMP/b9.output"; printf 'ok\n\n[exited with code 1]\n' > "$f"
+  FOLLOW "quiet fail" bg-b9 "$f"; w=$!
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "✗1"
+  f="$TEST_TMP/b13.output"; printf 'ok\n\n[exited with code 0]\n' > "$f"
+  FOLLOW "quiet ok" bg-b13 "$f"; w=$!
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "✓1 ✗1"
+}
+
+@test "follow: a month-old empty jobs dir is pruned before use, not after" {
+  mkdir -p "$(JOBS_DIR)"; touch -d '@1000000' "$(JOBS_DIR)"
+  f="$TEST_TMP/b11.output"; : > "$f"
+  FOLLOW "resumed" bg-b11 "$f"; w=$!
+  sleep 1; printf '25%%\n' >> "$f"
+  row_reads resumed "25%"
+  printf '\n[killed]\n' >> "$f"
+  ends_within "$w" 5
+}
+
+@test "follow: a TERM before any percentage exits 143 and leaves no row" {
+  f="$TEST_TMP/b12.output"; printf 'waiting\n' > "$f"
+  FOLLOW "early" bg-b12 "$f"; w=$!
+  sleep 1
+  kill -TERM "$w"
+  ends_within "$w" 5
+  st=0; wait "$w" || st=$?
+  assert_equal "$st" 143
+  [ ! -e "$(JOBS_DIR)/bg-b12" ] || fail "a row was written"
+}
+
+@test "usage prints the whole header, to its last line" {
+  run bash "$REPO/claude/statusline-progress.sh"
+  assert_equal "$status" 2
+  assert_contains "$output" "estimate and job exit 1, run still runs."
+}
+
+@test "follow: the percentage replaces the run time once one is printed" {
+  f="$TEST_TMP/b10.output"; printf 'starting\n' > "$f"
+  FOLLOW "late" bg-b10 "$f"; w=$!
+  row_reads late "0s"
+  printf '15%%\n' >> "$f"
+  row_reads late "15%"
+  printf '\n[exited with code 0]\n' >> "$f"
+  ends_within "$w" 5
+  assert_equal "$(progress_line)" "✓1"
 }
 
 @test "follow: two commands with one name keep a row each" {
@@ -614,6 +670,26 @@ task_file() { echo "/tmp/claude-$(id -u)/-demo-proj/$SID/tasks/$1.output"; }
   hook_event true t3 'a\b' | bash "$REPO/claude/statusline-progress-hook.sh" > /dev/null
   row_reads 'a\b' "5%"
   printf '\n[killed]\n' >> "$(task_file t3)"
+  sleep 2.5; rm -rf "/tmp/claude-$(id -u)/-demo-proj"
+}
+
+@test "hook: a bare sleep (a heartbeat, a timer) starts nothing; a wait loop does" {
+  mkdir -p "$(dirname "$(task_file t4)")"
+  hb=$(hook_event true t4 "Re-arm" | jq -c '.tool_input.command = "sleep 3000; echo \"HEARTBEAT $(date +%H:%M)\""')
+  printf '%s' "$hb" | bash "$REPO/claude/statusline-progress-hook.sh"
+  sleep 0.5
+  [ ! -e "$(JOBS_DIR)/bg-t4" ] || fail "a heartbeat got a row"
+  dl=$(hook_event true t6 "delayed build" | jq -c '.tool_input.command = "sleep 5 && make"')
+  printf 'x\n' > "$(task_file t6)"
+  printf '%s' "$dl" | bash "$REPO/claude/statusline-progress-hook.sh" > /dev/null
+  row_reads "delayed build" "0s"
+  printf '\n[killed]\n' >> "$(task_file t6)"
+  sleep 2.5
+  printf 'x\n' > "$(task_file t5)"
+  wl=$(hook_event true t5 "wait for deploy" | jq -c '.tool_input.command = "until test -e done; do sleep 60; done"')
+  printf '%s' "$wl" | bash "$REPO/claude/statusline-progress-hook.sh" > /dev/null
+  row_reads "wait for deploy" "0s"
+  printf '\n[exited with code 0]\n' >> "$(task_file t5)"
   sleep 2.5; rm -rf "/tmp/claude-$(id -u)/-demo-proj"
 }
 
@@ -770,6 +846,14 @@ plant_estimate() { # age pct [eta_epoch]
   plant_setup
   plant_job older 20 10 run; plant_job newer 10 40 run
   assert_equal "$(progress_line)" "newer 40% +1"
+}
+
+@test "a running job with no percentage yet shows its run time; elsewhere \"-\" is no percentage" {
+  plant_setup
+  plant_job wait 1380 - run
+  assert_equal "$(progress_line)" "wait 23m"
+  plant_job wait 1380 - done
+  assert_equal "$(progress_line)" ""
 }
 
 @test "an estimate turns gray at 30 minutes old, not before" {

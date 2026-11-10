@@ -206,11 +206,15 @@ it, so a reading that has gone quiet says how old it is: `60% ≈16:28 (20m ago)
   `statusline-progress-hook.sh`, that follows the output file Claude Code
   already writes for the command. It is named after the command's
   description, and ends at Claude Code's closing line: done for exit code 0,
-  failed for any other, ended when it was stopped. The command, its
+  failed for any other, ended when it was stopped. Until the command prints
+  its first `NN%`, it shows the name and how long it has run
+  (`wait for deploy 23m`); one that never prints one and is stopped leaves
+  no row and no counter. A bare `sleep N` (a heartbeat, a wake-up timer) is
+  skipped. The command, its
   permissions and its output are untouched; nothing is added to the
   session's context. It relies on where Claude Code keeps that file
   (`/tmp/claude-<uid>/<project>/<session>/tasks/<id>.output`), which is not a
-  documented interface: if it moves, the job reads ended at 0% after 15 s.
+  documented interface: if it moves, a background job's row goes after 15 s.
   It needs `jq` and `perl`. For a foreground command, wrap it:
   `bash ~/.claude/statusline-progress.sh run "test suite" -- pytest -q`. Output
   passes through byte for byte as it arrives (stderr merged into stdout) and

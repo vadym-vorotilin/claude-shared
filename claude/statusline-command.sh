@@ -366,7 +366,10 @@ if [ -n "$jobs_dir" ] && [ -d "$jobs_dir" ]; then
       fail:*) progress_is_uint "${j_state#fail:}" || continue ;;
       *) continue ;;
     esac
-    progress_is_pct "$j_pct" || continue
+    # "-" is a running job that has printed no percentage yet.
+    if [ "$j_pct" != - ] || [ "$j_state" != run ]; then
+      progress_is_pct "$j_pct" || continue
+    fi
     if [ "$j_state" = run ] && progress_is_uint "$j_pid"; then
       [ -n "$my_ns" ] || my_ns=$(readlink /proc/self/ns/pid 2>/dev/null || echo -)
       if [ "${j_ns:--}" = "$my_ns" ] && ! kill -0 "$(( 10#$j_pid ))" 2>/dev/null; then
@@ -376,7 +379,8 @@ if [ -n "$jobs_dir" ] && [ -d "$jobs_dir" ]; then
     if [ "$j_state" = run ]; then
       n_run=$(( n_run + 1 ))
       if [ "$n_run" -eq 1 ]; then
-        top_name="$j_name"; top_pct=$(( 10#$j_pct )); top_age="$j_age"
+        top_name="$j_name"; top_pct="$j_pct"; top_age="$j_age"
+        [ "$top_pct" = - ] || top_pct=$(( 10#$top_pct ))
       fi
       continue
     fi
@@ -389,7 +393,11 @@ if [ -n "$jobs_dir" ] && [ -d "$jobs_dir" ]; then
   done
   if [ "$n_run" -gt 0 ]; then
     top_name=$(printf '%s' "$top_name" | progress_clean 20)
-    if [ "$top_age" -ge 900 ]; then
+    if [ "$top_pct" = - ]; then
+      # No percentage yet: the row was written at the start, so its age is
+      # how long the job has run.
+      seg="${WHITE}${top_name} ${GRAY}$(fmt_dur "$top_age")"
+    elif [ "$top_age" -ge 900 ]; then
       seg="${GRAY}${top_name} ${top_pct}% ($(fmt_dur "$top_age") ago)"
     else
       seg="${WHITE}${top_name} ${CYAN}${top_pct}%"
