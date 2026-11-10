@@ -188,11 +188,16 @@ trap 'md_cleanup; exit 143' TERM
 md_tmp="$(mktemp "$REAL.XXXXXX")" || { md_tmp=""; md_fail "could not create a temp file beside $REAL"; }
 md_writable=1
 if [ -e "$REAL" ]; then
-  # cp -p carries the mode over; a read-only file is made writable for the
-  # rewrite only, and read-only again before the rename.
-  [ -w "$REAL" ] || md_writable=0
+  # cp -p carries the mode over. If the owner-write bit is clear, it is set for
+  # the rewrite only and cleared again before the rename. The bit itself is
+  # tested, not [ -w ], which asks whether this process may write (always true
+  # for root, and false for a file someone else owns).
   cp -p "$REAL" "$md_tmp" || md_fail "could not copy $REAL to $md_tmp"
-  chmod u+w "$md_tmp" || md_fail "could not make $md_tmp writable"
+  md_w="$(find "$md_tmp" -prune -perm -200 -print)" || md_fail "could not read the mode of $md_tmp"
+  if [ -z "$md_w" ]; then
+    md_writable=0
+    chmod u+w "$md_tmp" || md_fail "could not make $md_tmp writable"
+  fi
 else
   # A new CLAUDE.md gets the mode a plain redirect would give it.
   chmod "$(printf '%o' $(( 0666 & ~0$(umask) )))" "$md_tmp" || md_fail "could not set the mode of $md_tmp"

@@ -509,9 +509,13 @@ backs up `settings.json` before merging:
    snippet is refused the same way. Whether the block is appended (the first
    sync) or replaced (every later one), the new `CLAUDE.md` is written to a
    fresh temp file beside the real file and renamed over it, so a failed or
-   interrupted write leaves `CLAUDE.md` unchanged and removes the temp file. A
-   symlinked `CLAUDE.md` stays a symlink, and the file keeps its mode, read-only
-   included. The folder holding the real file (for a symlink, the target's
+   interrupted write leaves `CLAUDE.md` unchanged. A failed write, Ctrl-C, TERM
+   or HUP also removes the temp file. A SIGKILL, an OOM kill or a power cut can leave a
+   `CLAUDE.md.XXXXXX` file beside the real file (for a symlink, beside the
+   target), and it can be deleted safely. A symlinked `CLAUDE.md` stays a
+   symlink, and the file keeps its mode, read-only included, even when
+   `sync.sh` runs as root. The new file is owned by the user who ran `sync.sh`.
+   The folder holding the real file (for a symlink, the target's
    folder) must be writable, or `sync.sh` exits 1 and leaves the file unchanged.
    A hard-linked `CLAUDE.md` is replaced by a new file, so its other names keep
    the old content. Unlike `settings.json`, `CLAUDE.md` is not backed up first.

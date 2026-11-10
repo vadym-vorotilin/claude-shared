@@ -6,7 +6,13 @@
 load 'helpers/setup'
 
 setup()    { common_setup; }
-teardown() { common_teardown; }
+teardown() {
+  # A sync started in the background by a test that failed before reaping it.
+  # Only that pid is signalled; it is still our unreaped child, so it cannot
+  # have been reused.
+  if [ -n "${SYNC_PID:-}" ]; then kill -KILL "$SYNC_PID" 2>/dev/null || true; fi
+  common_teardown
+}
 
 run_sync() { run bash "$REPO/sync.sh"; }
 
@@ -325,6 +331,112 @@ make_failing_mv() {
   assert_contains "$body" "BOTTOM"
   assert_contains "$body" "Shared Claude setup"
   assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" 444
+  assert_no_md_temp "$HOME/.claude"
+}
+
+file_owner() { stat -c %u "$1" 2>/dev/null || stat -f %u "$1"; }
+
+# Root may write any file, so [ -w ] says nothing about a read-only CLAUDE.md
+# there; the mode has to come from the file's own owner-write bit.
+@test "as root, a read-only CLAUDE.md keeps its mode on the append path" {
+  [ "$(id -u)" = 0 ] || skip "needs root"
+  mkdir -p "$HOME/.claude"
+  for mode in 444 400; do
+    printf 'MY NOTES\n' > "$HOME/.claude/CLAUDE.md"   # no markers: the append path
+    chmod "$mode" "$HOME/.claude/CLAUDE.md"
+    run_sync
+    assert_equal "$status" 0
+    body="$(cat "$HOME/.claude/CLAUDE.md")"
+    assert_contains "$body" "MY NOTES"
+    assert_contains "$body" "Shared Claude setup"
+    assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" "$mode"
+    assert_no_md_temp "$HOME/.claude"
+  done
+}
+
+@test "as root, a read-only CLAUDE.md keeps its mode on the replace path" {
+  [ "$(id -u)" = 0 ] || skip "needs root"
+  mkdir -p "$HOME/.claude"
+  for mode in 444 400; do
+    printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" 'BOTTOM' > "$HOME/.claude/CLAUDE.md"
+    chmod "$mode" "$HOME/.claude/CLAUDE.md"
+    run_sync
+    assert_equal "$status" 0
+    body="$(cat "$HOME/.claude/CLAUDE.md")"
+    refute_contains "$body" "stale"
+    assert_contains "$body" "BOTTOM"
+    assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" "$mode"
+    assert_no_md_temp "$HOME/.claude"
+  done
+}
+
+# The user cannot write a file someone else owns, but can rename over it in
+# their own folder. The new file keeps the mode and is owned by the user.
+@test "a 0644 CLAUDE.md owned by someone else in the user's folder stays 644" {
+  [ "$(id -u)" = 0 ] || skip "needs root to give the file another owner"
+  command -v setpriv >/dev/null || skip "running as root without setpriv"
+  mkdir -p "$HOME/.claude"
+  printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" 'BOTTOM' > "$HOME/.claude/CLAUDE.md"
+  chown -R 65534:65534 "$TEST_TMP"
+  chown 0:0 "$HOME/.claude/CLAUDE.md"
+  chmod 644 "$HOME/.claude/CLAUDE.md"
+  run setpriv --reuid=65534 --regid=65534 --clear-groups bash "$REPO/sync.sh"
+  assert_equal "$status" 0
+  body="$(cat "$HOME/.claude/CLAUDE.md")"
+  refute_contains "$body" "stale"
+  assert_contains "$body" "BOTTOM"
+  assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" 644
+  assert_equal "$(file_owner "$HOME/.claude/CLAUDE.md")" 65534
+  assert_no_md_temp "$HOME/.claude"
+}
+
+# Retry a command every 0.05 s, up to N times.
+wait_until() { # tries command...
+  local n="$1"
+  shift
+  until "$@"; do
+    n=$((n - 1))
+    [ "$n" -gt 0 ] || return 1
+    sleep 0.05
+  done
+}
+
+@test "TERM during the write exits 143, leaves CLAUDE.md byte-identical and no temp" {
+  mkdir -p "$HOME/.claude" "$TEST_TMP/bin"
+  printf 'MY PERSONAL NOTES\n' > "$HOME/.claude/CLAUDE.md"   # no markers: the append path
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  real_cat="$(command -v cat)"
+  # A cat that, when given the snippet, says it started and then waits until
+  # released. It gives up after 10 s or once the test dir is gone, so it never
+  # outlives a failed test.
+  {
+    echo '#!/bin/sh'
+    echo 'for a in "$@"; do'
+    echo '  case "$a" in */CLAUDE.snippet.md)'
+    echo "    : > '$TEST_TMP/cat-started'"
+    echo '    i=0'
+    echo "    while [ -d '$TEST_TMP' ] && [ ! -e '$TEST_TMP/cat-release' ] && [ \$i -lt 200 ]; do"
+    echo '      sleep 0.05; i=$((i + 1))'
+    echo '    done ;;'
+    echo '  esac'
+    echo 'done'
+    echo "exec '$real_cat' \"\$@\""
+  } > "$TEST_TMP/bin/cat"
+  chmod +x "$TEST_TMP/bin/cat"
+
+  PATH="$TEST_TMP/bin:$PATH" bash "$REPO/sync.sh" > "$TEST_TMP/out" 2>&1 3>&- &
+  SYNC_PID=$!
+  wait_until 200 test -e "$TEST_TMP/cat-started" || fail "sync never reached the append"
+  kill -TERM "$SYNC_PID"
+  # bash runs the trap once the foreground cat returns, so let it return.
+  : > "$TEST_TMP/cat-release"
+  rc=0
+  wait "$SYNC_PID" || rc=$?
+  SYNC_PID=""
+  out="$(cat "$TEST_TMP/out")"
+  assert_equal "$rc" 143
+  refute_contains "$out" "Synced"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
   assert_no_md_temp "$HOME/.claude"
 }
 
