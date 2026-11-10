@@ -103,18 +103,68 @@ run_sync() { run bash "$REPO/sync.sh"; }
 
 # ----------------------------------------------------------- EDGE CASES ----
 
-@test "managed-block edit keeps user content when the END marker is missing" {
+MD_START='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
+MD_END='<!-- <<< claude-shared <<< -->'
+
+# Write a CLAUDE.md from the given lines, run sync.sh twice, and require that
+# it fails with the marker error and leaves the file byte-for-byte unchanged.
+assert_malformed_untouched() {
   mkdir -p "$HOME/.claude"
-  start='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
+  printf '%s\n' "$@" > "$HOME/.claude/CLAUDE.md"
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  for _ in 1 2; do
+    run_sync
+    [ "$status" -ne 0 ] || fail "sync.sh succeeded on malformed markers"
+    assert_contains "$output" "malformed claude-shared markers"
+    assert_contains "$output" "$HOME/.claude/CLAUDE.md"
+    assert_contains "$output" "by hand"
+    cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
+  done
+}
+
+@test "markers: START only is an error and leaves CLAUDE.md unchanged" {
+  assert_malformed_untouched 'TOP' "$MD_START" 'stale' 'PRESERVE THIS LINE'
+}
+
+@test "markers: END only is an error and leaves CLAUDE.md unchanged" {
+  assert_malformed_untouched 'TOP' 'middle' "$MD_END" 'PRESERVE THIS LINE'
+}
+
+@test "markers: END before START is an error and leaves CLAUDE.md unchanged" {
+  assert_malformed_untouched 'TOP' "$MD_END" 'middle' "$MD_START" 'PRESERVE THIS LINE'
+}
+
+@test "markers: duplicate START is an error and leaves CLAUDE.md unchanged" {
+  assert_malformed_untouched "$MD_START" 'a' "$MD_START" 'b' "$MD_END" 'PRESERVE THIS LINE'
+}
+
+@test "markers: duplicate END is an error and leaves CLAUDE.md unchanged" {
+  assert_malformed_untouched "$MD_START" 'a' "$MD_END" 'b' "$MD_END" 'PRESERVE THIS LINE'
+}
+
+@test "markers: two pairs is an error and leaves CLAUDE.md unchanged" {
+  assert_malformed_untouched "$MD_START" 'a' "$MD_END" 'between' "$MD_START" 'b' "$MD_END" 'PRESERVE THIS LINE'
+}
+
+@test "markers: CRLF line endings on the markers still replace the block" {
+  mkdir -p "$HOME/.claude"
   {
-    printf '%s\n' "$start"
-    printf 'stale managed content\n'
-    printf 'PRESERVE THIS LINE\n'   # below where the END marker should be
+    printf 'TOP LINE\r\n'
+    printf '%s\r\n' "$MD_START"
+    printf 'stale managed content\r\n'
+    printf '%s\r\n' "$MD_END"
+    printf 'BOTTOM LINE\r\n'
   } > "$HOME/.claude/CLAUDE.md"
   run_sync
+  assert_equal "$status" 0
   body="$(cat "$HOME/.claude/CLAUDE.md")"
-  # BUG: awk enters skip mode at START and, finding no END, drops everything after it.
-  assert_contains "$body" "PRESERVE THIS LINE"
+  assert_contains "$body" "TOP LINE"
+  assert_contains "$body" "BOTTOM LINE"
+  refute_contains "$body" "stale managed content"
+  assert_equal "$(count_occurrences "$HOME/.claude/CLAUDE.md" '>>> claude-shared')" 1
+  run_sync
+  assert_equal "$status" 0
+  assert_equal "$(count_occurrences "$HOME/.claude/CLAUDE.md" '>>> claude-shared')" 1
 }
 
 @test "leaves a real (non-symlink) skill directory in ~/.claude/skills untouched" {

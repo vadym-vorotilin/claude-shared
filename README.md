@@ -501,7 +501,9 @@ backs up `settings.json` before merging:
    `/claude-shared`. The block is delimited by `<!-- >>> claude-shared … -->` /
    `<!-- <<< claude-shared <<< -->` markers; **only the text between those markers
    is ever changed** — the rest of your `CLAUDE.md` is left alone. If you don't
-   have a `CLAUDE.md`, one is created with just that block. Unlike
+   have a `CLAUDE.md`, one is created with just that block. If the markers are
+   malformed (only one of them, duplicated, or out of order), `sync.sh` exits with
+   an error and leaves the file untouched until you fix them by hand. Unlike
    `settings.json`, `CLAUDE.md` is not backed up first.
 5. Writes `~/.claude/claude-shared-repo` recording this checkout's path.
 

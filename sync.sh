@@ -118,25 +118,49 @@ GLOBAL_MD="$CLAUDE_DIR/CLAUDE.md"
 SNIPPET="$REPO/claude/CLAUDE.snippet.md"
 START='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
 END='<!-- <<< claude-shared <<< -->'
-# Replace only when BOTH markers are present — otherwise the awk skip-region
-# would run to EOF and silently delete everything after START.
-if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD" && grep -qF "$END" "$GLOBAL_MD"; then
-  # Replace the existing managed block with the current snippet.
-  awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
-    function emit(   line){ while ((getline line < snip) > 0) print line; close(snip) }
-    $0==start { emit(); skip=1; next }
-    skip && $0==end { skip=0; next }
-    skip { next }
-    { print }
-  ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
-else
-  if [ -f "$GLOBAL_MD" ] && grep -qF "$START" "$GLOBAL_MD"; then
-    log "warning: managed block in $GLOBAL_MD has a START marker but no END — appending a fresh block and leaving existing content untouched"
-  fi
-  # Append (with a separating blank line if the file already has content).
-  [ -s "$GLOBAL_MD" ] && printf '\n' >> "$GLOBAL_MD"
-  cat "$SNIPPET" >> "$GLOBAL_MD"
+# Count whole marker lines (a trailing CR is ignored). The block is replaced
+# only when there is exactly one START followed later by exactly one END, and
+# appended when there is neither. Anything else (orphan, duplicate, reversed or
+# several pairs) is ambiguous, so fail without touching the file.
+marker_state="none"
+if [ -f "$GLOBAL_MD" ]; then
+  marker_state="$(awk -v start="$START" -v end="$END" '
+    { line = $0; sub(/\r$/, "", line) }
+    line == start { ns++; if (!fs) fs = NR }
+    line == end   { ne++; if (!fe) fe = NR }
+    END {
+      if (ns == 0 && ne == 0) print "none"
+      else if (ns == 1 && ne == 1 && fs < fe) print "pair"
+      else if (ns == 0) print "END marker without a START marker (" ne " END)"
+      else if (ne == 0) print "START marker without an END marker (" ns " START)"
+      else if (ns == 1 && ne == 1) print "END marker before the START marker"
+      else print "expected exactly one START and one END marker, found " ns " START and " ne " END"
+    }
+  ' "$GLOBAL_MD")"
 fi
+case "$marker_state" in
+  none)
+    # Append (with a separating blank line if the file already has content).
+    [ -s "$GLOBAL_MD" ] && printf '\n' >> "$GLOBAL_MD"
+    cat "$SNIPPET" >> "$GLOBAL_MD"
+    ;;
+  pair)
+    # Replace the existing managed block with the current snippet.
+    awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
+      function emit(   l){ while ((getline l < snip) > 0) print l; close(snip) }
+      { line = $0; sub(/\r$/, "", line) }
+      line == start { emit(); skip = 1; next }
+      skip && line == end { skip = 0; next }
+      skip { next }
+      { print }
+    ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
+    ;;
+  *)
+    echo "error: $GLOBAL_MD has malformed claude-shared markers: $marker_state." >&2
+    echo "Fix the markers by hand (one START line, then one END line), then re-run. The file was left unchanged." >&2
+    exit 1
+    ;;
+esac
 
 # 5. Record repo location so the skill can find it later --------------------
 printf '%s\n' "$REPO" > "$CLAUDE_DIR/claude-shared-repo"
