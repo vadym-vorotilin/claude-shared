@@ -318,9 +318,13 @@ def cmd_batch(a):
             w["if_version"] = v
         writes.append(w)
         ds["pending"] = h
+    body = {"action": "batch", "url": state["url"], "writes": writes}
+    bf = out / f"batch-{at.replace(':', '')}.json"
+    save(bf, body)
     save(st, state)
-    print(json.dumps({"action": "batch", "url": state["url"], "writes": writes}, indent=1))
-    print(f"\nafter it succeeds: track.py record {a.dir} " +
+    print(json.dumps(body, indent=1))
+    print(f"\nalso saved as {bf}; if this output is lost, send that file's batch", file=sys.stderr)
+    print(f"after it succeeds: track.py record {a.dir} " +
           " ".join(f"{p.partition('=')[0]}=<its new version>" for p in a.pairs), file=sys.stderr)
     print("record only the writes the result says applied; for a refused one see SKILL.md", file=sys.stderr)
 

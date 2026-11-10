@@ -67,7 +67,12 @@ permission prompt or refusal.
    If the track truly needs something else (a section of its own), change a
    copy of the template as little as possible, keep its classes and layout,
    and follow the type's page rules for the new part.
-5. Do the first update (below), then give the user the link.
+5. Do the first update (below), then read how the page ran: the type's
+   `check` and `runs` documents (its instructions say where). If neither
+   appears after a couple of minutes, nobody has the page open, and a page
+   of attached files has no query you could run instead: give the user the
+   link, ask them to open it, then read `check` again. Don't call the page
+   working until `check` passed.
 6. **Record it in the handoff** (`/handoff`, or the session's notes; leave
    the URL out of a handoff that is committed to a public repo): page URL,
    track directory, and that `track.py show DIR` prints the versions. A later
@@ -118,7 +123,9 @@ the answer must be yes.
    lands mid-update can't slip through.
 4. `track.py batch DIR items-<hash>.json=<asset url> ...`, copying the pairs
    `build` printed, prints one `ArtifactData` batch with `if_version` pins and
-   fresh stamps. Send it as printed, then `track.py record DIR
+   fresh stamps (stdout only; hints go to stderr, and the same batch is saved
+   as `out/batch-<stamp>.json` in case the output is lost). Send it as
+   printed, then `track.py record DIR
    items-<hash>.json=<v> ...` (the same file names) with the versions the
    result returns. Only `record` marks content as live;
    until then the next `build` offers it again.
