@@ -17,7 +17,7 @@ There are two lifetimes and each gets its own rule:
 |---|---|---|
 | A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns within about four minutes |
 | The **main session** | about **an hour** | **Never take a turn to wait** — wake on a notification or a 50-minute heartbeat |
-| A **headless `claude -p` session** | about **an hour**, as the main session | Main-session rules; the subagents it dispatches still poll |
+| A **headless `claude -p` session** | about **an hour**, as the main session | **Wait inside the turn** — a `-p` run ends with its turn, so it cannot be woken; its bounded polls may run past four minutes. The subagents it dispatches still poll |
 
 ## What this assumes
 
@@ -60,7 +60,7 @@ timeout 230 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; t
 
 ## Briefing a subagent
 
-**Put [brief.md](brief.md) into every brief for a role that may wait**, verbatim
+**Put [brief.md](brief.md) into every brief for a subagent that may wait**, verbatim
 — `cat` it into the brief file rather than reading it into your own context.
 A rule in a shared preamble the brief only points at gets skipped; the lines
 have to be in the brief. A brief written ad hoc for a late or one-off role
