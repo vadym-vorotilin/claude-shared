@@ -24,12 +24,28 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'kill -1 -1'
   blocked 'kill -9 1234 -1'
   blocked '/bin/kill -9 -1'
-  blocked 'sudo kill -9 -1'
   blocked 'cd /tmp && kill -TERM -1; echo done'
   blocked 'echo $(kill -9 -1)'
   blocked 'kill -- "-1"'
   blocked 'python3 -c "import os; os.kill(-1, 9)"'
   blocked 'python3 -c "import os; os.killpg(1, 9)"'
+}
+
+@test "hook blocks kill -1 behind wrappers and inside compound commands" {
+  blocked 'sudo kill -9 -1'
+  blocked 'sudo -u root kill -9 -1'
+  blocked 'timeout -s KILL 5 kill -9 -1'
+  blocked 'env FOO=1 kill -9 -1'
+  blocked "bash -c 'kill -9 -1'"
+  blocked 'sh -c "kill -9 -1"'
+  blocked 'eval kill -9 -1'
+  blocked 'watch -n1 kill -9 -1'
+  blocked 'echo 1 | xargs kill -9 -1'
+  blocked 'for i in 1; do kill -9 -1; done'
+  blocked 'if true; then kill -9 -1; fi'
+  blocked '{ kill -9 -1; }'
+  blocked '! kill -9 -1'
+  blocked '\kill -9 -1'
 }
 
 @test "hook blocks killing everything of a user, and ending the session" {
@@ -38,10 +54,12 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'pkill -u1000'
   blocked 'pkill --euid me'
   blocked 'pkill --uid=1000'
+  blocked 'pkill -n -u me'
   blocked 'killall --user me'
   blocked 'killall -u me -s KILL'
   blocked 'pkill -f .'
   blocked 'pkill ".*"'
+  blocked 'killall -r .'
   blocked 'killall5 -9'
   blocked 'loginctl terminate-user me'
   blocked 'loginctl kill-session 3'
@@ -57,16 +75,20 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed 'kill -l -1'
   allowed 'kill -TERM -- -4321'
   allowed 'kill -9 -12'
+  allowed 'kill -9 0'
   allowed 'kill -0 "$pid" 2>/dev/null && echo alive'
   allowed 'pkill -f "dotnet test MyApp.Tests"'
   allowed 'pkill -u "$USER" -f vite'
+  allowed 'pkill -u "$USER" -n node'
   allowed 'killall -u me node'
+  allowed 'killall -r "^node"'
   allowed 'killall node'
   allowed 'systemctl --user restart foo.service'
   allowed 'loginctl list-sessions'
   allowed 'echo skill -1; ls -1 /tmp'
   allowed 'git log --oneline -1'
   allowed 'grep -c kill notes.txt'
+  allowed 'echo "${HOME}/x" 2>&1 | tee log'
 }
 
 @test "hook names the matched command" {
@@ -79,10 +101,10 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   assert_equal "$status" 0
 }
 
-@test "hook says so when jq is missing" {
+@test "hook says so, as a non-blocking error, when jq is missing" {
   mkdir -p "$TEST_TMP/bin"; ln -s "$(command -v bash)" "$TEST_TMP/bin/bash"
   run env PATH="$TEST_TMP/bin" bash "$REPO/claude/kill-guard-hook.sh" <<< '{}'
-  assert_equal "$status" 0
+  assert_equal "$status" 1
   assert_contains "$output" "NOT being checked"
 }
 
@@ -121,10 +143,9 @@ need_jail() {
   assert_equal "$status" 127
 }
 
-# Each broad signal below runs only after three checks that it is inside a
-# jail (PID 1 is not the host's init, the command is PID 2, few processes
-# show), so a broken jail skips it rather than killing the machine. The test
-# itself runs in a fresh session, so even an escaped `kill 0` stays there.
+# Each broad signal below runs only after checks that it is inside a jail
+# (PID 1 is not the host's init, the command is PID 2, few processes show),
+# so a broken jail exits 99 rather than killing the machine.
 @test "pidjail: kill -KILL -1 inside reaches only the jail" {
   need_jail
   sleep 300 & outside=$!
@@ -139,25 +160,49 @@ need_jail() {
   assert_equal "$alive" 1
 }
 
+# Run in a fresh session, so even an escaped `kill 0` stays there.
 @test "pidjail: kill 0 inside does not reach the caller's process group" {
   need_jail
   run setsid -w bash -c '
     sleep 300 & s=$!
-    "$1" bash -c "[ \"\$(cat /proc/1/comm)\" = bash ] && [ \$\$ -eq 2 ] || exit 99; kill -TERM 0"
+    "$1" bash -c "[ \"\$(cat /proc/1/comm)\" = bash ] && [ \$\$ -eq 2 ] || exit 99; kill -TERM 0; sleep 5"
+    rc=$?
     kill -0 $s 2>/dev/null && r=survived || r=killed
-    kill $s 2>/dev/null; echo $r' _ "$REPO/claude/pidjail"
-  assert_contains "$output" survived
+    kill $s 2>/dev/null; echo "$r $rc"' _ "$REPO/claude/pidjail"
+  assert_equal "$output" "survived 143"
 }
 
-@test "pidjail passes TERM on to the command" {
+@test "pidjail passes TERM on to the command, even straight after it starts" {
   need_jail
-  "$REPO/claude/pidjail" bash -c "trap 'echo got-term > \"$TEST_TMP/t\"; exit 143' TERM; sleep 300 & wait" &
+  "$REPO/claude/pidjail" bash -c "trap 'echo got-term > \"$TEST_TMP/t\"; exit 143' TERM; sleep 297.5 & wait" &
   p=$!
-  sleep 0.5
+  # The sleep exists once the command's trap is set.
+  until pgrep -fx "sleep 297.5" >/dev/null; do sleep 0.05; done
   kill -TERM "$p"
   wait "$p" && rc=0 || rc=$?
   assert_equal "$rc" 143
   assert_equal "$(cat "$TEST_TMP/t")" got-term
+  # A TERM before the jail is up is held, not lost.
+  "$REPO/claude/pidjail" sleep 297.25 & p=$!
+  kill -TERM "$p"
+  wait "$p" && rc=0 || rc=$?
+  assert_equal "$rc" 143
+}
+
+@test "pidjail takes the jail down when it is killed itself" {
+  need_jail
+  "$REPO/claude/pidjail" sleep 298.5 & p=$!
+  until pgrep -fx "sleep 298.5" >/dev/null; do sleep 0.05; done
+  kill -KILL "$p"; wait "$p" 2>/dev/null || true
+  sleep 0.5
+  ! pgrep -fx "sleep 298.5" >/dev/null || { pkill -fx "sleep 298.5"; fail "the jail outlived pidjail"; }
+}
+
+@test "pidjail: the command starts with INT and QUIT not ignored" {
+  need_jail
+  run "$REPO/claude/pidjail" awk '/^SigIgn:/ {print $2}' /proc/self/status
+  # INT is bit 1 (0x2), QUIT bit 2 (0x4); other bits come from the caller.
+  assert_equal "$(( (16#$output >> 1) & 3 ))" 0
 }
 
 @test "pidjail reaps orphans, and kills what the command leaves running" {

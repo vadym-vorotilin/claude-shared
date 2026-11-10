@@ -13,16 +13,18 @@
 # as it does outside. What changes: `ps` shows only the jail; sudo does not
 # work inside (it is a user namespace); the command has no controlling
 # terminal; a process left running when the command exits is killed with the
-# jail. TERM, INT or HUP to pidjail (Ctrl-C included) reach the command as TERM.
+# jail, and so is the whole jail if pidjail itself is killed. TERM, INT or HUP
+# to pidjail (Ctrl-C included) reach the command as TERM.
 #
-# Needs unprivileged user and PID namespaces and util-linux >= 2.38 `unshare`
-# (for --map-current-user). Where they are unavailable (some containers,
+# Linux only. Needs unprivileged user and PID namespaces, util-linux >= 2.38
+# (`unshare --map-current-user`, `setpriv`, `setsid`) and coreutils >= 8.31
+# (`env --default-signal`). Where namespaces are unavailable (some containers,
 # hardened kernels) pidjail refuses: it prints a line starting
 # "pidjail: refused:" and exits 125 without running the command.
 set -uo pipefail
 
 if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-  sed -n '3,21p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -eq 0 ] && exit 2 || exit 0
 fi
 
@@ -32,17 +34,29 @@ if ! err="$(unshare "${flags[@]}" true 2>&1)"; then
   exit 125
 fi
 
-# Inside: setsid gives the jail its own session and process group, so
-# `kill 0` or a group read from the caller reaches nothing outside. PID 1 is
-# a small bash that reaps orphans (a test's double-forked children would
-# otherwise stay zombies and still answer `kill -0`), passes TERM/INT/HUP on
-# to the command, and exits with its status. A signal to -1 inside the jail
-# does not reach PID 1 itself.
+# A signal that arrives before the jail can take it is held and delivered
+# once it can, so the trap goes in before anything starts.
+pending=0
+trap 'pending=1' TERM INT HUP
+
+# Inside:
+# - setpriv --pdeathsig: unshare gets SIGKILL if pidjail dies, even by
+#   SIGKILL, and --kill-child then takes the jail down with it.
+# - setsid: the jail's own session and process group, so `kill 0` or the
+#   caller's group reaches nothing outside.
+# - PID 1 is a small bash. It reaps orphans (a test's double-forked children
+#   would otherwise stay zombies and still answer `kill -0`), passes TERM on to
+#   the command, and exits with its status. A signal to -1 inside the jail does
+#   not reach PID 1 itself.
+# - env --default-signal: an async command in a script starts with INT and
+#   QUIT ignored; the command gets them back.
 # shellcheck disable=SC2016
-unshare "${flags[@]}" -- setsid -w bash -c '
-  trap "kill -TERM \$c 2>/dev/null" TERM INT HUP
-  "$@" <&0 &
+setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w bash -c '
+  p=0 c=
+  trap "p=1; [ -n \"\$c\" ] && kill -TERM \$c 2>/dev/null" TERM INT HUP
+  env --default-signal=INT,QUIT -- "$@" <&0 &
   c=$!
+  [ $p -eq 1 ] && kill -TERM $c 2>/dev/null
   while :; do
     wait "$c"; rc=$?
     kill -0 "$c" 2>/dev/null || break
@@ -51,16 +65,27 @@ unshare "${flags[@]}" -- setsid -w bash -c '
 ' pidjail "$@" <&0 &
 u=$!
 
-# unshare blocks TERM/INT while it waits, so a signal to pidjail is passed to
-# the jail's PID 1 (unshare's child) directly. --kill-child covers SIGKILL.
-forward() {
-  local init
-  init="$(cat "/proc/$u/task/$u/children" 2>/dev/null)"
-  [ -n "$init" ] && kill -TERM $init 2>/dev/null
+# The jail's PID 1, as seen from here: unshare's child.
+init_pid() {
+  cat "/proc/$u/task/$u/children" 2>/dev/null || pgrep -P "$u" 2>/dev/null
 }
-trap forward TERM INT HUP
-while :; do
-  wait "$u"; rc=$?
-  kill -0 "$u" 2>/dev/null || break
+# Deliver a held TERM once PID 1 has its TERM handler in place: PID 1 drops a
+# signal it has no handler for. Returns 1 while it can't yet.
+deliver() {
+  local init cgt
+  init="$(init_pid)"; init="${init%% *}"
+  [ -n "$init" ] || return 1
+  cgt="$(awk '/^SigCgt:/ {print $2}' "/proc/$init/status" 2>/dev/null)"
+  [ -n "$cgt" ] && (( (16#$cgt >> 14) & 1 )) || return 1
+  kill -TERM "$init" 2>/dev/null
+}
+
+# Poll rather than block in `wait`, so a signal that lands between two
+# checks is never lost. The tick is a read timeout on a pipe that never gets
+# data, so it starts no process.
+exec {tick}<> <(:)
+while kill -0 "$u" 2>/dev/null; do
+  if [ $pending -eq 1 ] && deliver; then pending=0; fi
+  read -r -t 0.05 -u "$tick" _
 done
-exit "$rc"
+wait "$u"
