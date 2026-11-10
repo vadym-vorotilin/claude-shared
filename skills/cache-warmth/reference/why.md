@@ -24,6 +24,25 @@ flight run **under** that hour, so the main session is reading its cache rather
 than rewriting it. A sweep interval longer than the cache lifetime pays the
 rewrite the sweep exists to save.
 
+**A headless `claude -p` session gets the hour too**, but it cannot wait the
+way the main session does: depending on the version, a `-p` run exits when its
+turn ends, or holds on for background work only up to a ceiling and then stops
+it. So it keeps every wait inside the turn, polling with a bound of about nine
+minutes (under the Bash tool's ten-minute ceiling) without paying a rewrite;
+the subagents it dispatches still poll at three.
+Measured on 2026-11-05 (Claude Code 2.1.314, Haiku, Sonnet and Opus, inside the weekly
+quota): every cache write of the headless session itself went to the one-hour
+bucket, also with restricted tools and a stripped environment, and a session
+resumed after 7.5 idle minutes read its whole context from cache. Only its
+subagents wrote to the five-minute bucket. Over quota, the fallback in
+[SKILL.md](../SKILL.md) applies here as to any main session. One cost to know:
+the **first** `--resume` of a headless session re-writes a sizeable part of its
+context (about 16k tokens in that setup) even when it comes at once, because its
+prompt does not line up with the first call's; later resumes line up. To check a
+session yourself, read `.message.usage.cache_creation` on its assistant lines in
+the transcript: `ephemeral_1h_input_tokens` is the hour bucket,
+`ephemeral_5m_input_tokens` the five-minute one.
+
 **It is the waiting, not the test suite.** The suite is the commonest instance
 and not necessarily the majority of the cost: builds, worktree
 checkouts on a large repo, and other ordinary multi-minute commands can together
@@ -37,9 +56,11 @@ first agent still has to wait for the result, and waiting is the thing that
 costs. An agent that kept taking turns across a long run paid none of it, which
 is what makes this a briefing choice rather than a fact of life.
 
-So the rule is **poll, do not block**: anything expected to outlast the cache
-runs detached and is polled on a short cadence, and anything shorter blocks as
-before. A poll turn costs one cache read; a blocked wait costs a full rewrite,
+So the rule is **poll, do not block**: anything that may not finish within 170
+seconds runs detached and is polled on a short cadence, and anything shorter
+blocks as before. The threshold sits under the cache's five minutes because
+Claude Code moves a capped subagent's foreground call to the background at 180
+seconds (see SKILL.md). A poll turn costs one cache read; a blocked wait costs a full rewrite,
 which is more than an order of magnitude dearer at the context a long-running agent
 reaches. Polling also detects the stall the ban was written to prevent — a
 poll that stops coming back is a stall, visible in minutes rather than at the
