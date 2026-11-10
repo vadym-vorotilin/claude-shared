@@ -61,7 +61,7 @@ permission prompt or refusal.
 
    | Section | Dataset | Shows |
    |---|---|---|
-   | Summary | track, items, phases | title; goal, done / total, active, next phase, days to `deadline` in one sentence; last change |
+   | Summary | track, items, phases, log, visuals | title; goal, done / total, active, next phase, days to `deadline` in one sentence; last change (the newest log, item or visual stamp) |
    | Roadmap | phases | a bar per phase, start → target, filled by its share of items done; today's line |
    | In progress now · Recent activity | items · log | side by side: `blocked`, `review` and `building` items with a pill and stage; the newest 12 events |
    | Results | visuals | thumbnails with captions; click to enlarge |
@@ -159,7 +159,11 @@ the pending batch so the next `build` offers that content again. Then
 
 **No recorded version** (a lost `track-state.json`, or a page the type created
 with its datasets already there): `batch` stops rather than send an unpinned
-write. Get each dataset and `record --version-only` its version. Only for a
+write. Get each dataset, and before recording anything read the rows its
+`source.url` names and compare them with `status.json`: the next update
+replaces them, so fold real edits in or ask the user, exactly as for a
+refused write (only the type's own starter datasets may be replaced unread).
+Then `record --version-only` its version. Only for a
 dataset the page does not have yet, add `--first <name>` after the pairs
 (the flag once per such dataset); that write is a `set`, which creates it and
 would replace one that exists, so never re-send a `--first` batch or its

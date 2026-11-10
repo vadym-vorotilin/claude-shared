@@ -399,6 +399,9 @@ def cmd_record(a):
             ds["hash"], ds["at"] = h, now()
     save(st, state)
     print("recorded " + ", ".join(a.pairs) + (" (version only)" if a.version_only else ""))
+    if a.version_only:
+        print("the next batch pins to this version and replaces the dataset's rows: compare them with "
+              "status.json first (SKILL.md, 'When a pinned write is refused')", file=sys.stderr)
 
 
 def cmd_resolve(a):

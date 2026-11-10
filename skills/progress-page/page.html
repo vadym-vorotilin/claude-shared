@@ -51,7 +51,7 @@
   <header class="pp-head" id="summary">
     <h1 class="pp-title" data-draw="title" data-source="track" data-field="title" data-row="0">—</h1>
     <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. <span data-draw="nextphase" data-source="phases">Next phase: —.</span><span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
-    <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log" data-field="at" data-row="0">—</time>. Claude updates this page as work lands.</p>
+    <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log items visuals">—</time>. Claude updates this page as work lands.</p>
   </header>
   <section class="pp-card" id="roadmap">
     <h2 class="pp-h2">Roadmap</h2>
@@ -179,11 +179,14 @@
   });
 
   dash.draw('stamp', (el) => {
-    const l = dash.data('log');
-    if (l.status !== 'ok' || !l.data.length) { el.textContent = '—'; return; }
-    const at = new Date(l.data[0].at);
-    el.textContent = `${d3.timeFormat('%a %-d %b, %H:%M')(at)} (${window.ppAgo(l.data[0].at)})`;
-    el.setAttribute('datetime', l.data[0].at);
+    const stamps = [['log', 'at'], ['items', 'updated'], ['visuals', 'at']].flatMap(([k, f]) => {
+      const g = dash.data(k);
+      return g.status === 'ok' ? g.data.map((r) => r[f]).filter((v) => typeof v === 'string' && !isNaN(Date.parse(v))) : [];
+    });
+    if (!stamps.length) { el.textContent = '—'; return; }
+    const last = stamps.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a));
+    el.textContent = `${d3.timeFormat('%a %-d %b, %H:%M')(new Date(last))} (${window.ppAgo(last)})`;
+    el.setAttribute('datetime', last);
   });
 
   dash.draw('roadmap', (el) => {
