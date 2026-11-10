@@ -15,9 +15,9 @@ There are two lifetimes and three rules:
 
 | Who | Cache lifetime | The rule |
 |---|---|---|
-| A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns within about four minutes |
+| A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns within about **three minutes** |
 | The **main session** | about **an hour** | **Never take a turn to wait** — wake on a notification or a 50-minute heartbeat |
-| A **headless `claude -p` session** | about **an hour**, as the main session | **Wait inside the turn** — it cannot rely on a wake-up, so it polls, but each poll may return within about **nine minutes** (`timeout 540`, Bash `timeout: 600000`). The subagents it dispatches still poll at four |
+| A **headless `claude -p` session** | about **an hour**, as the main session | **Wait inside the turn** — it cannot rely on a wake-up, so it polls, but each poll may return within about **nine minutes** (`timeout 540`, Bash `timeout: 600000`). The subagents it dispatches still poll at three |
 
 ## What this assumes
 
@@ -26,7 +26,7 @@ There are two lifetimes and three rules:
 - **The two lifetimes above.** The harness and the plan set them, not you. If
   the main or a headless session is on the short cache too (it is when usage
   falls back to the five-minute TTL), its rules collapse into the subagent ones:
-  every wait returns within about four minutes. The shared status line shows
+  every wait returns within about three minutes. The shared status line shows
   each live agent's cache TTL.
 - **GNU `timeout`** in the poll forms (`gtimeout` on macOS from coreutils).
 
@@ -36,15 +36,15 @@ does not apply to its role.
 
 ## Waiting in a subagent: poll, do not block
 
-Anything expected to run longer than about four minutes runs **detached**, and
+Anything expected to run longer than about three minutes runs **detached**, and
 the agent polls it with a bounded wait per call:
 
 ```bash
-timeout 230 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; tail -3 <log>
+timeout 170 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; tail -3 <log>
 ```
 
 - **The bound is a maximum, not an example.** Every poll call returns within
-  about four minutes, whatever the command is expected to take. A longer bound
+  about three minutes, whatever the command is expected to take. A longer bound
   never saves anything: each extra poll is one cache read, one bound past the
   lifetime is a full write.
 - **It binds every role that waits**, not only the one that runs tests: a build,
@@ -54,8 +54,12 @@ timeout 230 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; t
   another agent: someone still waits, and the waiting is what costs.
 - **What stays banned is unpolled backgrounding** — `run_in_background` followed
   by a blind wait, or a `Monitor` armed and waited on.
-- Set a long Bash timeout (e.g. `timeout: 600000`) so long commands are not
-  auto-backgrounded behind the agent's back. It is a ceiling for a runaway
+- **Keep the bound under three minutes.** Claude Code (2.1.322) moves a
+  subagent's foreground Bash call to the background after 180 seconds, whatever
+  its `timeout`, so a longer poll loses its output and leaves its loop running.
+  The cap does not apply to the main session or to a session on the hour cache.
+- Set a long Bash timeout (e.g. `timeout: 600000`) so other long commands are not
+  cut short. It is a ceiling for a runaway
   command, never a poll cadence.
 
 ## Briefing a subagent
@@ -71,6 +75,9 @@ blocks anyway. And name the `Monitor` tool: "no monitors" on its own reads as a
 Bash rule, and the agent then arms the tool and stalls on it.
 
 ## Waiting in the main session: never take a turn to wait
+
+Not for a headless `claude -p` session: it cannot rely on a wake-up, so it
+waits inside the turn with nine-minute polls (see the table above).
 
 A foreground `until … sleep`, `tail`, `--watch` or task-output call in the main
 session is one full context read to learn "not yet", and those reads come late,
@@ -124,8 +131,8 @@ The form is chosen against these alternatives:
   five-minute cache — the next turn rewrites the whole context at the write rate
 - A poll form given as an example with no maximum — the bound gets stretched
   toward the Bash timeout to save turns; say "every poll call returns within
-  four minutes"
-- A live agent's transcript untouched for five minutes — its cache is gone;
+  three minutes"
+- A live subagent's transcript untouched for five minutes — its cache is gone;
   correct its poll bound rather than reading the silence as health
 - A waiting role briefed without the poll rule because it "only reviews" or
   "only records" — every role that waits pays the identical rewrite
@@ -133,7 +140,8 @@ The form is chosen against these alternatives:
   *unpolled* `run_in_background`
 - A `sleep`, `until`, `tail -f`, `--watch` or task-output call in the main
   session's own turn — the wait belongs in a background `until`, a sweep or
-  the heartbeat
+  the heartbeat (a headless `claude -p` session is the exception: it polls in
+  the turn)
 - A stall sweep or background wait whose interval is longer than the main
   session's cache — it pays the rewrite it exists to save
 - Pausing by waiting for notifications — a pause needs an armed timer
