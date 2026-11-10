@@ -328,6 +328,9 @@ of these are available in every project on the machine.
   (from an optional deadline, e.g. `/pause 17:30`), drain helpers and timers,
   save the handoff, and end with a ready-to-paste `/compact` line. It never
   pushes without the project's or your say-so.
+- **`/smart-compact`** — compact without stopping: a ready-to-paste `/compact`
+  line whose keep text names every agent, job and timer still running, with
+  the IDs needed to reach them afterwards. Stops nothing.
 - **`/research`** — run a research spike: frame the question, split it into
   legs (code surveys, web research, benchmarks, design), dispatch each on the
   model and effort its kind needs instead of inheriting the session's, keep a

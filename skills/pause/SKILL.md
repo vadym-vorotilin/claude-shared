@@ -1,6 +1,6 @@
 ---
 name: pause
-description: Use when the user is ending work for now and wants the session drained, saved and ready to compact — "/pause", "pause", "drain", "start draining", "we stop at 17:30", "wrap up for today", "I'm heading off soon", "prepare for compaction", "give me the compact command". Takes an optional deadline ("/pause 17:30", "/pause in 30m").
+description: Use when the user is ending work for now and wants the session drained, saved and ready to compact — "/pause", "pause", "drain", "start draining", "we stop at 17:30", "wrap up for today", "I'm heading off soon". Takes an optional deadline ("/pause 17:30", "/pause in 30m"). Not for compacting alone: "compact", "give me the compact command" or "prepare for compaction" without ending work is /smart-compact, which keeps everything running.
 ---
 
 # pause — drain, save, hand over the compact command
@@ -9,6 +9,15 @@ One request ends a working stretch: nothing left running, state saved outside
 the conversation, and a ready-to-paste `/compact` line as the last thing in the
 reply. The user should never have to ask twice ("drain", then "prepare the
 command").
+
+## Compacting without pausing
+
+A request to compact is not a request to stop. Unless the user says the work
+ends — "pause" or "/pause", "drain", "wrap up", "stop", "for today", "heading
+off", or a deadline — use `smart-compact` instead: it writes the `/compact`
+line and stops nothing. Read the intent, not the word: "compact, but don't stop
+the agents" is compact-only. If unsure, compact-only is the default — a drain
+cannot be undone.
 
 ## What this assumes
 
@@ -151,6 +160,7 @@ running before acting. Trust them and `git log` over the summary.
 
 | Thought | Reality |
 |---|---|
+| "They asked to compact, so I drain first" | Compacting alone keeps work running. Drain only on pause, drain or wrap-up. |
 | "They said drain, so I stop now" | A deadline gives a cutoff. Work until it. |
 | "I'll describe what's saved; they can ask for the command" | The `/compact` block is always the last thing in the reply. |
 | "I'll ask about pushing now and wait" | Drain first; the push question goes in the final message. |
