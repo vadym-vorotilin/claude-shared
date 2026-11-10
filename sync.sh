@@ -12,6 +12,9 @@
 #   - claude/statusline-progress-hook.sh
 #                                    -> ~/.claude/statusline-progress-hook.sh,
 #                                      and a PostToolUse entry in settings.json
+#   - claude/kill-guard-hook.sh      -> ~/.claude/kill-guard-hook.sh,
+#                                      and a PreToolUse entry in settings.json
+#   - claude/pidjail                 -> ~/.claude/bin/pidjail
 #   - claude/settings.shared.json   -> merged into ~/.claude/settings.json
 #                                      (shared keys win; local-only keys preserved)
 #   - skills/*/                      -> symlinked into ~/.claude/skills/
@@ -105,6 +108,15 @@ for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh 
   chmod +x "$CLAUDE_DIR/$f"
 done
 
+# The kill guard: a PreToolUse hook (added below) and pidjail, which runs a
+# command where no signal it sends reaches anything outside it.
+log "deploy kill-guard-hook.sh and bin/pidjail"
+cp "$REPO/claude/kill-guard-hook.sh" "$CLAUDE_DIR/kill-guard-hook.sh"
+chmod +x "$CLAUDE_DIR/kill-guard-hook.sh"
+mkdir -p "$CLAUDE_DIR/bin"
+cp "$REPO/claude/pidjail" "$CLAUDE_DIR/bin/pidjail"
+chmod +x "$CLAUDE_DIR/bin/pidjail"
+
 # 2. settings.json (merge) --------------------------------------------------
 SHARED="$REPO/claude/settings.shared.json"
 TARGET="$CLAUDE_DIR/settings.json"
@@ -136,6 +148,21 @@ if jq --arg cmd "$HOOK_CMD" '
 else
   rm -f "$tmp"
   log "warning: could not add the progress hook to $TARGET; background jobs will not show"
+fi
+
+# The kill guard, added to PreToolUse the same way.
+GUARD_CMD='bash ~/.claude/kill-guard-hook.sh'
+log "ensure the kill-guard hook in settings.json"
+tmp="$(mktemp)"
+if jq --arg cmd "$GUARD_CMD" '
+    .hooks.PreToolUse = ((.hooks.PreToolUse // [])
+      | if any(.[]; any(.hooks[]?; .command == $cmd)) then .
+        else . + [{matcher: "Bash", hooks: [{type: "command", command: $cmd}]}] end)
+  ' "$TARGET" > "$tmp"; then
+  mv "$tmp" "$TARGET"
+else
+  rm -f "$tmp"
+  log "warning: could not add the kill-guard hook to $TARGET; broad kill commands will not be blocked"
 fi
 
 # 3. Install all shared skills (symlinked) ----------------------------------

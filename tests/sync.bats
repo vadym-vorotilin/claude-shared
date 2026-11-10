@@ -56,6 +56,26 @@ run_sync() { run bash "$REPO/sync.sh"; }
   assert_equal "$(jq -r '.hooks.PostToolUse[] | select(.hooks[0].command | test("progress-hook")) | .matcher' "$s")" Bash
 }
 
+@test "deploys the kill guard and pidjail, and adds the guard hook once" {
+  mkdir -p "$HOME/.claude"
+  echo '{"hooks":{"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"mine.sh"}]}]}}' \
+    > "$HOME/.claude/settings.json"
+  run_sync; run_sync
+  assert_equal "$status" 0
+  assert_executable "$HOME/.claude/kill-guard-hook.sh"
+  assert_executable "$HOME/.claude/bin/pidjail"
+  s="$HOME/.claude/settings.json"
+  assert_equal "$(jq -r '.hooks.PreToolUse[0].hooks[0].command' "$s")" "mine.sh"
+  assert_equal "$(jq '[.hooks.PreToolUse[].hooks[] | select(.command == "bash ~/.claude/kill-guard-hook.sh")] | length' "$s")" 1
+  assert_equal "$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | test("kill-guard")) | .matcher' "$s")" Bash
+}
+
+@test "the deployed kill guard blocks kill -9 -1" {
+  run_sync
+  run bash "$HOME/.claude/kill-guard-hook.sh" <<< '{"tool_name":"Bash","tool_input":{"command":"kill -9 -1"}}'
+  assert_equal "$status" 2
+}
+
 # The scripts source the lib from their own directory, so a deployed copy must
 # run from ~/.claude without the repo.
 @test "the deployed status line runs from ~/.claude" {

@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+#
+# pidjail <command> [args...]: run a command in its own PID namespace and
+# session, so that no signal it sends can reach a process outside it.
+#
+# Every process an agent starts runs as you, and the kernel lets you signal
+# any process you own. One `kill -KILL -- -1` (or a process group read from a
+# file that holds "1") then kills the compositor, the terminals and every
+# other session on the machine. Inside pidjail, -1, 0 and every process group
+# mean only the command's own processes; nothing outside is visible to it.
+#
+# Files, network, your uid and environment are unchanged, so a test suite runs
+# as it does outside (files owned by root or another user show as owned by
+# nobody, and supplementary groups as 65534, but access to them is the same).
+# What changes: `ps` shows only the jail; sudo does not
+# work inside (it is a user namespace); the command has no controlling
+# terminal; a process left running when the command exits is killed with the
+# jail, and so is the whole jail if pidjail itself is killed. TERM, INT or HUP
+# to pidjail (Ctrl-C included) reach the command as TERM.
+#
+# Linux only. Needs unprivileged user and PID namespaces, util-linux >= 2.38
+# (`unshare --map-current-user`, `setpriv`, `setsid`) and coreutils >= 8.31
+# (`env --default-signal`). Where namespaces are unavailable (some containers,
+# hardened kernels) pidjail refuses: it prints a line starting
+# "pidjail: refused:" and exits 125 without running the command.
+set -uo pipefail
+
+if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'
+  [ $# -eq 0 ] && exit 2 || exit 0
+fi
+
+flags=(--user --map-current-user --pid --fork --mount-proc --kill-child)
+# The whole chain the command will run under, so a missing or old tool is a
+# refusal too, not an exit status the caller could take for the command's.
+if ! err="$(env --ignore-signal=HUP -- setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w env --default-signal=INT,QUIT,HUP -- true 2>&1)"; then
+  echo "pidjail: refused: cannot set up the jail here, so the command was not run (${err:-setpriv/unshare/setsid/env failed}; needs unprivileged user namespaces, util-linux >= 2.38 and coreutils >= 8.31)" >&2
+  exit 125
+fi
+
+# A signal that arrives before the jail can take it is held and delivered
+# once it can, so the trap goes in before anything starts.
+pending=0
+trap 'pending=1' TERM INT HUP
+
+# Inside:
+# - env --ignore-signal=HUP: unshare blocks TERM and INT while it waits, but
+#   not HUP, and a HUP to the caller's process group (a closed terminal, a
+#   dropped ssh session) would kill it and so the whole jail, before the
+#   command could see a TERM. pidjail's own trap passes the HUP on as TERM.
+# - setpriv --pdeathsig: unshare gets SIGKILL if pidjail dies, even by
+#   SIGKILL, and --kill-child then takes the jail down with it.
+# - setsid: the jail's own session and process group, so `kill 0` or the
+#   caller's group reaches nothing outside.
+# - PID 1 is a small bash. It reaps orphans (a test's double-forked children
+#   would otherwise stay zombies and still answer `kill -0`), passes TERM on to
+#   the command, and exits with its status. A signal to -1 inside the jail does
+#   not reach PID 1 itself.
+# - env --default-signal: an async command in a script starts with INT and
+#   QUIT ignored, and HUP is ignored from above; the command gets them back.
+# shellcheck disable=SC2016
+env --ignore-signal=HUP -- setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w bash -c '
+  p=0 c=
+  trap "p=1; [ -n \"\$c\" ] && kill -TERM \$c 2>/dev/null" TERM INT
+  env --default-signal=INT,QUIT,HUP -- "$@" <&0 &
+  c=$!
+  [ $p -eq 1 ] && kill -TERM $c 2>/dev/null
+  # A trap cuts a wait short; wait again until the command is gone, then
+  # once more for its own status (bash keeps it).
+  while kill -0 "$c" 2>/dev/null; do wait "$c"; done
+  wait "$c"; rc=$?
+  exit "$rc"
+' pidjail "$@" <&0 &
+u=$!
+
+# The jail's PID 1, as seen from here: unshare's child.
+init_pid() {
+  cat "/proc/$u/task/$u/children" 2>/dev/null || pgrep -P "$u" 2>/dev/null
+}
+# Deliver a held TERM once PID 1 has its TERM handler in place: PID 1 drops a
+# signal it has no handler for. Returns 1 while it can't yet.
+deliver() {
+  local init cgt
+  init="$(init_pid)"; init="${init%% *}"
+  [ -n "$init" ] || return 1
+  cgt="$(awk '/^SigCgt:/ {print $2}' "/proc/$init/status" 2>/dev/null)"
+  [ -n "$cgt" ] && (( (16#$cgt >> 14) & 1 )) || return 1
+  kill -TERM "$init" 2>/dev/null
+}
+
+# Poll rather than block in `wait`, so a signal that lands between two
+# checks is never lost. The tick is a read timeout on a pipe that never gets
+# data, so it starts no process.
+exec {tick}<> <(:)
+while kill -0 "$u" 2>/dev/null; do
+  if [ $pending -eq 1 ] && deliver; then pending=0; fi
+  read -r -t 0.05 -u "$tick" _
+done
+wait "$u"

@@ -39,6 +39,9 @@ there is no copy to restore from).
     progress of long commands, on one line.
 - [**The agent panel**](#the-agent-panel) — one row per live subagent, in the
   session line's columns and colors.
+- [**The kill guard**](#the-kill-guard) — a hook that blocks commands which
+  would kill every process you own (the desktop and every other session), and
+  `pidjail`, which runs a test suite where even `kill -- -1` stays inside it.
 - [**Shared skills**](#shared-skills) — symlinked into
   `~/.claude/skills/`: guided setup and sync, installers for per-repo skills,
   long-running and multi-agent work, PR review, token reporting, briefs.
@@ -328,6 +331,126 @@ docs/statusline/render.sh       # needs bash, git 2.32+, jq and python3
 Re-run it after changing either status line script; `tests/renders.bats` fails
 while a committed render is stale.
 
+## The kill guard
+
+Every process an agent starts runs as you, and the kernel lets you signal any
+process you own. So one bad signal from an agent's command takes down your
+whole login: the compositor, the terminals and every other Claude session on
+the machine. That happens with a `kill -KILL -- -1`, or with a test teardown
+that runs `kill -- "-$pg"` after reading `pg=1` from a pid file it wrote
+wrong. Two pieces guard against it, and `sync.sh` deploys both.
+
+### The hook
+
+`claude/kill-guard-hook.sh` is a PreToolUse hook on Bash. It reads the command
+before it runs and blocks it (exit 2, with the reason shown to the agent) when
+it would:
+
+- **send to pid -1**: `kill -9 -1`, `kill -KILL -- -1`, `kill -s TERM -1`,
+  `kill -9 1234 -1`, `kill -- -01`, `kill -9 ' -1'`; in inline code,
+  `kill(-1, …)` / `killpg(1, …)` (Python's `os.kill`, node's
+  `process.kill`), `kill(SIG, -1)` where the signal comes first (Ruby's
+  `Process.kill`, Perl's `kill`), or a kill argv as a list or tuple with any
+  path (`["/bin/kill", "-9", "-1"]`);
+- **match every process of a user, or similar, with no process name**:
+  - for `pkill`: a user (`-u`/`--euid`, `-U`/`--uid`), run states (`-r`), a
+    group (`-g`, `-G`), a session (`-s`), a terminal (`-t`), a namespace
+    (`--ns`), a cgroup (`--cgroup`), an environment variable (`--env`), or
+    the children of PID 1 (`-P 1`, which includes `systemd --user`);
+  - for `killall`: a user (`-u`/`--user`) or an SELinux context
+    (`-Z`/`--context`);
+- **match everything another way**: `pkill .`, `pkill '.*'`, `killall -r .`,
+  `pkill --inverse <name>` (or `-v`), `killall5`;
+- **use a `pkill` or `killall` option it does not know**. The hook fails
+  closed here. It reads options the way each tool does: bundles (`-fu me`),
+  attached values (`-u1000`), unique prefixes of long options (`--eu me`),
+  and killall's one-dash long options (`-user me`). It reads signals the
+  same way too: pkill takes the first signal word out wherever it stands, in
+  any case (`-stop`), while killall takes only names that start upper-case
+  (to killall, `-usr1` is `-u sr1`). It blocks anything else until it is
+  spelled out in full. Its
+  option tables come from the `--help` of procps-ng 4.0.7 `pkill` and psmisc
+  23.7 `killall`;
+- **end the session**: `loginctl terminate-user|session|seat` and
+  `kill-user|session|seat` (after options too), `hyprctl dispatch exit`
+  (after options, or inside `hyprctl --batch`), `uwsm stop`,
+  `systemctl --user exit`, `systemctl --user start exit.target`,
+  `systemctl --user stop graphical-session.target` (or `default.target`), and
+  `systemctl --user kill|stop '*'`.
+
+It finds these wherever they sit on the line: behind `sudo`, `timeout`, `env`,
+`eval`, `watch` or `xargs`, inside `bash -c '…'`, `$(…)`, a loop, an `if`, or
+`{ …; }`, and with any path (`/bin/kill`) or a leading backslash.
+
+Targeted signals pass: `kill 1234`, `kill -1 1234` (HUP to one pid),
+`kill -TERM -- -4321` (one process group), `pkill -f "vite --port 5173"`,
+`pkill -u "$USER" -n node`, `pkill -USR1 -F run/app.pid`,
+`killall -u me node`.
+
+What it does not do:
+
+- **It is a tripwire, not a sandbox.** It sees only the command line. A script
+  or test that computes the bad pid at run time gets past it; that is what
+  `pidjail` is for.
+- **`kill 0` is allowed.** It signals the caller's own process group (the
+  agent's shell), not the desktop.
+- **It does not parse shell.** It splits the line at `;`, `&`, `|`, brackets,
+  braces, backticks and `$(` outside quotes, then into words at blanks
+  outside quotes. It leaves out redirections (`2>/dev/null`, `>&2`), and
+  looks at every other word. A `#` that starts a word ends the command, but
+  the words after it are still checked, since a line it reads as a comment
+  may be inside a multi-line string. It also checks each quoted part as a
+  command of its own, which is how it catches `bash -c '…'`. So text that
+  only mentions such a command, in a heredoc, a commit message, a comment or
+  a `grep` pattern, can be blocked too. Put the text in a file, or write the
+  word with a bracket in a grep pattern (`p[k]ill`).
+- **It needs `jq`.** Without it the hook lets everything through and says so
+  (exit 1, a non-blocking error you see).
+- **It is slow on very long commands.** An everyday command takes about
+  10 ms, and a line that names none of the tools is skipped. A long command
+  takes longer: text dense with the tools' names costs about 1.5 to 6 s per
+  100 KB (most for a line of nothing but `pkill` options), and text that
+  names none costs about 0.25 s per MB just to be skipped. A hook that runs
+  past Claude Code's timeout (60 s by default) does not block, so about
+  1 MB of such text would get through unchecked.
+
+### pidjail
+
+`claude/pidjail`, deployed as `~/.claude/bin/pidjail`, runs a command in its
+own user and PID namespace and its own session. Inside it, `kill -- -1`, `kill
+0` and every process group reach only the jail's processes:
+
+```bash
+~/.claude/bin/pidjail bats tests/      # a suite that tests a job runner
+~/.claude/bin/pidjail ./scripts/stop.sh
+```
+
+Files, network, your uid and the environment are unchanged, so a suite runs as
+it does outside. (Files owned by root or another user show as owned by
+`nobody`, and supplementary groups as 65534; access is the same.) What
+changes:
+
+- `ps` shows only the jail.
+- `sudo` does not work inside.
+- The command has no controlling terminal.
+- A process the command leaves running is killed when it exits.
+- The whole jail dies if `pidjail` itself is killed, even with SIGKILL.
+- TERM, INT or HUP to `pidjail` (Ctrl-C included) reach the command as TERM.
+- The exit status and stdin pass through.
+
+It needs Linux with unprivileged user namespaces, util-linux 2.38 or later and
+coreutils 8.31 or later. Where it can't build the jail (some containers,
+hardened kernels) it **refuses**: it prints a line starting `pidjail: refused:`
+and exits 125 without running the command. It never runs the command unjailed.
+
+### The rule for agents
+
+The managed block `sync.sh` writes to `~/.claude/CLAUDE.md` tells agents:
+
+- signal only pids and groups they started and checked;
+- run code that signals pids or groups it reads or computes under `pidjail`;
+- stop and ask on a `pidjail: refused:`.
+
 ## Shared skills
 
 `sync.sh` symlinks every `skills/*/` directory into `~/.claude/skills/`, so all
@@ -483,9 +606,11 @@ eligible issue). Commit the written file in the target repo.
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
 | `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
+| `claude/kill-guard-hook.sh` | `~/.claude/kill-guard-hook.sh`, plus a PreToolUse entry in `settings.json` | Blocks a Bash command that would signal every process you own or end the login session (`kill -9 -1`, `pkill -u`, `loginctl terminate-user`, …). A tripwire on the command line only; see `pidjail` |
+| `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace and session, so no signal it sends (not even `kill -- -1` or `kill 0`) reaches anything outside it. Refuses, rather than run it unjailed, where namespaces are unavailable. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
-| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
+| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer, and the rule that agents signal only what they started and run signalling code under `pidjail` (see "What `sync.sh` writes") |
 | — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
 
 ### What `sync.sh` writes
@@ -493,8 +618,11 @@ eligible issue). Commit the written file in the target repo.
 Running `./sync.sh` touches your `~/.claude` in five ways. It is idempotent and
 backs up `settings.json` before merging:
 
-1. Copies the status line scripts, their shared helpers and the progress
-   writer to `~/.claude/`.
+1. Copies the status line scripts, their shared helpers, the progress
+   writer and the kill-guard hook to `~/.claude/`, and `pidjail` to
+   `~/.claude/bin/`. The progress hook (PostToolUse) and the kill guard
+   (PreToolUse) are each added once to `settings.json`, after any hooks
+   already there.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
    The shared keys win on conflict, so a local `model` or `effortLevel` is
@@ -504,7 +632,8 @@ backs up `settings.json` before merging:
    directory already at that name is left untouched, so an existing local copy of
    a skill shadows the shared one until you remove it.
 4. Inserts/updates a small **managed block** in `~/.claude/CLAUDE.md` pointing at
-   `/claude-shared`. The block is delimited by `<!-- >>> claude-shared … -->` /
+   `/claude-shared`, with the kill guard's rule for agents
+   ([The kill guard](#the-kill-guard)). The block is delimited by `<!-- >>> claude-shared … -->` /
    `<!-- <<< claude-shared <<< -->` markers; **only the text between those markers
    is ever changed** — the rest of your `CLAUDE.md` is left alone. If you don't
    have a `CLAUDE.md`, one is created with just that block. If the markers are
@@ -572,8 +701,8 @@ Then, once the change is pushed, run `./sync.sh --pull` (or `/sync-claude-env`) 
 ## Tests
 
 `tests/` holds a containerized [bats](https://github.com/bats-core/bats-core)
-suite covering `sync.sh`, the status line scripts, the README's renders, and the
-`/add-handoff` hook-merge.
+suite covering `sync.sh`, the status line scripts, the README's renders, the
+`/add-handoff` hook-merge, and the kill guard.
 
 ```bash
 ./tests/run.sh
@@ -581,6 +710,16 @@ suite covering `sync.sh`, the status line scripts, the README's renders, and the
 
 Requires Docker. The repo is mounted read-only and every test runs against a
 throwaway `$HOME`, so the suite never touches your real `~/.claude`.
+
+The container blocks namespaces, so the `pidjail` tests skip there. Only the
+tests of its refusal run. To run the jail tests, run that file on a Linux host:
+
+```bash
+REPO_ROOT="$PWD" bats tests/kill-guard.bats
+```
+
+Every broad signal in those tests first checks that it is inside a jail, so a
+broken `pidjail` fails the test instead of signalling your session.
 
 ## Licence
 

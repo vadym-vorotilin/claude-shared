@@ -46,3 +46,42 @@ looks as an example.
   passes is worse than no gate, especially where it licenses skipping review.
 - State what a skill assumes — toolchain, tracker, permissions — rather than
   letting a reader discover it by failure.
+
+## The kill guard
+
+`claude/kill-guard-hook.sh` (a PreToolUse hook on Bash) and `claude/pidjail`
+keep an agent from signalling every process the user owns. README, "The kill
+guard", describes them for users.
+
+- **The hook is probably live in your own session.** It blocks any Bash
+  command whose text matches what it guards against, even an `echo`, a commit
+  message or a grep pattern. So write such text with the file tools and commit
+  with `git commit -F <file>`; in a grep pattern, write `p[k]ill`.
+- **A change to what the hook blocks or allows goes in four places**, kept in
+  step:
+  - the code;
+  - its header comment;
+  - README, "The kill guard";
+  - a `blocked` or `allowed` line in `tests/kill-guard.bats`.
+- **pkill and killall have separate option tables** (`PKILL_*` and
+  `KILLALL_*`, taken from each tool's `--help`), and the hook fails closed: it
+  blocks an option it does not find in the table. When a new tool version
+  adds an option, add it with its kind. A wrong kind can let a broad selector
+  through: an option that takes a value but is marked as a flag makes the hook
+  read the value as a process name. Keep the parsing rules too:
+  - pkill takes out the first signal word wherever it stands, in any case,
+    and then uses getopt_long;
+  - killall uses getopt_long_only, so `-user` is `--user`, and reads a
+    signal only when it starts upper-case;
+  - both accept unique prefixes of long options.
+- **Test any broad signal only inside `pidjail`**, after checking you are
+  inside it, as the existing jail tests do: PID 1 is not the host's init, and
+  the command is PID 2. Never try a blocked form on the host to see whether it
+  really kills.
+- **The pidjail tests skip in the Docker suite**, because the container has no
+  namespaces. After a change to `pidjail`, run them on a Linux host with
+  `REPO_ROOT="$PWD" bats tests/kill-guard.bats`. Use `pgrep -fx` with a unique
+  sleep length, never `pkill -f` or `pgrep -f` with a pattern that also appears
+  in your own command line: it matches your own shell.
+- **The rule agents get** lives in `claude/CLAUDE.snippet.md`, which `sync.sh`
+  writes to `~/.claude/CLAUDE.md`. It and the README must say the same.
