@@ -8,10 +8,12 @@
 #     one pid, and `kill -l -1` are allowed); os.kill(-1, ...) and
 #     os.killpg(1, ...) in inline Python
 #   - pkill / killall with a broad selector and no process name or pattern:
-#     a user (-u, -U, --euid, --uid, --user), and for pkill also run states
+#     a user (-u, -U, --euid, --uid, --user), for pkill also run states
 #     (-r), a namespace (--ns), a group (-g, -G), a session (-s), a terminal
-#     (-t) or a cgroup; pkill, or
-#     killall -r, with a match-anything pattern (`.`, `.*`, `^`, `''`); killall5
+#     (-t) or a cgroup, for killall also an SELinux context (-Z), bundled
+#     or not (`pkill -fu me`, `killall -qu me`); pkill, or killall -r, with
+#     a match-anything pattern (`.`, `.*`, `^`, `''`); pkill --inverse;
+#     killall5
 #   - loginctl terminate-/kill- user, session or seat
 #   - hyprctl dispatch exit, uwsm stop, systemctl --user exit
 # wherever they appear: behind sudo, timeout, env, eval, watch, xargs, inside
@@ -74,12 +76,21 @@ check_kill() {
   done
 }
 
+# A signal given as an option: -9, -KILL, -SIGUSR1, -RTMIN+2.
+is_signal() {
+  [[ $1 =~ ^-[0-9]+$ || $1 =~ ^-(SIG)?(HUP|INT|QUIT|ILL|TRAP|ABRT|IOT|BUS|FPE|KILL|USR1|SEGV|USR2|PIPE|ALRM|TERM|STKFLT|CHLD|CLD|CONT|STOP|TSTP|TTIN|TTOU|URG|XCPU|XFSZ|VTALRM|PROF|WINCH|IO|POLL|PWR|SYS|RTMIN(\+[0-9]+)?|RTMAX(-[0-9]+)?)$ ]]
+}
+
 # pkill / killall <args>: block a broad selector (a user, run states, a
-# namespace, a group, a session, a terminal) with no process name, or a
-# match-all pattern. The two tools' options differ (procps-ng 4 pkill,
-# psmisc killall), so each has its own table of options that take a value.
+# namespace, a group, a session, a terminal, a cgroup, an SELinux context)
+# with no process name, a match-all pattern, or pkill --inverse. The two
+# tools' options differ (procps-ng 4 pkill, psmisc killall), so each has its
+# own tables. Short options are read as getopt reads them: `-fu me` is -f
+# then -u me, and `-u1000` is -u 1000.
 check_pkill() {
-  local name=$1 broad= npat=0 regex=0 a; shift
+  local name=$1 broad= npat=0 regex=0 a l rest sbroad sval; shift
+  # Short options that are broad selectors, and others that take a value.
+  if [ "$name" = pkill ]; then sbroad=uUrgGst sval=PFqO; else sbroad=uZ sval=snoy; fi
   # pkill patterns are regexes; killall's names are only with -r.
   match_all() {
     [ "$name" = pkill ] || [ $regex -eq 1 ] || return 0
@@ -87,18 +98,33 @@ check_pkill() {
   }
   while [ $# -gt 0 ]; do
     a=$1; shift
+    is_signal "$a" && continue
     case $name:$a in
-      # Broad selectors, with the value as the next word or attached.
-      *:-u|*:--user|pkill:-U|pkill:--euid|pkill:--uid|pkill:-r|pkill:--runstates|pkill:-g|pkill:--pgroup|pkill:-G|pkill:--group|pkill:-s|pkill:--session|pkill:-t|pkill:--terminal|*:--ns|pkill:--nslist|pkill:--cgroup)
-        broad=$a; shift ;;
-      *:-u?*|*:--user=*|pkill:-U?*|pkill:--euid=*|pkill:--uid=*|pkill:-r?*|pkill:--runstates=*|pkill:-g?*|pkill:--pgroup=*|pkill:-G?*|pkill:--group=*|pkill:-s?*|pkill:--session=*|pkill:-t?*|pkill:--terminal=*|*:--ns=*|pkill:--nslist=*|pkill:--cgroup=*)
-        broad=$a ;;
-      # Other options that take a value.
-      pkill:-P|pkill:--parent|pkill:-F|pkill:--pidfile|pkill:-q|pkill:--queue|*:--signal|killall:-s|killall:-o|killall:--older-than|killall:-y|killall:--younger-than|killall:-n|killall:-Z|killall:--context)
-        shift ;;
-      killall:-r|killall:--regexp) regex=1 ;;
       *:--) for a in "$@"; do npat=$((npat + 1)); match_all "$a"; done; break ;;
-      *:-*) ;;
+      # Long broad selectors, with the value as the next word or attached.
+      *:--user|pkill:--euid|pkill:--uid|pkill:--runstates|pkill:--pgroup|pkill:--group|pkill:--session|pkill:--terminal|*:--ns|pkill:--nslist|pkill:--cgroup|killall:--context)
+        broad=$a; shift ;;
+      *:--user=*|pkill:--euid=*|pkill:--uid=*|pkill:--runstates=*|pkill:--pgroup=*|pkill:--group=*|pkill:--session=*|pkill:--terminal=*|*:--ns=*|pkill:--nslist=*|pkill:--cgroup=*|killall:--context=*)
+        broad=$a ;;
+      # Every process except the ones named.
+      pkill:--inverse) block "pkill --inverse (every process but the named ones)" ;;
+      # Other long options that take a value.
+      pkill:--parent|pkill:--pidfile|pkill:--queue|pkill:--older|*:--signal|killall:--older-than|killall:--younger-than)
+        shift ;;
+      killall:--regexp) regex=1 ;;
+      *:--*) ;;
+      *:-?*)
+        rest=${a#-}
+        while [ -n "$rest" ]; do
+          l=${rest:0:1}; rest=${rest:1}
+          if [[ $sbroad == *"$l"* ]]; then
+            broad="-$l"; [ -n "$rest" ] || shift; break
+          elif [[ $sval == *"$l"* ]]; then
+            [ -n "$rest" ] || shift; break
+          elif [ "$name$l" = killallr ]; then
+            regex=1
+          fi
+        done ;;
       *) npat=$((npat + 1)); match_all "$a" ;;
     esac
   done
