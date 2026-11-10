@@ -4,7 +4,10 @@
   "title": "Tidewater Beta Track",
   "goal": "Tidewater sync client in beta testers' hands",
   "deadline": "2026-05-29",
-  "ref_url": "https://example.com/tidewater/pull/{n}"
+  "ref_url": {
+   "#": "https://example.com/tidewater/pull/{n}",
+   "docs#": "https://example.com/tidewater-docs/pull/{n}"
+  }
  },
  "phases": [
   {
@@ -101,8 +104,7 @@
    "caption": "Two offline edits merged in order; no keystroke lost.",
    "item": "merge",
    "at": "2026-05-08T14:05:00Z",
-   "file": "img/merge-timeline.png",
-   "img": "/_blob/EXAMPLE-replace-with-the-asset-url"
+   "file": "img/merge-timeline.jpg"
   }
  ]
 }

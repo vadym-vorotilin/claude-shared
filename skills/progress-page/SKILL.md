@@ -33,14 +33,18 @@ permission prompt or refusal.
    e.g. "Tidewater Beta Track"), and the `auto_open` value the quickstart
    result names. If the page has not opened by the end of the first update,
    show it with `Artifact` `action: "open"`. Follow the instructions the
-   result carries for the type's page code. `track.py batch` assumes the dataset
-   write shape in its header (collection `datasets`, fields `source`,
-   `updated`, `edit`); if the type's instructions name a different one, stop
-   and tell the user rather than hand-editing the printed batch.
+   result carries for the type's page code; its page rules (required marks,
+   allowed scripts, no network) win over anything below. `track.py batch`
+   assumes the dataset write shape in its header (collection `datasets`,
+   fields `title`, `description`, `source`, `fixed`, `updated`, `edit`); if
+   the type's instructions name a different one, stop and tell the user
+   rather than hand-editing the printed batch.
 3. `python3 $S/track.py init DIR <page url>` (`$S` is this skill's
    directory). It copies `status.example.json`, which is **fictional**:
    replace all of it with the real track, including the `track` block
-   (title, goal, deadline, `ref_url` with `{n}` for a ref's number), and
+   (title, goal, deadline, and `ref_url`: one link template with `{n}` for
+   a ref's number, or an object of ref prefix → template when refs span
+   repos, e.g. `{"api#": ".../api/issues/{n}", "web@": ".../web/commit/{n}"}`), and
    delete `"example": true`. `build` refuses the file until then.
 4. **Write the page code** to the type's instructions, with these sections,
    in this order, reading these datasets:
@@ -51,7 +55,7 @@ permission prompt or refusal.
    | Roadmap | phases | a Gantt bar per phase, start → target, filled by its share of items done |
    | In progress now | items | items in `building`, `review` or `blocked`, with a state pill and stage |
    | Recent activity | log, track | newest first, the time and how long ago, refs linked through `track.ref_url` |
-   | Results | visuals | thumbnails with captions; click to enlarge |
+   | Results | visuals | thumbnails (`img` is a `data:` URI) with captions; click to enlarge |
    | All work | items | a table grouped by phase, every state including `cut` |
 
    Use the type's design-system tokens and theme; pick no colours of your own.
@@ -85,23 +89,28 @@ the answer must be yes.
    `track.py log DIR "Resumable upload merged" --ref '#44'` and
    `track.py item DIR resume done --stage "Merged after 2 review rounds"`,
    `track.py add-item DIR crash beta "Crash reports reach the inbox"`,
-   `track.py add-visual DIR "Merge timeline" "<caption>" <asset url> --item merge`.
+   `track.py add-visual DIR "Merge timeline" "<caption>" img/merge.jpg --item merge`.
    Edit the file directly only for phases and the track block; a stamp you
    need there comes from `track.py now`. **Never type a time** (hand stamps
-   drift by the time-zone offset).
-2. New images first: upload them with `Artifact` publish, `url` = the page,
-   `asset: true`, `file_paths` (up to 25 per call; a file outside the working
-   directory, such as a track directory kept out of the repo, goes in a call
-   of its own with `file_path`). If uploads are refused because the page
-   lacks the `assets` capability, follow the type's instructions for adding
-   it, or stop and tell the user. Pass each result's `url` to
-   `add-visual`. Thumbnails, not originals: ~1200 px wide JPEG. Never
-   embed images as `data:` URIs in a dataset — the file balloons and every
-   update re-sends it.
-3. `track.py build DIR` checks the file (states, phase ids, UTC stamps, image
-   urls, duplicate ids, the example marker) and writes each changed dataset
-   as `out/<name>-<hash>.json`. Upload each file it prints the same way
-   (`asset: true`, one call per JSON file), and note each returned url
+   drift by the time-zone offset). Starting mid-track, past events and done
+   items take `--at` with a time read from a record (`git log -1
+   --format=%cI <sha>`, `gh pr view N --json mergedAt`), never from memory.
+2. New images: make a thumbnail of each, at most 150 KB (an ~800 px JPEG:
+   `sips -Z 800 -s format jpeg in.png --out t.jpg` on macOS, `magick in.png
+   -resize 800x -quality 75 t.jpg` elsewhere), keep it under `DIR/img/`, and
+   `track.py add-visual DIR "<title>" "<caption>" img/t.jpg --item <id>`.
+   `build` embeds it as a `data:` URI, because the Data type's pages load
+   nothing from the network. Show what is worth seeing: drop superseded
+   images rather than growing the gallery past a couple of dozen.
+3. `track.py build DIR` checks the file (states, phase ids, UTC stamps,
+   thumbnail files and sizes, duplicate ids, link templates, the example
+   marker) and writes each changed dataset as `out/<name>-<hash>.json`.
+   Upload each file it prints with `Artifact` publish, `url` = the page,
+   `asset: true`, one call per JSON file (a file outside the working
+   directory, such as a track directory kept out of the repo, can't share a
+   `file_paths` call). If uploads are refused because the page lacks the
+   `assets` capability, follow the type's instructions for adding it, or
+   stop and tell the user. Note each returned url
    against its file name straight away; `batch` can't tell two swapped urls
    apart. A later build never overwrites an uploaded file, so an event that
    lands mid-update can't slip through.

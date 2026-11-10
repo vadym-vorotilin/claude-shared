@@ -9,10 +9,17 @@ version is ever typed by hand.
 
   track.py init   DIR URL                 start status.json from the example; record the page URL
   track.py now                            print the clock's UTC stamp
-  track.py log    DIR TEXT [--ref R]      add a log entry, stamped
+  track.py log    DIR TEXT [--ref R] [--at ISO]   add a log entry, stamped now or at --at
   track.py item   DIR ID STATE [--stage S]   change an item's state, stamped
-  track.py add-item   DIR ID PHASE NAME [--ref R] [--state S] [--stage S]
-  track.py add-visual DIR TITLE CAPTION IMG_URL [--item ID]
+  track.py add-item   DIR ID PHASE NAME [--ref R] [--state S] [--stage S] [--at ISO]
+  track.py add-visual DIR TITLE CAPTION IMAGE_FILE [--item ID]
+
+--at takes a time read from a record (git log --format=%cI, gh's mergedAt),
+with any UTC offset; it is stored as UTC. Never a time typed from memory.
+
+Images are embedded in the visuals dataset as data: URIs (the Data type's
+pages load nothing from the network), so each must be a small JPEG or PNG
+thumbnail of at most 150 KB.
   track.py build  DIR                     check status.json, write out/<name>-<hash>.json for changes
   track.py batch  DIR FILE=BLOB... [--first NAME]...  print the ArtifactData batch for uploaded files
   track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
@@ -25,17 +32,26 @@ the last printed batch, not yet confirmed by `record`). One batch per dataset
 may be pending at a time.
 
 Assumed write shape (from the Data type as first used): collection "datasets",
-doc_id = dataset name, fields source/updated/edit; `update` for an existing
-document, `set` (which creates) for a --first one. If the type's own
+doc_id = dataset name, fields title/description/source/fixed/updated/edit;
+`update` for an existing document, `set` (which creates) for a --first one. If the type's own
 instructions name a different shape, stop and report it; don't hand-edit.
 """
-import argparse, datetime, hashlib, json, pathlib, re, shutil, sys
+import argparse, base64, datetime, hashlib, json, pathlib, re, shutil, sys
 
 DATASETS = ("track", "phases", "items", "log", "visuals")
 STATES = ("done", "review", "building", "queued", "blocked", "cut")
 HERE = pathlib.Path(__file__).resolve().parent
 BLOB = re.compile(r"^(/_blob/\S+|https://\S+)$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+MAX_IMAGE_KB = 150
+MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+TITLES = {
+    "track": ("Track", "Title, goal, deadline and link bases of the track"),
+    "phases": ("Phases", "Each phase with its start and target date"),
+    "items": ("Work items", "Every work item with its phase, state and stage"),
+    "log": ("Activity log", "Timestamped events, newest first"),
+    "visuals": ("Results", "Renders, screenshots and figures with captions"),
+}
 
 
 def die(msg):
@@ -61,6 +77,21 @@ def save(p, obj):
     p.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n")
 
 
+def utc(iso):
+    try:
+        t = datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        die(f"--at {iso!r} is not an ISO 8601 time")
+    if t.tzinfo is None:
+        die(f"--at {iso!r} has no UTC offset; take it from a record that has one")
+    return t.astimezone(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def image_file(d, f):
+    p = pathlib.Path(f).expanduser()
+    return p if p.is_absolute() else d / p
+
+
 def paths(d):
     d = pathlib.Path(d).resolve()
     return d, d / "status.json", d / "track-state.json", d / "out"
@@ -70,13 +101,21 @@ def digest(obj):
     return hashlib.sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:12]
 
 
-def rows_of(status, k):
+def rows_of(status, k, d):
     if k == "track":
         return [status["track"]]
-    return [{f: v for f, v in r.items() if f != "file"} for r in status[k]]
+    if k != "visuals":
+        return [dict(r) for r in status[k]]
+    rows = []
+    for v in status["visuals"]:
+        f = image_file(d, v["file"])
+        r = {x: y for x, y in v.items() if x != "file"}
+        r["img"] = f"data:{MIME[f.suffix.lower()]};base64," + base64.b64encode(f.read_bytes()).decode()
+        rows.append(r)
+    return rows
 
 
-def check(s):
+def check(s, d):
     if not isinstance(s.get("track"), dict):
         return ["status.json needs an object 'track' (title, goal, deadline, ref_url)"]
     errs = [f"status.json needs a list '{k}'" for k in DATASETS[1:] if not isinstance(s.get(k), list)]
@@ -87,6 +126,12 @@ def check(s):
                     "and delete track.example")
     if not s["track"].get("title"):
         errs.append("track: missing title")
+    ru = s["track"].get("ref_url")
+    if ru is not None:
+        bad = [x for x in ([ru] if isinstance(ru, str) else ru.values() if isinstance(ru, dict) else [None])
+               if not isinstance(x, str) or "{n}" not in x]
+        if bad:
+            errs.append("track.ref_url: a link template with {n}, or an object of ref prefix -> template")
     for k in ("phases", "items"):
         ids = [r.get("id") for r in s[k]]
         for dup in sorted({i for i in ids if ids.count(i) > 1}, key=str):
@@ -109,10 +154,17 @@ def check(s):
     for v in s["visuals"]:
         if not STAMP.match(str(v.get("at", ""))):
             errs.append(f"visual {v.get('title', '?')!r}: 'at' must be a UTC stamp from track.py")
-        img = str(v.get("img", ""))
-        if not BLOB.match(img) or "EXAMPLE" in img:
-            errs.append(f"visual {v.get('title', '?')!r}: 'img' must be an uploaded asset url, "
-                        f"not a file, a data: URI or the example placeholder")
+        if "img" in v:
+            errs.append(f"visual {v.get('title', '?')!r}: give 'file' (a local thumbnail), not 'img'; "
+                        f"build embeds it")
+        f = image_file(d, str(v.get("file", "")))
+        if not v.get("file") or not f.is_file():
+            errs.append(f"visual {v.get('title', '?')!r}: 'file' {v.get('file')!r} is not a file")
+        elif f.suffix.lower() not in MIME:
+            errs.append(f"visual {v.get('title', '?')!r}: {f.name} must be .jpg, .jpeg or .png")
+        elif f.stat().st_size > MAX_IMAGE_KB * 1024:
+            errs.append(f"visual {v.get('title', '?')!r}: {f.name} is {f.stat().st_size // 1024} KB; "
+                        f"make a thumbnail of at most {MAX_IMAGE_KB} KB (~800 px JPEG)")
     return errs
 
 
@@ -142,10 +194,11 @@ def edit_status(a, fn):
 
 def cmd_log(a):
     def fn(s):
-        e = {"at": now(), "text": a.text}
+        e = {"at": utc(a.at) if a.at else now(), "text": a.text}
         if a.ref:
             e["ref"] = a.ref
-        s["log"].insert(0, e)
+        s["log"].append(e)
+        s["log"].sort(key=lambda x: str(x.get("at", "")), reverse=True)
         return f"logged at {e['at']}"
     edit_status(a, fn)
 
@@ -176,17 +229,20 @@ def cmd_add_item(a):
         if a.phase not in {p.get("id") for p in s["phases"]}:
             die(f"no phase {a.phase!r}")
         s["items"].append({"id": a.id, "phase": a.phase, "name": a.name, "ref": a.ref or "",
-                           "state": a.state, "stage": a.stage or "", "updated": now()})
+                           "state": a.state, "stage": a.stage or "",
+                           "updated": utc(a.at) if a.at else now()})
         return f"added item {a.id}"
     edit_status(a, fn)
 
 
 def cmd_add_visual(a):
-    if not BLOB.match(a.img):
-        die("IMG_URL must be the url an asset upload returned")
+    d = paths(a.dir)[0]
+    f = image_file(d, a.file)
+    if not f.is_file() or f.suffix.lower() not in MIME:
+        die(f"{a.file} must be an existing .jpg, .jpeg or .png thumbnail")
 
     def fn(s):
-        v = {"title": a.title, "caption": a.caption, "img": a.img, "at": now()}
+        v = {"title": a.title, "caption": a.caption, "file": a.file, "at": now()}
         if a.item:
             v["item"] = a.item
         s["visuals"].insert(0, v)
@@ -197,13 +253,13 @@ def cmd_add_visual(a):
 def cmd_build(a):
     d, sp, st, out = paths(a.dir)
     s, state = load(sp), load(st, {"datasets": {}})
-    errs = check(s)
+    errs = check(s, d)
     if errs:
         die("status.json has problems:\n  " + "\n  ".join(errs))
     out.mkdir(exist_ok=True)
     changed = []
     for k in DATASETS:
-        rows = rows_of(s, k)
+        rows = rows_of(s, k, d)
         h = digest(rows)
         if h != state["datasets"].get(k, {}).get("hash"):
             f = out / f"{k}-{h}.json"
@@ -249,7 +305,9 @@ def cmd_batch(a):
                 f"collection 'datasets' doc_id '{k}', then: track.py record {a.dir} --version-only {k}=<version>. "
                 f"Only if it does not exist yet, pass --first {k}.")
         w = {"op": "update" if v else "set", "collection": "datasets", "doc_id": k, "data": {
+            "title": TITLES[k][0], "description": TITLES[k][1],
             "source": {"format": "json", "kind": "file", "name": f"{k}.json", "url": blob},
+            "fixed": True,
             "updated": {"at": at, "by": "Claude"},
             "edit": {"via": "claude", "at": at},
         }}
@@ -305,6 +363,7 @@ def main():
     p = sub.add_parser("init"); p.add_argument("dir"); p.add_argument("url"); p.set_defaults(f=cmd_init)
     p = sub.add_parser("now"); p.set_defaults(f=lambda a: print(now()))
     p = sub.add_parser("log"); p.add_argument("dir"); p.add_argument("text"); p.add_argument("--ref")
+    p.add_argument("--at")
     p.set_defaults(f=cmd_log)
     p = sub.add_parser("item"); p.add_argument("dir"); p.add_argument("id"); p.add_argument("state")
     p.add_argument("--stage"); p.set_defaults(f=cmd_item)
@@ -312,9 +371,10 @@ def main():
     for n in ("dir", "id", "phase", "name"):
         p.add_argument(n)
     p.add_argument("--ref"); p.add_argument("--state", default="queued"); p.add_argument("--stage")
+    p.add_argument("--at")
     p.set_defaults(f=cmd_add_item)
     p = sub.add_parser("add-visual")
-    for n in ("dir", "title", "caption", "img"):
+    for n in ("dir", "title", "caption", "file"):
         p.add_argument(n)
     p.add_argument("--item"); p.set_defaults(f=cmd_add_visual)
     for name, f in (("build", cmd_build), ("show", cmd_show)):
