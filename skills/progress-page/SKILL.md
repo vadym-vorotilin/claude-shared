@@ -95,7 +95,8 @@ the answer must be yes.
 3. `track.py build DIR` checks the file (states, phase ids, UTC stamps, image
    urls, duplicate ids, the example marker) and writes each changed dataset
    as `out/<name>-<hash>.json`. Upload each file it prints the same way
-   (`asset: true`, one call per JSON file). A later build never overwrites an
+   (`asset: true`, one call per JSON file), and note each returned url against
+its file name straight away; `batch` can't tell two swapped urls apart. A later build never overwrites an
    uploaded file, so an event that lands mid-update can't slip through.
 4. `track.py batch DIR items-<hash>.json=<asset url> ...`, copying the pairs
    `build` printed, prints one `ArtifactData` batch with `if_version` pins and
@@ -105,7 +106,9 @@ the answer must be yes.
    until then the next `build` offers it again.
 
 **When a pinned write is refused**, someone (often the user) changed that
-dataset on the page. `ArtifactData` `get` it and look at what changed. If it
+dataset on the page. `ArtifactData` `get` it; the rows are in the asset its
+`source.url` names, so read that with `Artifact` `read` `path` and compare it
+with `status.json`. If it
 is a real edit (a renamed item, a moved date), fold it into `status.json` or
 ask the user; never overwrite it unseen. Then, for each write in that batch:
 a write the result reports as applied gets a plain `record` with its new
