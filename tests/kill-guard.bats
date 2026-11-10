@@ -48,6 +48,10 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked '{ kill -9 -1; }'
   blocked '! kill -9 -1'
   blocked '\kill -9 -1'
+  blocked "bash -c 'cd /tmp; kill -9 -1'"
+  blocked 'sh -c "pkill -u \"$USER\""'
+  blocked "bash -c \"sh -c 'kill -9 -1'\""
+  blocked "echo don't; kill -9 -1"
 }
 
 @test "hook blocks killing everything of a user, and ending the session" {
@@ -79,6 +83,42 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'killall -Z unconfined_t'
   blocked 'killall --context=unconfined_t'
   blocked 'killall5 -9'
+}
+
+@test "hook reads pkill and killall options as the tools do, and fails closed" {
+  # Signal names in any case are signals, not option bundles.
+  blocked 'pkill -iO -u me'
+  blocked 'pkill -SToP -u me'
+  blocked 'pkill -term -u me'
+  # killall reads a one-dash word as a long option.
+  blocked 'killall -user me'
+  blocked 'killall -signal KILL -u me'
+  blocked 'killall -older-than 60 -u me'
+  blocked 'killall -younger-than 1h -u me'
+  blocked 'killall -context X'
+  blocked 'killall -c X'
+  # Unique prefixes of long options.
+  blocked 'pkill --eu me'
+  blocked 'pkill --ui 1000'
+  blocked 'pkill --pg 1'
+  blocked 'pkill --run S'
+  blocked 'pkill --term pts/1'
+  blocked 'pkill --sess 1'
+  blocked 'pkill --inv node'
+  blocked 'pkill --sig KILL -u me'
+  blocked 'killall --us me'
+  blocked 'killall --sig KILL -u me'
+  blocked 'killall --old 60 -u me'
+  blocked 'killall --reg .'
+  # Selectors that need no name.
+  blocked 'pkill --env HOME=/home/me'
+  blocked 'pkill --env=HOME=/home/me'
+  blocked 'pkill -v node'
+  # Anything unknown, until it is spelled out.
+  blocked 'pkill --no-such-option -u me node'
+  blocked 'pkill -w node'
+  blocked 'pkill --e node'
+  blocked 'killall -k node'
   blocked 'loginctl terminate-user me'
   blocked 'loginctl kill-session 3'
   blocked 'hyprctl dispatch exit'
@@ -109,6 +149,22 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed 'pkill -u me -O 60 node'
   allowed 'killall -Z unconfined_t node'
   allowed 'killall -qr "^node"'
+  allowed 'pkill -hup -F run/app.pid'
+  allowed 'pkill -usr1 -F run/app.pid'
+  allowed 'pkill -term -P 4321'
+  allowed 'pkill -p 4321'
+  allowed 'pkill --pid=4321'
+  allowed 'pkill --full --exact "sleep 30"'
+  allowed 'pkill --signal KILL --parent 4321'
+  allowed 'pkill --sig=TERM -f my-dev-server'
+  allowed 'pkill --euid me node'
+  allowed 'killall -signal TERM node'
+  allowed 'killall --signal=TERM -w node'
+  allowed 'killall -u me -Z unconfined_t node'
+  # A quoted pattern is one word, whatever it holds.
+  allowed 'pkill -f "vite --port 5173"'
+  allowed "pkill -f 'node server.js --inspect -u x'"
+  allowed 'pkill -f "my\"server --x"'
   allowed 'kill -9 -10'
   allowed 'killall -u me node'
   allowed 'killall -r "^node"'

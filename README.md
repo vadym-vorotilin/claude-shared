@@ -350,14 +350,20 @@ it would:
   `kill -9 1234 -1`, `kill -- -01`, or `os.kill(-1, …)` / `os.killpg(1, …)`
   in inline Python;
 - **match every process of a user, or similar, with no process name**:
-  - for both `pkill` and `killall`: a user (`-u me`, `--user=me`), bundled
-    with other short options or not (`pkill -fu me`, `killall -qu me`);
-  - for `pkill` only: `-U`/`--uid`/`--euid`, run states (`-r`), a group
-    (`-g`, `-G`), a session (`-s`), a terminal (`-t`), a namespace (`--ns`)
-    or a cgroup (`--cgroup`);
-  - for `killall` only: an SELinux context (`-Z`);
+  - for `pkill`: a user (`-u`/`--euid`, `-U`/`--uid`), run states (`-r`), a
+    group (`-g`, `-G`), a session (`-s`), a terminal (`-t`), a namespace
+    (`--ns`), a cgroup (`--cgroup`) or an environment variable (`--env`);
+  - for `killall`: a user (`-u`/`--user`) or an SELinux context
+    (`-Z`/`--context`);
 - **match everything another way**: `pkill .`, `pkill '.*'`, `killall -r .`,
-  `pkill --inverse <name>`, `killall5`;
+  `pkill --inverse <name>` (or `-v`), `killall5`;
+- **use a `pkill` or `killall` option it does not know**. The hook fails
+  closed here. It reads options the way each tool does: bundles (`-fu me`),
+  attached values (`-u1000`), unique prefixes of long options (`--eu me`),
+  killall's one-dash long options (`-user me`), and signal names in any case
+  (`-stop`). It blocks anything else until it is spelled out in full. Its
+  option tables come from the `--help` of procps-ng 4.0.7 `pkill` and psmisc
+  23.7 `killall`;
 - **end the session**: `loginctl terminate-user|session|seat` and
   `kill-user|session|seat`, `hyprctl dispatch exit`, `uwsm stop`,
   `systemctl --user exit`.
@@ -367,7 +373,7 @@ It finds these wherever they sit on the line: behind `sudo`, `timeout`, `env`,
 `{ …; }`, and with any path (`/bin/kill`) or a leading backslash.
 
 Targeted signals pass: `kill 1234`, `kill -1 1234` (HUP to one pid),
-`kill -TERM -- -4321` (one process group), `pkill -f "my-dev-server"`,
+`kill -TERM -- -4321` (one process group), `pkill -f "vite --port 5173"`,
 `pkill -u "$USER" -n node`, `pkill -USR1 -F run/app.pid`,
 `killall -u me node`.
 
@@ -379,9 +385,11 @@ What it does not do:
 - **`kill 0` is allowed.** It signals the caller's own process group (the
   agent's shell), not the desktop.
 - **It does not parse shell.** It splits the line at `;`, `&`, `|`, brackets,
-  braces, backticks and `$(`, drops quotes, and looks at every word. So text
-  that only mentions such a command, in a heredoc, a commit message or a
-  `grep` pattern, can be blocked too. Put the text in a file, or write the
+  braces, backticks and `$(`, then into words at blanks outside quotes, and
+  looks at every word. It also checks each quoted part as a command of its
+  own, which is how it catches `bash -c '…'`. So text that only mentions such
+  a command, in a heredoc, a commit message or a `grep` pattern, can be
+  blocked too. Put the text in a file, or write the
   word with a bracket in a grep pattern (`p[k]ill`).
 - **It needs `jq`.** Without it the hook lets everything through and says so
   (exit 1, a non-blocking error you see).
