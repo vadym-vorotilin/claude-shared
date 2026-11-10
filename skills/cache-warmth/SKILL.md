@@ -15,7 +15,7 @@ There are two lifetimes and three rules:
 
 | Who | Cache lifetime | The rule |
 |---|---|---|
-| A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns within about **three minutes** |
+| A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns in **under three minutes** |
 | The **main session** | about **an hour** | **Never take a turn to wait** — wake on a notification or a 50-minute heartbeat |
 | A **headless `claude -p` session** | about **an hour**, as the main session | **Wait inside the turn** — it cannot rely on a wake-up, so it polls, but each poll may return within about **nine minutes** (`timeout 540`, Bash `timeout: 600000`). The subagents it dispatches still poll at three |
 
@@ -26,7 +26,7 @@ There are two lifetimes and three rules:
 - **The two lifetimes above.** The harness and the plan set them, not you. If
   the main or a headless session is on the short cache too (it is when usage
   falls back to the five-minute TTL), its rules collapse into the subagent ones:
-  every wait returns within about three minutes. The shared status line shows
+  every wait returns in under three minutes. The shared status line shows
   each live agent's cache TTL.
 - **GNU `timeout`** in the poll forms (`gtimeout` on macOS from coreutils).
 
@@ -36,15 +36,15 @@ does not apply to its role.
 
 ## Waiting in a subagent: poll, do not block
 
-Anything expected to run longer than about three minutes runs **detached**, and
+Anything that may not finish within 170 seconds runs **detached**, and
 the agent polls it with a bounded wait per call:
 
 ```bash
 timeout 170 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; tail -3 <log>
 ```
 
-- **The bound is a maximum, not an example.** Every poll call returns within
-  about three minutes, whatever the command is expected to take. A longer bound
+- **The bound is a maximum, not an example.** Every poll call returns in
+  under three minutes (`timeout 170` at most), whatever the command is expected to take. A longer bound
   never saves anything: each extra poll is one cache read, one bound past the
   lifetime is a full write.
 - **It binds every role that waits**, not only the one that runs tests: a build,
@@ -54,13 +54,16 @@ timeout 170 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; t
   another agent: someone still waits, and the waiting is what costs.
 - **What stays banned is unpolled backgrounding** — `run_in_background` followed
   by a blind wait, or a `Monitor` armed and waited on.
-- **Keep the bound under three minutes.** Claude Code (2.1.322) moves a
-  subagent's foreground Bash call to the background after 180 seconds, whatever
-  its `timeout`, so a longer poll loses its output and leaves its loop running.
-  The cap does not apply to the main session or to a session on the hour cache.
-- Set a long Bash timeout (e.g. `timeout: 600000`) so other long commands are not
-  cut short. It is a ceiling for a runaway
-  command, never a poll cadence.
+- **Keep the bound under three minutes.** Claude Code (2.1.322) moves the
+  foreground Bash call of a background subagent on the five-minute cache, in an
+  interactive session, to the background after 180 seconds, whatever its
+  `timeout`. The agent is then told to wait for a notification, which is the
+  blind wait banned above. A foreground subagent, a subagent whose own cache is
+  an hour, and the subagents of a headless `claude -p` run are exempt; poll
+  under three minutes anyway, since the five-minute cache sets the bound.
+- Set a long Bash timeout (e.g. `timeout: 600000`) as a ceiling for a runaway
+  command, never a poll cadence. In a capped subagent it cannot hold a command
+  in the foreground past 180 seconds, so anything longer runs detached.
 
 ## Briefing a subagent
 
@@ -130,8 +133,8 @@ The form is chosen against these alternatives:
 - A brief that lets an agent **block** on a command expected to outlast its
   five-minute cache — the next turn rewrites the whole context at the write rate
 - A poll form given as an example with no maximum — the bound gets stretched
-  toward the Bash timeout to save turns; say "every poll call returns within
-  three minutes"
+  toward the Bash timeout to save turns; say "every poll call returns in
+  under three minutes"
 - A live subagent's transcript untouched for five minutes — its cache is gone;
   correct its poll bound rather than reading the silence as health
 - A waiting role briefed without the poll rule because it "only reviews" or
