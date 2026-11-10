@@ -129,6 +129,45 @@ done | svg effort.svg
   session_transcript "$TP" 4200; session "$A" high 22 "$TP" | line 2
 } | svg ttl.svg
 
+# ---- the progress line ----------------------------------------------------
+
+# The session's progress cache, written as statusline-progress.sh and the
+# background hook write it: an estimate, and one row per job. A row with no
+# PID needs no live process behind it.
+PD="$HOME/.claude/cache/statusline-progress"
+progress_reset() { rm -rf "$PD"; mkdir -p "$PD/demo-session.jobs"; }
+estimate() { # seconds-ago pct eta-in-seconds|-
+  local eta=-; [ "$3" = - ] || eta=$(( STATUSLINE_NOW + $3 ))
+  printf '%s\t%s\t-\t%s\n' "$(( STATUSLINE_NOW - $1 ))" "$2" "$eta" > "$PD/demo-session.estimate"
+}
+job() { # name seconds-ago pct|- run|done|end|fail:N
+  local w=$(( STATUSLINE_NOW - $2 )) f="$PD/demo-session.jobs/$(printf '%s' "$1" | tr -c 'a-z0-9' -)"
+  printf '%s\t%s\t%s\t%s\t-\t-\n' "$w" "$3" "$4" "$1" > "$f"
+  perl -e 'utime $ARGV[0], $ARGV[0], $ARGV[1]' "$w" "$f"   # ls -t: newest first
+}
+progress_only() { sed '$d' | tail -n 1; }       # the last line is a spacer
+session_transcript "$TP" 1200
+
+progress_reset
+estimate 60 60 1500
+job "lint" 900 100 done; job "unit tests" 600 100 done; job "e2e smoke" 400 0 fail:1
+job "docker build" 300 55 run; job "test suite" 20 38 run
+session "$A" high 22 "$TP" 42 7980 18 277200 | svg progress.svg
+
+{
+  progress_reset; estimate 60 40 4800
+  job "wait for deploy" 1380 - run
+  session "$A" high 22 "$TP" | progress_only
+  progress_reset; estimate 1200 50 -300
+  job "nightly backup" 600 100 end
+  session "$A" high 22 "$TP" | progress_only
+  progress_reset; job "build" 960 72 run
+  session "$A" high 22 "$TP" | progress_only
+  progress_reset; estimate 600 100 -
+  job "release" 600 100 done
+  session "$A" high 22 "$TP" | progress_only
+} | svg progress-states.svg
+
 # ---- the agent panel ------------------------------------------------------
 
 # The session ran at high, which the session line has now recorded for

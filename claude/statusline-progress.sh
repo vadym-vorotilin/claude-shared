@@ -30,7 +30,10 @@
 #       0]", failed with the code for any other, ended for "[killed]". It also
 #       ends when the file goes, when <owner-pid> (the session) exits, or
 #       after 6 hours. <key> names the row, so two commands with one name
-#       keep a row each.
+#       keep a row each. Until the first percentage the row shows the name
+#       and how long the command has run. One that never prints one still
+#       counts as done or failed by its exit code; stopped or lost, it leaves
+#       no row and is not counted.
 #   statusline-progress.sh job <name> <pct>|done|clear
 #       Set a job row by hand.
 #
@@ -51,7 +54,7 @@ SID="${CLAUDE_CODE_SESSION_ID:-}"
 # STATUSLINE_NOW pins it, as it does for the status line, for tests.
 stamp_now() { printf '%s' "${STATUSLINE_NOW:-$(date +%s)}"; }
 
-usage() { sed -n '3,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '3,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 no_session() {
   echo "statusline-progress: CLAUDE_CODE_SESSION_ID is unset or unusable; nothing shown" >&2
@@ -188,6 +191,12 @@ sub put { # state pct
   ($shown, $lastt) = ($last, time);
 }
 
+# Remove the row, if it is still a plain file this process may replace.
+sub drop {
+  (my $dir = $file) =~ s{/[^/]*\z}{};
+  unlink $file if !-l $dir && !-l $file && -f $file;
+}
+
 my $in = \*STDIN;
 if (defined $follow) {
   # Claude Code writes the file as the command runs; it may appear a
@@ -198,7 +207,7 @@ if (defined $follow) {
     undef $fh;
     select(undef, undef, undef, 0.5);
   }
-  if (!$fh) { put("end", 0); exit 0 }
+  if (!$fh) { drop(); exit 0 }  # no file, no reading: no row
   $in = $fh;
 } elsif (@cmd) {
   my ($r, $w);
@@ -291,6 +300,12 @@ while (!stop()) {
 }
 my $pct = $last < 0 ? 0 : $last;
 if (defined $follow) {
+  # A command that never printed a percentage still counts as done or
+  # failed by its exit code; stopped, lost or interrupted, its row just
+  # goes, rather than add a mark that says nothing about how it went.
+  if ($last < 0 && ($got || $fin !~ /^[0-9]+$/)) {
+    drop(); exit($got ? 128 + $num{$got} : 0);
+  }
   if ($got)                  { put("fail:sig", $pct); exit 128 + $num{$got} }
   if ($fin eq "0")           { put("done", 100) }
   elsif ($fin =~ /^[0-9]+$/) { put("fail:$fin", $pct) }
@@ -374,7 +389,9 @@ case "$cmd" in
     [ -n "$SP_FILE" ] || { no_session; exit 2; }
     command -v perl >/dev/null 2>&1 || { no_perl; exit 1; }
     case "$owner" in ''|*[!0-9]*) owner="" ;; esac
-    put "$SP_FILE" "$(stamp_now)	0	run	$(job_name "$name")	$$	$(pid_ns)" || exit 1
+    # A running row with no percentage yet ("-"): the status line shows the
+    # name and how long it has run, until the reader reads a percentage.
+    put "$SP_FILE" "$(stamp_now)	-	run	$(job_name "$name")	$$	$(pid_ns)" || exit 1
     export SP_FOLLOW="$file" SP_OWNER="$owner"
     stream "$name"
     ;;

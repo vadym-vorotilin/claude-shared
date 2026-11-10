@@ -182,14 +182,14 @@ At most one line, below the quotas, and none when there is nothing to show.
 It joins up to three parts with ` · `: the estimate, the newest running job,
 and counts of the jobs that finished in the last 30 min.
 
-```
-60% ≈16:28 · test suite 38% · ✓2 ✗1
-```
+![The progress line under the quotas: an estimate at 60% with about 25 minutes to go, a test suite at 38% with one more job running, two jobs done and one failed](docs/statusline/progress.svg)
 
 The line refreshes every 15 s, but a reading moves only when something writes
-it, so a reading that has gone quiet says how old it is: `60% ≈16:28 (20m ago)`.
+it, so a reading that has gone quiet says how old it is: `60% ~5m (20m ago)`.
 
-- **The estimate: `<pct>% ≈HH:MM`.** Taken from the last `/progress` update in the
+![More progress lines: a job with no percentage yet showing its run time, an estimate past its ETA with a stopped job, a job silent for 16 minutes in gray, and a finished task](docs/statusline/progress-states.svg)
+
+- **The estimate: `<pct>% ~<time>`.** Taken from the last `/progress` update in the
   session's transcript (its `n/m · ~pct%` header and `≈HH:MM` ETA), or an
   `/unattended-run` or `/orchestrating-issue-runs` stamp. Only a header on a
   line of its own counts, in the shape those skills write it (bold, or for
@@ -197,8 +197,9 @@ it, so a reading that has gone quiet says how old it is: `60% ≈16:28 (20m ago)
   Nothing has to be set up: run `/progress` and the estimate appears. Anything else that knows how far it is can write one with
   `statusline-progress.sh estimate <pct> [n/m] [HH:MM]`. The newer of the two
   wins, and it is cached per session, so it outlives a compaction. Only the
-  percentage and the ETA clock are drawn, not the count; an ETA that has
-  passed is drawn in red, and a finished task reads `100% done`. Past 5 min
+  percentage and the time to the ETA are drawn, not the count; the
+  time counts down on every refresh, an ETA that has passed reads
+  `overdue` (not red: an ETA is a guess), and a finished task reads `100% done`. Past 5 min
   old it adds its age, dim; it goes gray after 30 min, a finished task leaves
   after 30 min, and any estimate after 4 hours.
 - **Jobs: real progress of long commands.** A background Bash command
@@ -206,11 +207,15 @@ it, so a reading that has gone quiet says how old it is: `60% ≈16:28 (20m ago)
   `statusline-progress-hook.sh`, that follows the output file Claude Code
   already writes for the command. It is named after the command's
   description, and ends at Claude Code's closing line: done for exit code 0,
-  failed for any other, ended when it was stopped. The command, its
+  failed for any other, ended when it was stopped. Until the command prints
+  its first `NN%`, it shows the name and how long it has run
+  (`wait for deploy 23m`); one that never prints one and is stopped leaves
+  no row and no counter. A bare `sleep N` (a heartbeat, a wake-up timer) is
+  skipped. The command, its
   permissions and its output are untouched; nothing is added to the
   session's context. It relies on where Claude Code keeps that file
   (`/tmp/claude-<uid>/<project>/<session>/tasks/<id>.output`), which is not a
-  documented interface: if it moves, the job reads ended at 0% after 15 s.
+  documented interface: if it moves, a background job's row goes after 15 s.
   It needs `jq` and `perl`. For a foreground command, wrap it:
   `bash ~/.claude/statusline-progress.sh run "test suite" -- pytest -q`. Output
   passes through byte for byte as it arrives (stderr merged into stdout) and
@@ -467,7 +472,7 @@ eligible issue). Commit the written file in the target repo.
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
-| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line, three lines: `repo:worktree/subdir \| branch ⇡⇣+!?` · `model \| effort \| ctx% \| cache TTL` · `5h% \| 1w%`, then one progress line while there is something to show: `pct% ≈ETA · job pct% +N · ✓N ✗N ■N` |
+| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line, three lines: `repo:worktree/subdir \| branch ⇡⇣+!?` · `model \| effort \| ctx% \| cache TTL` · `5h% \| 1w%`, then one progress line while there is something to show: `pct% ~Nm · job pct% +N · ✓N ✗N ■N` |
 | `claude/subagent-statusline-command.sh` | `~/.claude/subagent-statusline-command.sh` | One row per live subagent in the agent panel: `agent \| model \| effort \| ctx% \| cache TTL \| details` |
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
