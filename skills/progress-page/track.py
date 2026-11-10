@@ -40,7 +40,8 @@ settles it, so a batch is never re-sent.
 
 Assumed write shape (from the Data type as first used): collection "datasets",
 doc_id = dataset name, fields title/description/source/fixed/updated/edit;
-`update` for an existing document, `set` (which creates) for a --first one.
+`update` (which merges, so it leaves title and description as they are) for an
+existing document, `set` (which creates) for a --first one.
 If the type's own instructions name a different shape, stop and report it;
 don't hand-edit.
 """
@@ -341,6 +342,7 @@ def cmd_batch(a):
         }}
         if v:
             w["if_version"] = v
+            del w["data"]["title"], w["data"]["description"]  # update merges: keep a title the user set
         writes.append(w)
         ds["pending"], ds["sent"] = h, {"url": blob, "pin": v or None}
     body = {"action": "batch", "url": state["url"], "writes": writes}
@@ -403,14 +405,17 @@ def cmd_resolve(a):
         die(f"nothing pending for {k}")
     sent = ds.get("sent")
     if not sent:
-        die(f"this pending write predates resolve. Find its source.url in the newest out/batch-*.json that "
-            f"writes {k}. If get shows that url: track.py record {a.dir} {k}-{ds['pending']}.json=<v>. If get "
-            f"shows another url, or there is no such file: follow SKILL.md's 'When a pinned write is refused'. "
+        want = (ds.get("version") or 0) + 1
+        die(f"this pending write predates resolve. Find its source.url in the most recently modified "
+            f"out/batch-*.json that writes {k}. If get shows that url at version {want}: track.py record "
+            f"{a.dir} {k}-{ds['pending']}.json={want}. If it shows another url or version, or there is no "
+            f"such file: follow SKILL.md's 'When a pinned write is refused'. "
             f"If {k} is missing: ask the user whether to create it, and only then track.py record {a.dir} "
             f"--version-only {k}=0 and batch --first {k}")
     first, pin = sent["pin"] is None, sent["pin"]
-    review = (f"Follow SKILL.md's 'When a pinned write is refused': read the rows its source.url names, fold a "
-              f"real edit into status.json or ask the user, then track.py record {a.dir} --version-only {k}=<v>")
+    review = (f"Follow SKILL.md's 'When a pinned write is refused': read the rows its source.url names and "
+              f"its title and description, fold a real edit into status.json or ask the user, then "
+              f"track.py record {a.dir} --version-only {k}=<v>")
     if a.missing:
         if not first:
             die(f"{k} was on the page (pinned at {pin}) and is gone: someone deleted it. Ask the user whether "
@@ -420,6 +425,11 @@ def cmd_resolve(a):
         msg = f"{k}: the --first write never applied; run batch again with --first {k}"
     elif a.version is None or not a.url:
         die("give --version and --url from get, or --missing")
+    elif a.url == sent["url"] and first and a.version != 1:
+        die(f"{k} shows the asset this batch sent, but at version {a.version}, not 1: either someone changed "
+            f"it after our set, or it already existed and our unpinned set replaced it. Tell the user and ask "
+            f"what was there (the page's history may show it); then track.py record {a.dir} "
+            f"--version-only {k}=<v>. Nothing recorded")
     elif a.url == sent["url"] and a.version != (pin or 0) + 1:
         die(f"{k} shows the asset this batch sent, but at version {a.version}, not {(pin or 0) + 1}: someone "
             f"changed it after the write applied. {review}; nothing recorded")

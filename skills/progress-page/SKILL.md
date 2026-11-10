@@ -36,7 +36,8 @@ permission prompt or refusal.
    result carries for the type's page code; its page rules (required marks,
    allowed scripts, no network) win over anything below. `track.py batch`
    assumes the dataset write shape in its header (collection `datasets`,
-   fields `title`, `description`, `source`, `fixed`, `updated`, `edit`); if
+   fields `title`, `description`, `source`, `fixed`, `updated`, `edit`, with
+   `update` merging fields); if
    the type's instructions name a different one, stop and tell the user
    rather than hand-editing the printed batch.
 3. `python3 $S/track.py init DIR <page url>` (`$S` is this skill's
@@ -143,10 +144,13 @@ the answer must be yes.
    `resolve` or `record` settles a dataset, `batch` refuses it.
 
 **When a pinned write is refused**, someone (often the user) changed that
-dataset on the page. `ArtifactData` `get` it; the rows are in the asset its
-`source.url` names, so read that with `Artifact` `read` `path` and compare it
-with `status.json`. If it is a real edit (a renamed item, a moved date), fold
-it into `status.json` or ask the user; never overwrite it unseen. Then, for each write in that batch:
+dataset on the page. `ArtifactData` `get` it. If get finds nothing, someone
+deleted it: run `track.py resolve DIR <name> --missing`, which says what to
+ask. Otherwise the rows are in the asset its `source.url` names, so read that
+with `Artifact` `read` `path` and compare it with `status.json`. If it is a
+real edit (a renamed item, a moved date), fold it into `status.json` or ask
+the user; never overwrite it unseen. (A changed title or description is safe:
+updates leave both alone.) Then, for each write in that batch:
 a write the result reports as applied gets a plain `record` with its new
 version; a refused one, or every one if the batch was all-or-nothing, gets
 `track.py record DIR --version-only <name>=<version get shows>`, which drops
