@@ -114,7 +114,7 @@ assert_malformed_untouched() {
   cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
   for _ in 1 2; do
     run_sync
-    [ "$status" -ne 0 ] || fail "sync.sh succeeded on malformed markers"
+    assert_equal "$status" 1
     assert_contains "$output" "malformed claude-shared markers"
     assert_contains "$output" "$HOME/.claude/CLAUDE.md"
     assert_contains "$output" "by hand"
@@ -165,6 +165,82 @@ assert_malformed_untouched() {
   run_sync
   assert_equal "$status" 0
   assert_equal "$(count_occurrences "$HOME/.claude/CLAUDE.md" '>>> claude-shared')" 1
+}
+
+@test "markers: malformed CLAUDE.md stops sync before anything is deployed" {
+  mkdir -p "$HOME/.claude"
+  printf '%s\n' 'TOP' "$MD_START" 'stale' > "$HOME/.claude/CLAUDE.md"
+  (cd "$HOME" && find . | LC_ALL=C sort) > "$TEST_TMP/before.list"
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  run_sync
+  assert_equal "$status" 1
+  (cd "$HOME" && find . | LC_ALL=C sort) > "$TEST_TMP/after.list"
+  cmp "$TEST_TMP/before.list" "$TEST_TMP/after.list" || fail "sync created or removed files before failing"
+  [ ! -e "$HOME/.claude/settings.json" ] || fail "settings.json was written"
+  [ ! -e "$HOME/.claude/claude-shared-repo" ] || fail "claude-shared-repo was written"
+  [ ! -e "$HOME/.claude/statusline-command.sh" ] || fail "status line was deployed"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
+}
+
+@test "replace keeps a symlinked CLAUDE.md a symlink and updates its target" {
+  mkdir -p "$HOME/.claude" "$TEST_TMP/dotfiles"
+  printf '%s\n' 'TOP LINE' "$MD_START" 'STALE BLOCK TEXT' "$MD_END" 'BOTTOM LINE' > "$TEST_TMP/dotfiles/CLAUDE.md"
+  ln -s "$TEST_TMP/dotfiles/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+  run_sync
+  assert_equal "$status" 0
+  assert_symlink "$HOME/.claude/CLAUDE.md"
+  body="$(cat "$TEST_TMP/dotfiles/CLAUDE.md")"
+  assert_contains "$body" "TOP LINE"
+  assert_contains "$body" "BOTTOM LINE"
+  refute_contains "$body" "STALE BLOCK TEXT"
+  assert_equal "$(count_occurrences "$TEST_TMP/dotfiles/CLAUDE.md" '>>> claude-shared')" 1
+  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+}
+
+file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
+
+@test "replace keeps the mode of CLAUDE.md" {
+  mkdir -p "$HOME/.claude"
+  printf '%s\n' 'TOP LINE' "$MD_START" 'stale' "$MD_END" > "$HOME/.claude/CLAUDE.md"
+  chmod 600 "$HOME/.claude/CLAUDE.md"
+  run_sync
+  assert_equal "$status" 0
+  refute_contains "$(cat "$HOME/.claude/CLAUDE.md")" "stale"
+  assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" 600
+}
+
+@test "a failing replace is an error, leaves CLAUDE.md unchanged and no .tmp behind" {
+  run_sync
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  mkdir -p "$TEST_TMP/bin"
+  real_awk="$(command -v awk)"
+  # An awk that fails only for the replace pass (the one given -v snip=...).
+  {
+    echo '#!/bin/sh'
+    echo 'for a in "$@"; do case "$a" in snip=*) exit 2 ;; esac; done'
+    echo "exec \"$real_awk\" \"\$@\""
+  } > "$TEST_TMP/bin/awk"
+  chmod +x "$TEST_TMP/bin/awk"
+  PATH="$TEST_TMP/bin:$PATH" run bash "$REPO/sync.sh"
+  assert_equal "$status" 1
+  refute_contains "$output" "Synced"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
+  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+}
+
+@test "a missing snippet refuses before changing anything and keeps the block" {
+  run_sync
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  # sync.sh resolves its own directory, so run a copy with the snippet removed.
+  mkdir -p "$TEST_TMP/repo"
+  cp -R "$REPO/claude" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/repo/"
+  rm "$TEST_TMP/repo/claude/CLAUDE.snippet.md"
+  rm -f "$HOME/.claude/claude-shared-repo"
+  run bash "$TEST_TMP/repo/sync.sh"
+  assert_equal "$status" 1
+  assert_contains "$output" "snippet"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "the managed block was deleted"
+  [ ! -e "$HOME/.claude/claude-shared-repo" ] || fail "claude-shared-repo was written"
 }
 
 @test "leaves a real (non-symlink) skill directory in ~/.claude/skills untouched" {

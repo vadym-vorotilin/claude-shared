@@ -46,6 +46,45 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
+# Preflight: validate the CLAUDE.md managed-block inputs before anything is
+# changed, so a bad file stops the sync before steps 1-3 deploy anything.
+GLOBAL_MD="$CLAUDE_DIR/CLAUDE.md"
+SNIPPET="$REPO/claude/CLAUDE.snippet.md"
+START='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
+END='<!-- <<< claude-shared <<< -->'
+# Count whole marker lines (a trailing CR is ignored). The block is replaced
+# only when there is exactly one START followed later by exactly one END, and
+# appended when there is neither. Anything else (orphan, duplicate, reversed or
+# several pairs) is ambiguous, so fail without touching the file.
+marker_state="none"
+if [ -f "$GLOBAL_MD" ]; then
+  marker_state="$(awk -v start="$START" -v end="$END" '
+    { line = $0; sub(/\r$/, "", line) }
+    line == start { ns++; if (!fs) fs = NR }
+    line == end   { ne++; if (!fe) fe = NR }
+    END {
+      if (ns == 0 && ne == 0) print "none"
+      else if (ns == 1 && ne == 1 && fs < fe) print "pair"
+      else if (ns == 0) print "END marker without a START marker (" ne " END)"
+      else if (ne == 0) print "START marker without an END marker (" ns " START)"
+      else if (ns == 1 && ne == 1) print "END marker before the START marker"
+      else print "expected exactly one START and one END marker, found " ns " START and " ne " END"
+    }
+  ' "$GLOBAL_MD")"
+fi
+if [ ! -f "$SNIPPET" ] || [ ! -r "$SNIPPET" ]; then
+  echo "error: snippet $SNIPPET is missing or unreadable; nothing was changed." >&2
+  exit 1
+fi
+case "$marker_state" in
+  none|pair) ;;
+  *)
+    echo "error: $GLOBAL_MD has malformed claude-shared markers: $marker_state." >&2
+    echo "Fix the markers by hand (one START line, then one END line), then re-run. Nothing was changed." >&2
+    exit 1
+    ;;
+esac
+
 if [ "${1:-}" = "--pull" ]; then
   log "git pull in $REPO"
   git -C "$REPO" pull --ff-only
@@ -114,30 +153,7 @@ done
 # Idempotent managed block delimited by HTML-comment markers; never touches
 # any other content in the file.
 log "ensure /claude-shared pointer in ~/.claude/CLAUDE.md"
-GLOBAL_MD="$CLAUDE_DIR/CLAUDE.md"
-SNIPPET="$REPO/claude/CLAUDE.snippet.md"
-START='<!-- >>> claude-shared (managed by claude-shared/sync.sh — edit the snippet, not here) >>> -->'
-END='<!-- <<< claude-shared <<< -->'
-# Count whole marker lines (a trailing CR is ignored). The block is replaced
-# only when there is exactly one START followed later by exactly one END, and
-# appended when there is neither. Anything else (orphan, duplicate, reversed or
-# several pairs) is ambiguous, so fail without touching the file.
-marker_state="none"
-if [ -f "$GLOBAL_MD" ]; then
-  marker_state="$(awk -v start="$START" -v end="$END" '
-    { line = $0; sub(/\r$/, "", line) }
-    line == start { ns++; if (!fs) fs = NR }
-    line == end   { ne++; if (!fe) fe = NR }
-    END {
-      if (ns == 0 && ne == 0) print "none"
-      else if (ns == 1 && ne == 1 && fs < fe) print "pair"
-      else if (ns == 0) print "END marker without a START marker (" ne " END)"
-      else if (ne == 0) print "START marker without an END marker (" ns " START)"
-      else if (ns == 1 && ne == 1) print "END marker before the START marker"
-      else print "expected exactly one START and one END marker, found " ns " START and " ne " END"
-    }
-  ' "$GLOBAL_MD")"
-fi
+# (the markers and snippet were validated before step 1)
 case "$marker_state" in
   none)
     # Append (with a separating blank line if the file already has content).
@@ -153,12 +169,14 @@ case "$marker_state" in
       skip && line == end { skip = 0; next }
       skip { next }
       { print }
-    ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" && mv "$GLOBAL_MD.tmp" "$GLOBAL_MD"
-    ;;
-  *)
-    echo "error: $GLOBAL_MD has malformed claude-shared markers: $marker_state." >&2
-    echo "Fix the markers by hand (one START line, then one END line), then re-run. The file was left unchanged." >&2
-    exit 1
+    ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" || {
+      rm -f "$GLOBAL_MD.tmp"
+      echo "error: could not rewrite $GLOBAL_MD; it was left unchanged." >&2
+      exit 1
+    }
+    # Write back through the file (not mv) so a symlinked CLAUDE.md stays a
+    # symlink and the file keeps its mode.
+    cat "$GLOBAL_MD.tmp" > "$GLOBAL_MD" && rm -f "$GLOBAL_MD.tmp"
     ;;
 esac
 
