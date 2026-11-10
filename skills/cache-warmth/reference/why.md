@@ -24,6 +24,16 @@ flight run **under** that hour, so the main session is reading its cache rather
 than rewriting it. A sweep interval longer than the cache lifetime pays the
 rewrite the sweep exists to save.
 
+**A headless `claude -p` session gets the hour too.** Measured on 2026-11-05
+(Claude Code 2.1.314, Haiku, Sonnet and Opus, inside the weekly quota): every
+cache write was `ephemeral_1h`, also with restricted tools and a stripped
+environment, and a session resumed after 7.5 idle minutes read its whole context
+from cache. Only subagents wrote `ephemeral_5m`. One cost to know: the **first**
+`--resume` of a headless session re-writes about 16k tokens even when it comes
+at once, because its prompt does not line up with the first call's; later
+resumes line up. To check a session yourself, read `usage.cache_creation` in
+`--output-format json`, or the same field in its transcript.
+
 **It is the waiting, not the test suite.** The suite is the commonest instance
 and not necessarily the majority of the cost: builds, worktree
 checkouts on a large repo, and other ordinary multi-minute commands can together
