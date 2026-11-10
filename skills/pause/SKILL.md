@@ -1,6 +1,6 @@
 ---
 name: pause
-description: Use when the user is ending work for now and wants the session drained, saved and ready to compact — "/pause", "pause", "drain", "start draining", "we stop at 17:30", "wrap up for today", "I'm heading off soon". Takes an optional deadline ("/pause 17:30", "/pause in 30m"). Not for compacting alone: "compact", "give me the compact command" or "prepare for compaction" without ending work means keep everything running — see "Compacting without pausing".
+description: Use when the user is ending work for now and wants the session drained, saved and ready to compact — "/pause", "pause", "drain", "start draining", "we stop at 17:30", "wrap up for today", "I'm heading off soon". Takes an optional deadline ("/pause 17:30", "/pause in 30m"). Not for compacting alone: "compact", "give me the compact command" or "prepare for compaction" without ending work is /smart-compact, which keeps everything running.
 ---
 
 # pause — drain, save, hand over the compact command
@@ -12,15 +12,10 @@ command").
 
 ## Compacting without pausing
 
-A request to compact is not a request to stop. When the user asks for a
-`/compact` line, or to prepare for compaction, without saying work ends
-(no "/pause", "drain", "wrap up", "stop", deadline), skip steps 1–3: stop no
-helper, timer or command, and start nothing new. Give only step 4's code block,
-with keep text that lists everything still running as running — each helper's
-agent ID or name, worktree and current state, each command's task ID and log,
-each timer — so the compacted session keeps tracking it. Running a handoff
-first is fine if the project has one; ask nothing else. If unsure which they
-want, compact-only is the default: draining is the one that cannot be undone.
+A request to compact is not a request to stop. Without "/pause", "drain",
+"wrap up", "stop" or a deadline, use `smart-compact` instead: it writes the
+`/compact` line and stops nothing. If unsure, that is the default — a drain
+cannot be undone.
 
 ## What this assumes
 
