@@ -82,13 +82,12 @@ of the session, under ~1,500 characters, in this order:
 4. **still running**, every item from step 1 with the handle needed to reach
    it after compaction: agent ID or name and worktree; task ID and log path;
    cron ID; loop prompt; monitor task ID. Add `Do not restart these; wait for
-   their reports.` For a timer, say how it keeps going. A heartbeat gets a new
-   task ID each time it is re-armed, so carry it by its command and armed
-   time: `heartbeat (<command>, armed <time>): re-arm when it fires, only if no
-   other heartbeat task of this session is running (cache-warmth)`. No
-   heartbeat confirmed by task ID while work is running: `no heartbeat
-   confirmed: arm one (cache-warmth)`. For a loop: `/loop: keep calling
-   ScheduleWakeup with <prompt>`;
+   their reports.` For a timer, say how it keeps going:
+   `heartbeat <task ID> (<command>, armed <time>): re-arm when it fires
+   (cache-warmth)` — the ID is its current one, since a re-arm refreshes the
+   line (below). Write `no heartbeat: arm one (cache-warmth)` only when work is
+   running, no heartbeat ID was carried or launched, and none is confirmed by
+   task status. For a loop: `/loop: keep calling ScheduleWakeup with <prompt>`;
 5. next steps, literal and in order — usually what to do when each running
    item reports;
 6. decisions the user made that are not yet written in a file.
