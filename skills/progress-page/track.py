@@ -19,6 +19,7 @@ version is ever typed by hand.
   track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
   track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
   track.py show   DIR                     print the page URL, versions and pending uploads
+  track.py page   DIR [--version V]       print the write that installs page.html as the page
 
 --at takes a time read from a record (git log --format=%cI, gh's mergedAt),
 with any UTC offset; it is stored as UTC. Never a time typed from memory.
@@ -354,6 +355,22 @@ def cmd_record(a):
     print("recorded " + ", ".join(a.pairs) + (" (version only)" if a.version_only else ""))
 
 
+def cmd_page(a):
+    _, _, st, out = paths(a.dir)
+    state = load(st, {})
+    if not state.get("url"):
+        die("no page url recorded; run track.py init DIR URL")
+    out.mkdir(exist_ok=True)
+    doc = out / "index.doc.json"
+    save(doc, {"text": (HERE / "page.html").read_text(), "edit": {"via": "claude", "at": now()}})
+    w = {"op": "set", "collection": "files", "doc_id": "index.html", "file_path": str(doc)}
+    if a.version:
+        w["if_version"] = a.version
+    print(json.dumps({"action": "batch", "url": state["url"], "writes": [w]}, indent=1))
+    if not a.version:
+        print("\nif the page already has files/index.html, get it first and pass --version", file=sys.stderr)
+
+
 def cmd_show(a):
     _, _, st, _ = paths(a.dir)
     print(json.dumps(load(st, {}), indent=1))
@@ -381,6 +398,8 @@ def main():
     p.add_argument("--item"); p.set_defaults(f=cmd_add_visual)
     for name, f in (("build", cmd_build), ("show", cmd_show)):
         p = sub.add_parser(name); p.add_argument("dir"); p.set_defaults(f=f)
+    p = sub.add_parser("page"); p.add_argument("dir"); p.add_argument("--version", type=int)
+    p.set_defaults(f=cmd_page)
     p = sub.add_parser("batch"); p.add_argument("dir"); p.add_argument("pairs", nargs="+")
     p.add_argument("--first", action="append", default=[], choices=DATASETS); p.set_defaults(f=cmd_batch)
     p = sub.add_parser("record"); p.add_argument("dir"); p.add_argument("pairs", nargs="+")

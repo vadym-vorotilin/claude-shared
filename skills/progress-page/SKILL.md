@@ -46,25 +46,27 @@ permission prompt or refusal.
    a ref's number, or an object of ref prefix → template when refs span
    repos, e.g. `{"api#": ".../api/issues/{n}", "web@": ".../web/commit/{n}"}`), and
    delete `"example": true`. `build` refuses the file until then.
-4. **Write the page code** to the type's instructions, with these sections,
-   in this order, reading these datasets:
+4. **Install the page: `$S/page.html`, unchanged.** `track.py page DIR`
+   prints the `ArtifactData` write that stores it as `files/index.html`
+   (if the page already has one, `get` it and pass `--version`); set
+   `dash/meta`'s title as the type's instructions say. The template is the
+   layout, so don't redesign it: a one-sentence summary rather than number
+   tiles, "In progress now" and "Recent activity" side by side, compact rows,
+   and caption-size tables keep the whole track to a short scroll. It reads
+   every track fact (title, goal, deadline, link templates) from the data and
+   follows the type's design tokens and theme. What it shows:
 
    | Section | Dataset | Shows |
    |---|---|---|
-   | Lede | track, items, phases | title and goal; done / total; next phase and its date; days to `deadline` if set |
-   | Roadmap | phases | a Gantt bar per phase, start → target, filled by its share of items done |
-   | In progress now | items | items in `building`, `review` or `blocked`, with a state pill and stage |
-   | Recent activity | log, track | newest first, the time and how long ago, refs linked through `track.ref_url` |
-   | Results | visuals | thumbnails (`img` is a `data:` URI) with captions; click to enlarge |
-   | All work | items | a table grouped by phase, every state including `cut` |
+   | Summary | track, items, phases | title; goal, done / total, active, next phase, days to `deadline` in one sentence; last change |
+   | Roadmap | phases | a bar per phase, start → target, filled by its share of items done; today's line |
+   | In progress now · Recent activity | items · log | side by side: `blocked`, `review` and `building` items with a pill and stage; the newest 12 events |
+   | Results | visuals | thumbnails with captions; click to enlarge |
+   | All work, by phase | items | every item with its state pill, stage and linked ref, `cut` included |
 
-   Use the type's design-system tokens and theme; pick no colours of your own.
-   State pills by meaning: done = ok colour, review = warning, blocked = bad,
-   queued = muted and dashed, cut = muted and struck through. The "last
-   updated" stamp is the newest log entry's time, never a constant. Keep the
-   page code generic: every track fact (title, goal, dates, deadline, link
-   base) comes from a dataset, so the page itself is never republished for a
-   status change.
+   If the track truly needs something else (a section of its own), change a
+   copy of the template as little as possible, keep its classes and layout,
+   and follow the type's page rules for the new part.
 5. Do the first update (below), then give the user the link.
 6. **Record it in the handoff** (`/handoff`, or the session's notes; leave
    the URL out of a handoff that is committed to a public repo): page URL,

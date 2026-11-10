@@ -1,0 +1,344 @@
+<meta name="dash-one-writer">
+<style>
+  .pp { display: grid; gap: var(--cds-gap-xl); font-family: var(--font-anthropic-sans); color: var(--color-fg); }
+  .pp-head { display: grid; gap: var(--cds-gap-sm); }
+  .pp-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+  .pp-lede { margin: 0; font-size: var(--cds-font-size-body); color: var(--color-fg); max-width: 70ch; line-height: 1.5; }
+  .pp-lede b { font-variant-numeric: tabular-nums; font-weight: var(--cds-font-weight-medium); }
+  .pp-stamp { margin: 0; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .pp-h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-sm); }
+  .pp-note { margin: 0 0 var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); max-width: 70ch; }
+  .pp-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+  .pp-chart { position: relative; min-height: 120px; }
+  .pp-chart svg { display: block; }
+  .pp-chart .tick text { fill: var(--cds-text-secondary); font-size: var(--cds-font-size-caption); }
+  .pp-chart .tick line, .pp-chart .domain { stroke: var(--cds-chart-grid); }
+  .pp-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); font-size: var(--cds-font-size-caption); max-width: 280px; line-height: 1.4; z-index: 2; }
+  .pp-tip strong { display: block; margin-bottom: 2px; }
+  .pp-tip span { color: var(--cds-text-secondary); }
+  .pp-running { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--cds-gap-sm); min-height: 3em; }
+  .pp-running li { display: grid; grid-template-columns: auto 1fr; gap: var(--cds-gap-xs) var(--cds-gap-md); align-items: baseline; padding: var(--cds-pad-sm) 0; border-bottom: 1px solid var(--color-border-line); }
+  .pp-running li:last-child { border-bottom: 0; }
+  .pp-running .pp-what { min-width: 0; }
+  .pp-running .pp-sub { grid-column: 2; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .pp-pill { display: inline-block; font-size: var(--cds-font-size-caption); letter-spacing: .02em; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .pp-pill[data-state="done"] { color: var(--color-ok); }
+  .pp-pill[data-state="review"] { color: var(--color-warn); }
+  .pp-pill[data-state="blocked"] { color: var(--color-bad); }
+  .pp-pill[data-state="building"] { color: var(--color-fg); }
+  .pp-pill[data-state="queued"] { color: var(--color-fg-muted); border-style: dashed; }
+  .pp-pill[data-state="cut"] { color: var(--color-fg-muted); text-decoration: line-through; }
+  .pp-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--cds-gap-lg); min-height: 120px; }
+  .pp-fig { margin: 0; display: grid; gap: var(--cds-gap-xs); align-content: start; }
+  .pp-fig img { width: 100%; height: auto; border-radius: var(--cds-radius); border: 1px solid var(--color-border-line); background: var(--color-bg); cursor: zoom-in; }
+  .pp-fig figcaption { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.4; }
+  .pp-fig figcaption strong { display: block; color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+  .pp-fig.pp-big { grid-column: 1 / -1; }
+  .pp-fig.pp-big img { cursor: zoom-out; }
+  .pp-tablewrap { overflow-x: auto; }
+  .pp-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); }
+  .pp-table th { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .pp-table td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
+  .pp-table tr.pp-phaserow td { padding-top: var(--cds-pad-md); font-weight: var(--cds-font-weight-medium); color: var(--color-fg); border-bottom: 0; }
+  .pp-table a, .pp-running a, .pp-log a { color: inherit; text-underline-offset: 2px; }
+  .pp-log { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--cds-gap-xs); font-size: var(--cds-font-size-caption); min-height: 3em; }
+  .pp-log li { display: grid; grid-template-columns: 7.5em 1fr; gap: var(--cds-gap-md); }
+  .pp-log time { color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+  .pp-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--cds-gap-lg); }
+  [data-dash-source-state=refreshing] { opacity: .5; }
+</style>
+<div class="pp">
+  <header class="pp-head" id="summary">
+    <h1 class="pp-title" data-draw="title" data-source="track" data-field="title" data-row="0">—</h1>
+    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. Next phase: <b data-draw="nextphase">—</b>.<span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
+    <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log" data-field="at" data-row="0">—</time>. Claude updates this page as work lands.</p>
+  </header>
+  <section class="pp-card" id="roadmap">
+    <h2 class="pp-h2">Roadmap</h2>
+    <p class="pp-note">Each bar runs from a phase's start to its target date and fills as its items are done. The dashed line is today. Point at a bar for what it holds.</p>
+    <div class="pp-chart" data-draw="roadmap" data-source="phases phase_progress"></div>
+  </section>
+  <div class="pp-two">
+    <section class="pp-card" id="running">
+      <h2 class="pp-h2">In progress now</h2>
+      <ul class="pp-running" data-draw="running" data-source="items"></ul>
+    </section>
+    <section class="pp-card" id="activity">
+      <h2 class="pp-h2">Recent activity</h2>
+      <ul class="pp-log" data-draw="log" data-source="log"></ul>
+    </section>
+  </div>
+  <section class="pp-card" id="visuals">
+    <h2 class="pp-h2">Results</h2>
+    <p class="pp-note">Renders and figures from the work so far. Click one to see it larger.</p>
+    <div class="pp-gallery" data-draw="gallery" data-source="visuals"></div>
+  </section>
+  <section class="pp-card" id="work">
+    <h2 class="pp-h2">All work, by phase</h2>
+    <div class="pp-tablewrap">
+      <table class="pp-table" data-source="items" data-row-key="id">
+        <thead><tr><th data-field="name">Item</th><th data-field="state">State</th><th data-field="stage">Where it is</th><th data-field="ref">Ref</th></tr></thead>
+        <tbody data-draw="worktable"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script>
+  window.ppParse = d3.utcParse('%Y-%m-%d');
+  window.ppTrack = () => {
+    const t = dash.data('track');
+    return t.status === 'ok' && t.data && t.data[0] ? t.data[0] : {};
+  };
+  // A ref links through track.ref_url: one template with {n}, or an object of
+  // ref prefix -> template, matched by the longest prefix.
+  window.ppRefUrl = (ref) => {
+    const tpl = window.ppTrack().ref_url;
+    if (!ref || !tpl) return null;
+    let t = null, n = null;
+    if (typeof tpl === 'string') { const m = /(\w+)$/.exec(ref); if (m) { t = tpl; n = m[1]; } }
+    else {
+      const p = Object.keys(tpl).filter((k) => ref.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+      if (p !== undefined) { t = tpl[p]; n = ref.slice(p.length); }
+    }
+    if (!t || !/^[\w.-]+$/.test(n || '')) return null;
+    const url = t.replace('{n}', encodeURIComponent(n));
+    return /^https:\/\//.test(url) ? url : null;
+  };
+  window.ppAgo = (iso) => {
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return '';
+    const min = Math.round((Date.now() - t) / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return `${min} min ago`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `${h} h ago`;
+    return `${Math.round(h / 24)} d ago`;
+  };
+  window.ppRef = (parent, ref) => {
+    const url = window.ppRefUrl(ref);
+    if (url) { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = ref; parent.append(a); }
+    else { const c = document.createElement('code'); c.textContent = ref; parent.append(c); }
+  };
+
+  dash.calc('phase_progress', {
+    title: 'Progress per phase',
+    description: 'Items done out of items planned, for each phase; cut items do not count.',
+    inputs: ['phases', 'items'],
+    fn: (phases, items) => phases.map((p) => {
+      const mine = items.filter((i) => i.phase === p.id && i.state !== 'cut');
+      const done = mine.filter((i) => i.state === 'done').length;
+      return {phase: p.id, done, total: mine.length, pct: mine.length ? Math.round(100 * done / mine.length) : 0};
+    }),
+  });
+
+  dash.calc('overall', {
+    title: 'Items done overall',
+    description: 'Done, in progress (building or in review) and total items, cut items left out.',
+    inputs: ['items'],
+    fn: (items) => {
+      const kept = items.filter((i) => i.state !== 'cut');
+      return [{
+        done: kept.filter((i) => i.state === 'done').length,
+        active: kept.filter((i) => i.state === 'building' || i.state === 'review').length,
+        total: kept.length,
+      }];
+    },
+  });
+</script>
+<script>
+  const one = (id, field) => {
+    const d = dash.data(id);
+    return d.status === 'ok' && d.data && d.data[0] ? d.data[0][field] : null;
+  };
+  const fmtDay = d3.utcFormat('%a %-d %b');
+
+  dash.draw('title', (el) => { el.textContent = window.ppTrack().title || '—'; });
+  dash.draw('goal', (el) => { const g = window.ppTrack().goal; el.textContent = g ? `${g}.` : ''; });
+  dash.draw('deadline', (el) => {
+    const d = window.ppTrack().deadline;
+    const day = d ? window.ppParse(d) : null;
+    if (!day) { el.textContent = ''; return; }
+    const left = Math.max(0, d3.utcDay.count(d3.utcDay.floor(new Date()), day));
+    el.textContent = ` Deadline ${fmtDay(day)}, ${left} days from today.`;
+  });
+  dash.draw('overall-done', (el) => { const v = one('overall', 'done'); el.textContent = v == null ? '—' : String(v); });
+  dash.draw('overall-total', (el) => { const v = one('overall', 'total'); el.textContent = v == null ? '—' : String(v); });
+  dash.draw('overall-active', (el) => { const v = one('overall', 'active'); el.textContent = v == null ? '—' : String(v); });
+
+  dash.draw('nextphase', (el) => {
+    const g = dash.data('phases');
+    if (g.status !== 'ok') { el.textContent = '—'; return; }
+    const today = d3.utcDay.floor(new Date());
+    const next = g.data.slice().sort((a, b) => a.order - b.order)
+      .find((r) => window.ppParse(r.target) >= today);
+    el.textContent = next ? `${next.name}, due ${fmtDay(window.ppParse(next.target))}` : 'none left';
+  });
+
+  dash.draw('stamp', (el) => {
+    const l = dash.data('log');
+    if (l.status !== 'ok' || !l.data.length) { el.textContent = '—'; return; }
+    const at = new Date(l.data[0].at);
+    el.textContent = `${d3.timeFormat('%a %-d %b, %H:%M')(at)} (${window.ppAgo(l.data[0].at)})`;
+    el.setAttribute('datetime', l.data[0].at);
+  });
+
+  dash.draw('roadmap', (el) => {
+    const g = dash.data('phases');
+    const p = dash.data('phase_progress');
+    if (g.status !== 'ok' || p.status !== 'ok' || !Array.isArray(p.data)) {
+      el.replaceChildren();
+      el.textContent = g.status === 'error' || p.status === 'error' ? 'Failed to load' : '—';
+      return;
+    }
+    el.replaceChildren();
+    const prog = new Map(p.data.map((r) => [r.phase, r]));
+    const rows = g.data.slice().sort((a, b) => a.order - b.order);
+    if (!rows.length) { el.textContent = 'No phases yet.'; return; }
+    const W = Math.max(280, el.clientWidth);
+    const rowH = 46, top = 26, bottom = 8;
+    const H = top + rows.length * rowH + bottom;
+    const today = d3.utcDay.floor(new Date());
+    const lo = d3.min([...rows.map((r) => window.ppParse(r.start)), today]);
+    const hi = d3.max([...rows.map((r) => window.ppParse(r.target)), today]);
+    const x = d3.scaleUtc().domain([d3.utcDay.offset(lo, -1), d3.utcDay.offset(hi, 2)]).range([4, W - 4]);
+    const svg = d3.select(el).append('svg')
+      .attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('role', 'img')
+      .attr('aria-label', 'Roadmap: each phase from start to target, filled by the share of its items done, with a line at today.');
+    const days = d3.utcDay.count(lo, hi);
+    const ticks = days > 120 ? d3.utcMonth.every(1) : (W < 520 || days > 42) ? d3.utcMonday.every(2) : d3.utcMonday.every(1);
+    svg.append('g').attr('transform', `translate(0,${top - 6})`)
+      .call(d3.axisTop(x).ticks(ticks).tickFormat(d3.utcFormat('%-d %b')).tickSize(-(rows.length * rowH)))
+      .call((a) => a.select('.domain').remove())
+      .call((a) => a.selectAll('.tick line').style('stroke', 'var(--cds-chart-grid)'));
+    const tip = d3.select(el).append('div').attr('class', 'pp-tip').attr('hidden', '');
+    const rowG = svg.selectAll('g.row').data(rows).join('g')
+      .attr('class', 'row').attr('transform', (d, i) => `translate(0,${top + i * rowH})`);
+    const minW = 6;
+    const xs = (d) => x(window.ppParse(d.start));
+    const xe = (d) => Math.max(xs(d) + minW, x(d3.utcDay.offset(window.ppParse(d.target), 1)));
+    rowG.append('text')
+      .attr('x', (d) => Math.min(xs(d), W - 180)).attr('y', 14)
+      .style('fill', 'var(--color-fg)').style('font-size', 'var(--cds-font-size-caption)')
+      .style('font-weight', 'var(--cds-font-weight-medium)')
+      .text((d) => {
+        const pr = prog.get(d.id);
+        return pr && pr.total ? `${d.name} · ${pr.done}/${pr.total}` : d.name;
+      });
+    rowG.append('rect').attr('class', 'track')
+      .attr('x', xs).attr('y', 20).attr('height', 14).attr('rx', 3)
+      .attr('width', (d) => xe(d) - xs(d))
+      .style('fill', 'var(--color-bg)').style('stroke', 'var(--color-border-line)');
+    rowG.append('rect').attr('class', 'fill')
+      .attr('x', xs).attr('y', 20).attr('height', 14).attr('rx', 3)
+      .attr('width', (d) => { const pr = prog.get(d.id); return (xe(d) - xs(d)) * ((pr ? pr.pct : 0) / 100); })
+      .style('fill', 'var(--color-ok)');
+    rowG.filter((d) => window.ppParse(d.start) <= today && today <= window.ppParse(d.target))
+      .select('rect.track').style('stroke', dash.colors[0]).style('stroke-width', 2);
+
+    const tx = x(today);
+    svg.append('line').attr('x1', tx).attr('x2', tx).attr('y1', top - 6).attr('y2', H - bottom)
+      .style('stroke', 'var(--cds-chart-reference)').style('stroke-width', 1.5).style('stroke-dasharray', '3 3');
+    svg.append('text').attr('x', Math.min(tx + 4, W - 40)).attr('y', H - 1)
+      .style('fill', 'var(--cds-text-secondary)').style('font-size', 'var(--cds-font-size-caption)').text('today');
+
+    const show = (ev, d) => {
+      const pr = prog.get(d.id) || {done: 0, total: 0};
+      tip.attr('hidden', null).selectAll('*').remove();
+      tip.append('strong').text(d.name);
+      if (d.contents) tip.append('div').text(d.contents);
+      tip.append('span').text(`${d3.utcFormat('%-d %b')(window.ppParse(d.start))} to ${d3.utcFormat('%-d %b')(window.ppParse(d.target))} · ${pr.done} of ${pr.total} items done`);
+      const [mx, my] = d3.pointer(ev, el);
+      const tw = 280;
+      tip.style('left', `${Math.max(0, Math.min(mx + 12, el.clientWidth - tw))}px`).style('top', `${my + 14}px`);
+    };
+    rowG.style('cursor', 'default')
+      .on('pointerenter pointermove', show)
+      .on('pointerleave', () => tip.attr('hidden', ''));
+  });
+
+  const label = {done: 'done', review: 'in review', building: 'building', blocked: 'blocked', queued: 'queued', cut: 'cut'};
+
+  dash.draw('running', (el) => {
+    const it = dash.data('items');
+    el.replaceChildren();
+    if (it.status !== 'ok') { const li = document.createElement('li'); li.textContent = '—'; el.append(li); return; }
+    const order = {blocked: 0, review: 1, building: 2};
+    const live = it.data.filter((r) => r.state in order).sort((a, b) => order[a.state] - order[b.state]);
+    if (!live.length) { const li = document.createElement('li'); li.textContent = 'Nothing running right now.'; el.append(li); return; }
+    for (const r of live) {
+      const li = document.createElement('li');
+      const pill = document.createElement('span');
+      pill.className = 'pp-pill'; pill.dataset.state = r.state; pill.textContent = label[r.state];
+      const what = document.createElement('span'); what.className = 'pp-what'; what.textContent = r.name;
+      const sub = document.createElement('span'); sub.className = 'pp-sub';
+      const bits = [r.stage, window.ppAgo(r.updated)].filter(Boolean).join(' · ');
+      sub.append(bits + (r.ref ? ' · ' : ''));
+      if (r.ref) window.ppRef(sub, r.ref);
+      li.append(pill, what, sub);
+      el.append(li);
+    }
+  });
+
+  dash.draw('log', (el) => {
+    const l = dash.data('log');
+    el.replaceChildren();
+    if (l.status !== 'ok') { const li = document.createElement('li'); li.textContent = '—'; el.append(li); return; }
+    const fmt = d3.timeFormat('%a %H:%M');
+    for (const r of l.data.slice(0, 12)) {
+      const li = document.createElement('li');
+      const t = document.createElement('time'); t.textContent = fmt(new Date(r.at)); t.setAttribute('datetime', r.at);
+      const s = document.createElement('span'); s.textContent = r.text;
+      if (r.ref) { s.append(' · '); window.ppRef(s, r.ref); }
+      li.append(t, s);
+      el.append(li);
+    }
+  });
+
+  dash.draw('gallery', (el) => {
+    const v = dash.data('visuals');
+    el.replaceChildren();
+    if (v.status !== 'ok') { el.textContent = v.status === 'error' ? 'Failed to load' : '—'; return; }
+    v.data.forEach((r, i) => {
+      if (typeof r.img !== 'string' || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(r.img)) return;
+      const fig = document.createElement('figure'); fig.className = 'pp-fig'; fig.id = `vis-${i}`;
+      const img = document.createElement('img'); img.src = r.img; img.alt = r.title || ''; img.loading = 'lazy';
+      img.onclick = () => fig.classList.toggle('pp-big');
+      const cap = document.createElement('figcaption');
+      const st = document.createElement('strong'); st.textContent = r.title || '';
+      const day = r.at ? ` (${fmtDay(new Date(r.at))})` : '';
+      cap.append(st, `${r.caption || ''}${day}`);
+      fig.append(img, cap);
+      el.append(fig);
+    });
+    if (!el.children.length) el.textContent = 'No results to show yet.';
+  });
+
+  dash.draw('worktable', (el) => {
+    const it = dash.data('items');
+    const g = dash.data('phases');
+    el.replaceChildren();
+    if (it.status !== 'ok' || g.status !== 'ok') return;
+    const phases = g.data.slice().sort((a, b) => a.order - b.order);
+    for (const ph of phases) {
+      const mine = it.data.filter((r) => r.phase === ph.id);
+      if (!mine.length) continue;
+      const hr = document.createElement('tr'); hr.className = 'pp-phaserow';
+      const hc = document.createElement('td'); hc.colSpan = 4;
+      hc.textContent = `${ph.name} · due ${fmtDay(window.ppParse(ph.target))}`;
+      hr.append(hc); el.append(hr);
+      for (const r of mine) {
+        const tr = document.createElement('tr'); tr.dataset.key = encodeURIComponent(r.id);
+        const c1 = document.createElement('td'); c1.textContent = r.name;
+        const c2 = document.createElement('td');
+        const pill = document.createElement('span'); pill.className = 'pp-pill'; pill.dataset.state = r.state; pill.textContent = label[r.state] || r.state;
+        c2.append(pill);
+        const c3 = document.createElement('td'); c3.textContent = r.stage || '';
+        const c4 = document.createElement('td');
+        if (r.ref) window.ppRef(c4, r.ref);
+        tr.append(c1, c2, c3, c4);
+        el.append(tr);
+      }
+    }
+  });
+</script>
