@@ -168,3 +168,191 @@ ttl_of() { # transcript default-ttl -> "spent-pct seconds-left", or nothing
   [ "$pct" -le 100 ] || pct=100
   printf '%s %s' "$pct" "$(( ttl - idle ))"
 }
+
+# ---- progress -------------------------------------------------------------
+# Two readings, both drawn by the session's status line:
+#  - the estimate: how far a task is, as a /progress update last put it. It
+#    comes from the transcript, or from `statusline-progress.sh estimate`, and
+#    the newer one wins. It is cached per session, so it outlives both the
+#    transcript tail and a compaction;
+#  - jobs: real percentages from long commands that statusline-progress.sh
+#    ran or watched, one file per job.
+# Files are keyed by session id: the one in the status line's input, which
+# Claude Code also exports to every command it runs as CLAUDE_CODE_SESSION_ID.
+PROGRESS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/cache/statusline-progress"
+
+progress_estimate_file() { # session-id -> path, or nothing for an unusable id
+  case "$1" in ''|*[!A-Za-z0-9_-]*) return 0 ;; esac
+  printf '%s/%s.estimate' "$PROGRESS_DIR" "$1"
+}
+
+progress_jobs_dir() { # session-id -> path, or nothing for an unusable id
+  case "$1" in ''|*[!A-Za-z0-9_-]*) return 0 ;; esac
+  printf '%s/%s.jobs' "$PROGRESS_DIR" "$1"
+}
+
+# A progress file worth opening: a regular file, not a link. A FIFO or a
+# device would block the read or never end it, and a link reads, or is
+# written through to, whatever it points at.
+progress_regular() { [ -f "$1" ] && [ ! -L "$1" ]; }
+
+# Write a file whole or not at all, so a refresh never reads half of one.
+# Anything that can write the cache dir can plant files in it, so the temp
+# file is created exclusively under a random name (noclobber opens it
+# O_EXCL, so a planted link fails rather than being written through), and a
+# target or a dir that is a link, or a target that isn't a regular file, is
+# refused rather than replaced.
+write_atomic() { # path content
+  local dir="${1%/*}" tmp
+  mkdir -p "$dir" 2>/dev/null || return 1
+  [ ! -L "$dir" ] && [ ! -L "$1" ] || return 1
+  [ ! -e "$1" ] || [ -f "$1" ] || return 1
+  tmp=$(mktemp -u "$1.tmp.XXXXXX" 2>/dev/null) && [ -n "$tmp" ] || return 1
+  [ ! -e "$tmp" ] && [ ! -L "$tmp" ] || return 1
+  if ( set -C; printf '%s\n' "$2" > "$tmp" ) 2>/dev/null \
+     && mv -f "$tmp" "$1" 2>/dev/null; then
+    return 0
+  fi
+  rm -f "$tmp" 2>/dev/null
+  return 1
+}
+
+# Drop files a month stale. The status line does this when it caches a new
+# estimate, and the writer when it starts a session's first estimate or job.
+progress_prune() { find "$PROGRESS_DIR" -mindepth 1 -mtime +30 -delete 2>/dev/null; }
+
+# A field read from a progress file, checked. Every such field passes one of
+# these before it reaches $(( )) or test: bash evaluates a variable's value
+# in $(( )) as an expression, array subscripts and $(...) included, and
+# anything that can write the cache dir could plant one. The progress_is_*
+# tests fork nothing, for the status line's reads on every refresh.
+progress_is_uint() { # string -> true for a plain decimal integer
+  case "$1" in ''|*[!0-9]*) return 1 ;; esac
+  [ "${#1}" -le 18 ]
+}
+progress_is_pct() { # string -> true for an integer 0..100
+  progress_is_uint "$1" && [ "$(( 10#$1 ))" -le 100 ]
+}
+progress_is_nm() { # string -> true for "n/m", both plain integers
+  case "$1" in */*/*|/*|*/) return 1 ;; */*) ;; *) return 1 ;; esac
+  progress_is_uint "${1%/*}" && progress_is_uint "${1#*/}"
+}
+
+progress_uint() { # string -> integer, or nothing
+  progress_is_uint "$1" || return 0
+  printf '%s' "$(( 10#$1 ))"
+}
+progress_pct() { # string -> pct 0..100, or nothing
+  progress_is_pct "$1" || return 0
+  printf '%s' "$(( 10#$1 ))"
+}
+progress_nm() { # string -> n/m, or nothing
+  progress_is_nm "$1" || return 0
+  printf '%s/%s' "$(( 10#${1%/*} ))" "$(( 10#${1#*/} ))"
+}
+
+# Text safe to print into the terminal: control characters dropped (an
+# escape can set the title or the clipboard, a \r overdraws the line), C1
+# controls too, tabs and newlines as spaces, and cut to <max> characters on
+# a UTF-8 character boundary.
+progress_clean() { # max-chars; stdin -> stdout
+  LC_ALL=C awk -v max="$1" '
+    BEGIN { for (i = 128; i < 192; i++) cont = cont sprintf("%c", i) }
+    { s = (NR > 1 ? s " " : "") $0 }
+    END {
+      gsub(/\t/, " ", s)
+      gsub(/[\001-\037\177]/, "", s)
+      gsub(/\302[\200-\237]/, "", s)
+      out = ""; n = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (!index(cont, c) && ++n > max) break
+        out = out c
+      }
+      printf "%s", out
+    }'
+}
+
+# A local wall-clock reading of an epoch. BSD date spells it -r, GNU -d @.
+local_clock() { # epoch strftime-format -> string
+  date -r "$1" "+$2" 2>/dev/null || date -d "@$1" "+$2" 2>/dev/null
+}
+
+fmt_clock() { local_clock "$1" '%H:%M'; } # epoch -> local "HH:MM"
+
+# The epoch of a local date and time, or nothing. BSD date parses with
+# -j -f (given the seconds, or it takes the current ones), GNU with -d.
+local_epoch() { # YYYY-MM-DD HH:MM -> epoch, or nothing
+  progress_uint "$(date -j -f '%Y-%m-%d %H:%M:%S' "$1 $2:00" +%s 2>/dev/null \
+    || date -d "$1 $2" +%s 2>/dev/null)"
+}
+
+# "HH:MM" on the local clock, as the first such moment no earlier than an
+# hour before the reference: an ETA of 00:20 written at 23:50 is tomorrow.
+# date resolves it on the reference's day, so a DST change in between is
+# counted; if date can't (a time the change skips), it is reckoned from the
+# reference's wall clock instead.
+clock_epoch() { # HH:MM reference-epoch -> epoch, or nothing
+  local hm="$1" ref day noon hms rh rm rs eh em eta
+  case "$hm" in [0-9]:[0-5][0-9]|[01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;; *) return 0 ;; esac
+  ref=$(progress_uint "$2"); [ -n "$ref" ] || return 0
+  day=$(local_clock "$ref" '%Y-%m-%d')
+  eta=$(local_epoch "$day" "$hm")
+  if [ -n "$eta" ] && [ "$eta" -lt $(( ref - 3600 )) ]; then
+    # Tomorrow: the day of today's noon plus a day, which no DST change moves
+    # off that day.
+    noon=$(local_epoch "$day" 12:00)
+    [ -n "$noon" ] && eta=$(local_epoch "$(local_clock $(( noon + 86400 )) '%Y-%m-%d')" "$hm")
+  fi
+  if [ -z "$eta" ]; then
+    hms=$(local_clock "$ref" '%H %M %S') || return 0
+    read -r rh rm rs <<EOF
+$hms
+EOF
+    rh=$(progress_uint "$rh"); rm=$(progress_uint "$rm"); rs=$(progress_uint "$rs")
+    [ -n "$rh" ] && [ -n "$rm" ] && [ -n "$rs" ] || return 0
+    eh=$(( 10#${hm%%:*} )); em=$(( 10#${hm##*:} ))
+    eta=$(( ref - rh * 3600 - rm * 60 - rs + eh * 3600 + em * 60 ))
+    [ "$eta" -ge $(( ref - 3600 )) ] || eta=$(( eta + 86400 ))
+  fi
+  printf '%s' "$eta"
+}
+
+# The last progress update in a transcript's tail: a /progress header
+# ("Progress: 3/5 · ~55% · ETA …", with its ETA bullet's "≈14:55"), an
+# /unattended-run or /orchestrating-issue-runs stamp ("Progress: Goal 3/5 ·
+# 60%", "Progress: Exit 3/5 · 60%"), or "Progress: idle".
+# Only a whole line counts, in the shape the skills mandate: bold
+# ("**<time> - Progress: …**", " — " also read for the dash), and for idle
+# also the plain line /progress specifies ("<time> - Progress: idle", the
+# time starting with a digit). And only in the session's own assistant
+# text: prose that quotes a header, a skill quoting the format, a file being
+# written, or a sidechain never reads as an update.
+# Prints "timestamp<TAB>pct<TAB>n/m<TAB>HH:MM", "-" for a part not given; an
+# idle update prints pct "-".
+progress_stamp() { # transcript -> line, or nothing
+  local f="$1" size
+  size=$(wc -c < "$f" 2>/dev/null) || return 0
+  {
+    if [ "${size:-0}" -gt "$TRANSCRIPT_TAIL" ]; then
+      tail -c "$TRANSCRIPT_TAIL" "$f" | tail -n +2
+    else
+      cat "$f"
+    fi
+  } 2>/dev/null | grep '"type":"assistant"' | grep -F 'Progress: ' | tail -n 20 \
+    | jq -rs '
+      def header: "^(?:\\*\\*[^*]+ (?:—|-) Progress: (?:(?:Goal |Exit )?(?<n>[0-9]+)/(?<m>[0-9]+) · ~?(?<p>[0-9]+)%[^*]*|idle)\\*\\*|[0-9][^*`]* (?:—|-) Progress: idle)\\s*$";
+      [ .[] | select(.type == "assistant" and .isSidechain != true)
+        | { ts: .timestamp,
+            lines: ([.message.content[]? | select(.type == "text") | .text]
+                    | join("\n") | split("\n")) }
+        | . as $e
+        | ([range(0; $e.lines | length)] | map(select($e.lines[.] | test(header))) | last) as $i
+        | select($i != null)
+        | ($e.lines[$i] | capture(header)) as $h
+        | ([$e.lines[$i + 1:][] | select(test("ETA:\\*\\* *≈[0-9]{1,2}:[0-9]{2}"))]
+           | first // "" | (capture("≈(?<c>[0-9]{1,2}:[0-9]{2})").c // "-")) as $eta
+        | [ $e.ts, ($h.p // "-"),
+            (if $h.n then "\($h.n)/\($h.m)" else "-" end), $eta ]
+      ] | last // empty | @tsv' 2>/dev/null
+}

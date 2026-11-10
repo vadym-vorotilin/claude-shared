@@ -278,6 +278,133 @@ if [ -n "$quota_line" ]; then
   printf "\n%s" "$quota_line"
 fi
 
+# Line 4: progress, at most one line, printed only when there is something
+# to show: the task estimate, then the newest running job, then counters for
+# jobs finished in the last half hour, joined with " · " (see
+# statusline-lib.sh for both readings). The line refreshes on a timer, but a
+# reading only moves when something writes it, so one over 5 minutes old
+# (a running job: 15) says how old. Every field read from those files is
+# checked before use: they can be written by commands this line never sees.
+session_id=$(echo "$input" | jq -r '.session_id // empty')
+est_file=$(progress_estimate_file "$session_id")
+jobs_dir=$(progress_jobs_dir "$session_id")
+prog_line=""
+prog_add() { # segment
+  if [ -n "$prog_line" ]; then prog_line="${prog_line}${RESET} · $1"; else prog_line="$1"; fi
+}
+
+# The estimate. A /progress update in the transcript newer than the cached
+# reading replaces it, so the cache holds the latest of either source.
+if [ -n "$est_file" ]; then
+  est_w=""; est_pct=""; est_nm=""; est_eta=""
+  progress_regular "$est_file" \
+    && IFS='	' read -r est_w est_pct est_nm est_eta 2>/dev/null < "$est_file"
+  progress_is_uint "$est_w" && est_w=$(( 10#$est_w )) || est_w=""
+  if [ -n "$transcript" ] && [ -s "$transcript" ]; then
+    st_ts=""; st_pct=""; st_nm=""; st_eta=""
+    IFS='	' read -r st_ts st_pct st_nm st_eta <<EOF
+$(progress_stamp "$transcript")
+EOF
+    st_w=$(iso_epoch "$st_ts")
+    if [ -n "$st_w" ] && [ "$st_w" -gt "${est_w:-0}" ]; then
+      st_eta_epoch=$(clock_epoch "$st_eta" "$st_w")
+      est_w="$st_w"; est_pct="$st_pct"; est_nm="$st_nm"; est_eta="${st_eta_epoch:--}"
+      write_atomic "$est_file" "$est_w	$est_pct	$est_nm	$est_eta"
+      progress_prune
+    fi
+  fi
+  est_w=${est_w:-0}
+  # The ETA is an epoch: the writer resolves a hand-written HH:MM when it
+  # writes it, so no refresh has to. The n/m count is kept in the file but
+  # not drawn.
+  progress_is_uint "$est_eta" && est_eta=$(( 10#$est_eta )) || est_eta=""
+  progress_is_pct "$est_pct" && est_pct=$(( 10#$est_pct )) || est_pct=""
+  est_age=$(( now - est_w )); [ "$est_age" -ge 0 ] || est_age=0
+  # Shown while under 4 hours old; a finished task, for half an hour.
+  if [ -n "$est_pct" ] && [ "$est_age" -lt 14400 ] \
+     && { [ "$est_pct" -lt 100 ] || [ "$est_age" -lt 1800 ]; }; then
+    if [ "$est_age" -ge 1800 ]; then c="$GRAY"; else c="$WHITE"; fi
+    if [ "$est_pct" -ge 100 ]; then
+      seg="${c}100% done"
+    else
+      seg="${c}${est_pct}%"
+      # A passed ETA is the same clock, in red.
+      if [ -n "$est_eta" ]; then
+        if [ "$est_eta" -ge "$now" ]; then
+          seg="$seg ≈$(fmt_clock "$est_eta")"
+        else
+          seg="$seg ${RED}≈$(fmt_clock "$est_eta")${c}"
+        fi
+      fi
+    fi
+    [ "$est_age" -lt 300 ] || seg="$seg ${GRAY}($(fmt_dur "$est_age") ago)"
+    prog_add "$seg"
+  fi
+fi
+
+# Jobs: the most recently written running one, with how many more run, then
+# counts of the jobs that finished in the last half hour. A running job goes
+# gray after 15 silent minutes and away after 6 hours. A row names the
+# process that wrote it, with its PID namespace on Linux; if that process is
+# gone with the row still running, the writer was killed, and the job counts
+# as failed. A session can leave many rows, so each is checked without a
+# fork, its age first: ls -t lists the newest first, so once a row is past
+# 6 hours, all the rest are too.
+if [ -n "$jobs_dir" ] && [ -d "$jobs_dir" ]; then
+  my_ns=""; n_run=0; n_ok=0; n_bad=0; n_end=0
+  top_name=""; top_pct=""; top_age=""
+  for jf in $(ls -t "$jobs_dir" 2>/dev/null); do
+    case "$jf" in *.tmp.*) continue ;; esac
+    progress_regular "$jobs_dir/$jf" || continue
+    j_w=""; j_pct=""; j_state=""; j_name=""; j_pid=""; j_ns=""
+    IFS='	' read -r j_w j_pct j_state j_name j_pid j_ns 2>/dev/null < "$jobs_dir/$jf" || continue
+    progress_is_uint "$j_w" || continue
+    j_age=$(( now - 10#$j_w )); [ "$j_age" -ge 0 ] || j_age=0
+    [ "$j_age" -lt 21600 ] || break
+    case "$j_state" in
+      run|done|end|fail:sig) ;;
+      fail:*) progress_is_uint "${j_state#fail:}" || continue ;;
+      *) continue ;;
+    esac
+    progress_is_pct "$j_pct" || continue
+    if [ "$j_state" = run ] && progress_is_uint "$j_pid"; then
+      [ -n "$my_ns" ] || my_ns=$(readlink /proc/self/ns/pid 2>/dev/null || echo -)
+      if [ "${j_ns:--}" = "$my_ns" ] && ! kill -0 "$(( 10#$j_pid ))" 2>/dev/null; then
+        j_state=gone
+      fi
+    fi
+    if [ "$j_state" = run ]; then
+      n_run=$(( n_run + 1 ))
+      if [ "$n_run" -eq 1 ]; then
+        top_name="$j_name"; top_pct=$(( 10#$j_pct )); top_age="$j_age"
+      fi
+      continue
+    fi
+    [ "$j_age" -lt 1800 ] || continue
+    case "$j_state" in
+      done) n_ok=$(( n_ok + 1 )) ;;
+      end)  n_end=$(( n_end + 1 )) ;;
+      *)    n_bad=$(( n_bad + 1 )) ;;      # exit N, killed, gone
+    esac
+  done
+  if [ "$n_run" -gt 0 ]; then
+    top_name=$(printf '%s' "$top_name" | progress_clean 20)
+    if [ "$top_age" -ge 900 ]; then
+      seg="${GRAY}${top_name} ${top_pct}% ($(fmt_dur "$top_age") ago)"
+    else
+      seg="${WHITE}${top_name} ${CYAN}${top_pct}%"
+    fi
+    [ "$n_run" -lt 2 ] || seg="$seg ${GRAY}+$(( n_run - 1 ))"
+    prog_add "$seg"
+  fi
+  seg=""
+  [ "$n_ok" -eq 0 ]  || seg="${GREEN}✓${n_ok}"
+  [ "$n_bad" -eq 0 ] || seg="${seg:+$seg }${RED}✗${n_bad}"
+  [ "$n_end" -eq 0 ] || seg="${seg:+$seg }${GRAY}■${n_end}"
+  [ -z "$seg" ] || prog_add "$seg"
+fi
+[ -z "$prog_line" ] || printf "\n%s%s" "$prog_line" "$RESET"
+
 # Trailing spacer line so the status doesn't visually glue to the CLI chrome
 # below. Claude Code trims trailing whitespace-only lines, so the spacer is
 # U+2800 BRAILLE PATTERN BLANK — renders as a blank cell but isn't whitespace.

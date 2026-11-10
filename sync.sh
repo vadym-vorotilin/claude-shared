@@ -8,6 +8,10 @@
 #                                    -> ~/.claude/subagent-statusline-command.sh
 #   - claude/statusline-lib.sh      -> ~/.claude/statusline-lib.sh
 #                                      (sourced by both status line scripts)
+#   - claude/statusline-progress.sh -> ~/.claude/statusline-progress.sh
+#   - claude/statusline-progress-hook.sh
+#                                    -> ~/.claude/statusline-progress-hook.sh,
+#                                      and a PostToolUse entry in settings.json
 #   - claude/settings.shared.json   -> merged into ~/.claude/settings.json
 #                                      (shared keys win; local-only keys preserved)
 #   - skills/*/                      -> symlinked into ~/.claude/skills/
@@ -51,7 +55,7 @@ mkdir -p "$CLAUDE_DIR/skills"
 
 # 1. Status line scripts -----------------------------------------------------
 # The session's line, the agent panel's rows, and the helpers both source.
-for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh; do
+for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh statusline-progress.sh statusline-progress-hook.sh; do
   log "deploy $f"
   cp "$REPO/claude/$f" "$CLAUDE_DIR/$f"
   chmod +x "$CLAUDE_DIR/$f"
@@ -71,6 +75,23 @@ if [ -f "$TARGET" ]; then
 else
   log "create settings.json from shared template"
   cp "$SHARED" "$TARGET"
+fi
+
+# The progress hook, added to the user's PostToolUse hooks rather than merged
+# with '*', which would replace that array and drop hooks already there.
+# Added once: an entry that already runs this command is left as it is.
+HOOK_CMD='bash ~/.claude/statusline-progress-hook.sh'
+log "ensure the progress hook in settings.json"
+tmp="$(mktemp)"
+if jq --arg cmd "$HOOK_CMD" '
+    .hooks.PostToolUse = ((.hooks.PostToolUse // [])
+      | if any(.[]; any(.hooks[]?; .command == $cmd)) then .
+        else . + [{matcher: "Bash", hooks: [{type: "command", command: $cmd}]}] end)
+  ' "$TARGET" > "$tmp"; then
+  mv "$tmp" "$TARGET"
+else
+  rm -f "$tmp"
+  log "warning: could not add the progress hook to $TARGET; background jobs will not show"
 fi
 
 # 3. Install all shared skills (symlinked) ----------------------------------

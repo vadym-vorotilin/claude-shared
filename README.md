@@ -35,6 +35,8 @@ there is no copy to restore from).
   - [Effort](#effort) — the effort level as a color and a bar.
   - [The cache clock](#the-cache-clock) — how long the prompt cache has left.
   - [Quotas](#quotas) — the 5-hour and weekly windows with their countdowns.
+  - [Progress](#progress) — the task's estimated progress and the real
+    progress of long commands, on one line.
 - [**The agent panel**](#the-agent-panel) — one row per live subagent, in the
   session line's columns and colors.
 - [**Shared skills**](#shared-skills) — symlinked into
@@ -62,8 +64,8 @@ on you can manage everything from inside Claude Code by running **`/claude-share
 
 ## The status line
 
-`claude/statusline-command.sh` draws three lines, the one at the top of this
-README:
+`claude/statusline-command.sh` draws three lines, plus a progress line, the one
+at the top of this README:
 
 1. **Location** — the repo (cyan) and its branch with git state (green).
 2. **Session** — the model (magenta), effort level, context used (yellow) and
@@ -71,6 +73,8 @@ README:
 3. **Quotas** — the 5-hour window (white) and the weekly one (gray), each with
    the time until it resets. The whole line is shown only when Claude Code
    sends rate-limit data.
+4. **Progress** — one line, only while there is something to show: the
+   task's estimate and long-running jobs. See [Progress](#progress).
 
 A trailing blank line keeps the status from gluing to the CLI chrome below it.
 The script reads `$HOME` at runtime, so no paths are hardcoded, and it runs on
@@ -171,6 +175,83 @@ only when neither live window in the file is newer (a later reset, or the same
 reset at a higher share), so an old reading never rolls either window back; a
 window already past its reset never blocks one. Nothing is printed, and a state folder it can't write leaves the status
 line as it was.
+
+### Progress
+
+At most one line, below the quotas, and none when there is nothing to show.
+It joins up to three parts with ` · `: the estimate, the newest running job,
+and counts of the jobs that finished in the last 30 min.
+
+```
+60% ≈16:28 · test suite 38% · ✓2 ✗1
+```
+
+The line refreshes every 15 s, but a reading moves only when something writes
+it, so a reading that has gone quiet says how old it is: `60% ≈16:28 (20m ago)`.
+
+- **The estimate: `<pct>% ≈HH:MM`.** Taken from the last `/progress` update in the
+  session's transcript (its `n/m · ~pct%` header and `≈HH:MM` ETA), or an
+  `/unattended-run` or `/orchestrating-issue-runs` stamp. Only a header on a
+  line of its own counts, in the shape those skills write it (bold, or for
+  idle the plain line `/progress` gives), so prose that quotes one does not.
+  Nothing has to be set up: run `/progress` and the estimate appears. Anything else that knows how far it is can write one with
+  `statusline-progress.sh estimate <pct> [n/m] [HH:MM]`. The newer of the two
+  wins, and it is cached per session, so it outlives a compaction. Only the
+  percentage and the ETA clock are drawn, not the count; an ETA that has
+  passed is drawn in red, and a finished task reads `100% done`. Past 5 min
+  old it adds its age, dim; it goes gray after 30 min, a finished task leaves
+  after 30 min, and any estimate after 4 hours.
+- **Jobs: real progress of long commands.** A background Bash command
+  (`run_in_background`) shows up on its own: `sync.sh` adds a PostToolUse hook,
+  `statusline-progress-hook.sh`, that follows the output file Claude Code
+  already writes for the command. It is named after the command's
+  description, and ends at Claude Code's closing line: done for exit code 0,
+  failed for any other, ended when it was stopped. The command, its
+  permissions and its output are untouched; nothing is added to the
+  session's context. It relies on where Claude Code keeps that file
+  (`/tmp/claude-<uid>/<project>/<session>/tasks/<id>.output`), which is not a
+  documented interface: if it moves, the job reads ended at 0% after 15 s.
+  It needs `jq` and `perl`. For a foreground command, wrap it:
+  `bash ~/.claude/statusline-progress.sh run "test suite" -- pytest -q`. Output
+  passes through byte for byte as it arrives (stderr merged into stdout) and
+  the exit code is the command's. The job reads the last `NN%` in the output,
+  a `\r` redraw included: pytest's `[ 38%]`, tqdm's ` 45%|███`. It is updated
+  at most once a second. For output already flowing, pipe it into
+  `statusline-progress.sh watch <name>`. The newest running job is shown as
+  `<name> <pct>%` (the name cut to 20 characters), then `+N` if more are
+  running. A finished job is counted for 30 min: `✓N` done, `✗N` failed (a
+  non-zero exit, or killed: the wrapper got Ctrl-C, a timeout or a hangup),
+  `■N` ended; a counter at 0 is left out. A TERM or HUP sent to the wrapper alone (`kill <pid>`) is passed on
+  to the command; Ctrl-C is not, since it already reaches the command, and a
+  second one would cut short a test runner's summary. A timeout that signals
+  the whole tree may deliver TERM to it twice. Its last output is kept either
+  way. A command that still finishes with exit 0 counts as done, or as ended
+  if it was the wrapper that passed it a TERM or HUP. A signal
+  the wrapper starts with ignored (`nohup`) stays ignored. A `watch` stops at
+  once on TERM or HUP, even if its input never ends (`tail -f`), and counts as
+  ended at the end of its input. A running job whose writer vanished without
+  a word (`kill -9`) counts as failed. A silent one goes gray after 15 min,
+  with its age, and leaves after 6 hours. Names that differ
+  only in characters other than letters, digits, `_` and `-` (`a b`, `a.b`,
+  `a_b`) share one job.
+
+  The command's output is now a pipe, not a terminal, so many programs buffer
+  it in blocks and the percentage arrives late. Ask for line buffering:
+  `PYTHONUNBUFFERED=1` (or `python -u`) for Python, `stdbuf -oL <command>`
+  for most C programs on Linux. Watching needs `perl` (macOS has it; so does
+  practically every Linux); without it the command runs unwatched and the
+  writer says so on stderr.
+
+Both are keyed by the session id, which Claude Code exports to every command it
+runs as `CLAUDE_CODE_SESSION_ID`. Run outside Claude Code, the writer says so
+and exits 2; `run` still runs the command. The files live under
+`~/.claude/cache/statusline-progress/` and are pruned after 30 days. A sandboxed
+Bash tool must be allowed to write there, or nothing is shown: the writer then
+says so on stderr, `estimate` and `job` exit 1, and `run` still runs the
+command. The status line checks every field it reads from those files before
+using it, since anything that can write there can write anything; it opens
+only regular files, never a link, FIFO or device, and writes through a temp
+file created exclusively, so a planted link is never written through.
 
 ## The agent panel
 
@@ -386,9 +467,11 @@ eligible issue). Commit the written file in the target repo.
 
 | File | Deploys to | Contents |
 |------|-----------|----------|
-| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line, three lines: `repo:worktree/subdir \| branch ⇡⇣+!?` · `model \| effort \| ctx% \| cache TTL` · `5h% \| 1w%` |
+| `claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Colored status line, three lines: `repo:worktree/subdir \| branch ⇡⇣+!?` · `model \| effort \| ctx% \| cache TTL` · `5h% \| 1w%`, then one progress line while there is something to show: `pct% ≈ETA · job pct% +N · ✓N ✗N ■N` |
 | `claude/subagent-statusline-command.sh` | `~/.claude/subagent-statusline-command.sh` | One row per live subagent in the agent panel: `agent \| model \| effort \| ctx% \| cache TTL \| details` |
-| `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock and cache-TTL helpers both scripts source |
+| `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
+| `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
+| `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
@@ -399,7 +482,8 @@ eligible issue). Commit the written file in the target repo.
 Running `./sync.sh` touches your `~/.claude` in five ways. It is idempotent and
 backs up `settings.json` before merging:
 
-1. Copies the status line scripts and their shared helpers to `~/.claude/`.
+1. Copies the status line scripts, their shared helpers and the progress
+   writer to `~/.claude/`.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
    The shared keys win on conflict, so a local `model` or `effortLevel` is
