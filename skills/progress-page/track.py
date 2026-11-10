@@ -14,17 +14,18 @@ version is ever typed by hand.
   track.py add-item   DIR ID PHASE NAME [--ref R] [--state S] [--stage S] [--at ISO]
   track.py add-visual DIR TITLE CAPTION IMAGE_FILE [--item ID]
 
+  track.py build  DIR                     check status.json, write out/<name>-<hash>.json for changes
+  track.py batch  DIR FILE=BLOB... [--first NAME]...  print the ArtifactData batch for uploaded files
+  track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
+  track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
+  track.py show   DIR                     print the page URL, versions and pending uploads
+
 --at takes a time read from a record (git log --format=%cI, gh's mergedAt),
 with any UTC offset; it is stored as UTC. Never a time typed from memory.
 
 Images are embedded in the visuals dataset as data: URIs (the Data type's
 pages load nothing from the network), so each must be a small JPEG or PNG
 thumbnail of at most 150 KB.
-  track.py build  DIR                     check status.json, write out/<name>-<hash>.json for changes
-  track.py batch  DIR FILE=BLOB... [--first NAME]...  print the ArtifactData batch for uploaded files
-  track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
-  track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
-  track.py show   DIR                     print the page URL, versions and pending uploads
 
 State lives in DIR/track-state.json, per dataset: `hash` (content the page
 shows), `version` (the dataset document's version), `pending` (content sent in
@@ -33,8 +34,9 @@ may be pending at a time.
 
 Assumed write shape (from the Data type as first used): collection "datasets",
 doc_id = dataset name, fields title/description/source/fixed/updated/edit;
-`update` for an existing document, `set` (which creates) for a --first one. If the type's own
-instructions name a different shape, stop and report it; don't hand-edit.
+`update` for an existing document, `set` (which creates) for a --first one.
+If the type's own instructions name a different shape, stop and report it;
+don't hand-edit.
 """
 import argparse, base64, datetime, hashlib, json, pathlib, re, shutil, sys
 
