@@ -48,6 +48,7 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'timeout -s kill 5 loginctl terminate-user me'
   blocked 'timeout -s kill 5 systemctl --user exit'
   blocked 'timeout -s kill 5 kill -9 -1'
+  blocked 'uwsm app -- uwsm stop'
   blocked 'env FOO=1 kill -9 -1'
   blocked "bash -c 'kill -9 -1'"
   blocked 'sh -c "kill -9 -1"'

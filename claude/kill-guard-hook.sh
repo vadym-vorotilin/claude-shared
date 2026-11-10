@@ -245,8 +245,12 @@ check_words() {
     # because the word may be an option's value, not the command
     # (`timeout -s kill 5 pkill -u me`), and hyprctl dispatch exec and uwsm
     # app run a command.
-    [[ $seen == *" $base "* ]] && continue
-    seen+=" $base "
+    # uwsm reads only its next word, which costs nothing, so every one is
+    # checked: `uwsm app -- uwsm stop` runs the second.
+    if [ "$base" != uwsm ]; then
+      [[ $seen == *" $base "* ]] && continue
+      seen+=" $base "
+    fi
     case $base in
       loginctl|hyprctl|systemctl) rest=" ${ws[*]:i+1} " ;;
     esac
