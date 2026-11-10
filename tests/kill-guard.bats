@@ -88,6 +88,23 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'killall -Z unconfined_t'
   blocked 'killall --context=unconfined_t'
   blocked 'killall5 -9'
+  # The verb after options.
+  blocked 'loginctl --no-ask-password terminate-user me'
+  blocked 'loginctl kill-session 3'
+  blocked 'hyprctl -i 0 dispatch exit'
+  blocked 'hyprctl --batch "dispatch exit"'
+  blocked 'hyprctl --batch "keyword general:gaps_in 0; dispatch exit"'
+  blocked "systemctl --user kill --signal=KILL '*'"
+  blocked "systemctl --user stop '*.service'"
+}
+
+@test "hook blocks kill(-1) in inline code" {
+  blocked "kill -9 ' -1'"
+  blocked "kill ' -1'"
+  blocked 'python3 -c "from os import kill; kill(-1, 9)"'
+  blocked "node -e 'process.kill(-1)'"
+  blocked "python3 -c 'import subprocess; subprocess.run([\"kill\", \"-9\", \"-1\"])'"
+  blocked "python3 -c \"import subprocess; subprocess.run(['kill','-KILL','--','-1'])\""
 }
 
 @test "hook reads pkill and killall options as the tools do, and fails closed" {
@@ -227,6 +244,13 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed 'git log --oneline -1'
   allowed 'grep -c kill notes.txt'
   allowed 'echo "${HOME}/x" 2>&1 | tee log'
+  allowed 'hyprctl -j clients'
+  allowed 'hyprctl dispatch exec foot'
+  allowed 'loginctl show-session 3 -p Name'
+  allowed "systemctl --user kill --signal=HUP 'waybar.service'"
+  allowed "systemctl --user stop 'app-*.scope'"
+  allowed 'python3 -c "import os; os.kill(1234, 9)"'
+  allowed "python3 -c 'import subprocess; subprocess.run([\"kill\", \"-1\", \"1234\"])'"
 }
 
 @test "hook reads a long command in time, and still finds a kill at its end" {
@@ -273,8 +297,8 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
 
 # The whole chain pidjail runs the command under.
 jail_available() {
-  setpriv --pdeathsig KILL -- unshare --user --map-current-user --pid --fork --mount-proc --kill-child \
-    -- setsid -w env --default-signal=INT,QUIT -- true 2>/dev/null
+  env --ignore-signal=HUP -- setpriv --pdeathsig KILL -- unshare --user --map-current-user --pid --fork --mount-proc --kill-child \
+    -- setsid -w env --default-signal=INT,QUIT,HUP -- true 2>/dev/null
 }
 need_jail() {
   jail_available || skip "cannot set up a jail here (the refusal tests cover pidjail here)"
@@ -371,6 +395,21 @@ has_term_trap() {
   assert_equal "$(cat "$TEST_TMP/t")" got-term
 }
 
+# A closed terminal or a dropped ssh session sends HUP to the whole
+# foreground process group, pidjail's helpers included.
+@test "pidjail passes a HUP to its process group on to the command as TERM" {
+  need_jail
+  d=$(uniq_secs 5)
+  run setsid -w bash -c '
+    "$1" bash -c "trap '\''echo got-term > \"$2/h\"; exit 143'\'' TERM; sleep $3 & wait" & p=$!
+    for _ in $(seq 200); do pgrep -fx "sleep $3" >/dev/null && break; sleep 0.05; done
+    trap "" HUP; kill -HUP 0
+    wait "$p"; echo "rc=$?"' _ "$REPO/claude/pidjail" "$TEST_TMP" "$d"
+  ! running "$d" || { pkill -fx "sleep $d"; fail "the command outlived a HUP"; }
+  assert_equal "$output" "rc=143"
+  assert_equal "$(cat "$TEST_TMP/h")" got-term
+}
+
 @test "pidjail holds a TERM that arrives before the jail is up" {
   need_jail
   d=$(uniq_secs 6)
@@ -394,11 +433,12 @@ has_term_trap() {
   ! running "$d" || { pkill -fx "sleep $d"; fail "the jail outlived pidjail"; }
 }
 
-@test "pidjail: the command starts with INT and QUIT not ignored" {
+@test "pidjail: the command starts with HUP, INT and QUIT not ignored" {
   need_jail
-  run "$REPO/claude/pidjail" awk '/^SigIgn:/ {print $2}' /proc/self/status
-  # INT is bit 1 (0x2), QUIT bit 2 (0x4); other bits come from the caller.
-  assert_equal "$(( (16#$output >> 1) & 3 ))" 0
+  run nohup "$REPO/claude/pidjail" awk '/^SigIgn:/ {print $2}' /proc/self/status
+  # HUP is bit 0 (0x1), INT bit 1 (0x2), QUIT bit 2 (0x4); other bits come
+  # from the caller (nohup ignores HUP).
+  assert_equal "$(( 16#$output & 7 ))" 0
 }
 
 @test "pidjail reaps orphans, and kills what the command leaves running" {

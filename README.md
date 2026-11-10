@@ -419,7 +419,9 @@ own user and PID namespace and its own session. Inside it, `kill -- -1`, `kill
 ```
 
 Files, network, your uid and the environment are unchanged, so a suite runs as
-it does outside. What changes:
+it does outside. (Files owned by root or another user show as owned by
+`nobody`, and supplementary groups as 65534; access is the same.) What
+changes:
 
 - `ps` shows only the jail.
 - `sudo` does not work inside.

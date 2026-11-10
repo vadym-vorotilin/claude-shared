@@ -5,8 +5,9 @@
 # Blocked, when they appear literally in the command (any path, e.g. /bin/kill):
 #   - kill with -1 (or -01, ...) among its pids: `kill -9 -1`, `kill -KILL -- -1`,
 #     `kill --signal TERM -1`, `kill -9 1234 -1` (`kill -1 <pid>`, signal 1 to
-#     one pid, and `kill -l -1` are allowed); os.kill(-1, ...) and
-#     os.killpg(1, ...) in inline Python
+#     one pid, and `kill -l -1` are allowed); kill(-1, ...) and
+#     killpg(1, ...) in inline code (os.kill, process.kill), and a kill
+#     argv written as a list: ["kill", "-9", "-1"]
 #   - pkill / killall with a broad selector and no process name or pattern:
 #     for pkill a user (-u/--euid, -U/--uid), run states (-r), a group (-g,
 #     -G), a session (-s), a terminal (-t), a namespace (--ns), a cgroup or
@@ -20,8 +21,9 @@
 #     one-dash long options like -user; pkill's first signal word wherever
 #     it stands and in any case, killall's only when upper-case), and
 #     anything else is blocked until it is spelled out
-#   - loginctl terminate-/kill- user, session or seat
-#   - hyprctl dispatch exit, uwsm stop, systemctl --user exit
+#   - loginctl terminate-/kill- user, session or seat, after options too
+#   - hyprctl dispatch exit (after options, or in --batch), uwsm stop,
+#     systemctl --user exit, systemctl --user kill/stop '*'
 # wherever they appear: behind sudo, timeout, env, eval, watch, xargs, inside
 # bash -c '...', $(...), a loop, an if, or { ...; }.
 #
@@ -67,12 +69,14 @@ check_kill() {
   case "${1:-}" in -l|-L|--list|--table) return ;; esac
   # A leading -1 is a signal number (HUP), so `kill -1 1234` passes; a -1
   # after an option, after --, or after a pid is a pid.
-  # -1, -01, -001 ... all mean pid -1 to kill.
-  minus1() { [[ $1 =~ ^-0*1$ ]]; }
+  # -1, -01, -001 ... all mean pid -1 to kill, and so does ' -1': kill
+  # skips blanks around a pid. A blank in front also makes a leading -1 a
+  # pid, not a signal.
+  minus1() { [[ $1 =~ ^[[:space:]]*-0*1[[:space:]]*$ ]]; }
   while [ $# -gt 0 ]; do
     a=$1; shift
     if minus1 "$a"; then
-      [ $first -eq 0 ] && block "kill $a (every process)"
+      { [ $first -eq 0 ] || [[ $a == [[:space:]]* ]]; } && block "kill $a (every process)"
       first=0; continue
     fi
     case $a in
@@ -235,20 +239,24 @@ check_words() {
       kill) check_kill "${ws[@]:i+1}" ;;
       pkill|killall) check_pkill "$base" "${ws[@]:i+1}" ;;
       killall5) block killall5 ;;
-      loginctl) case "${ws[i+1]:-}" in terminate-user|terminate-session|terminate-seat|kill-user|kill-session|kill-seat) block "loginctl ${ws[i+1]}" ;; esac ;;
-      hyprctl) [ "${ws[i+1]:-}" = dispatch ] && [ "${ws[i+2]:-}" = exit ] && block "hyprctl dispatch exit" ;;
+      # The verb may come after options (loginctl --no-ask-password
+      # terminate-user, hyprctl -i 0 dispatch exit), so the rest of the
+      # command is searched, and hyprctl --batch "dispatch exit" too.
+      loginctl)
+        local rest=" ${ws[*]:i+1} "
+        [[ $rest =~ \ (terminate|kill)-(user|session|seat)\  ]] && block "loginctl ${BASH_REMATCH[0]}" ;;
+      hyprctl)
+        local rest=" ${ws[*]:i+1} "
+        [[ $rest =~ [[:space:]\;]dispatch[[:space:]]+exit[[:space:]\;] ]] && block "hyprctl dispatch exit" ;;
       uwsm) [ "${ws[i+1]:-}" = stop ] && block "uwsm stop" ;;
       systemctl)
         local rest=" ${ws[*]:i+1} "
-        [[ $rest == *" --user "* && $rest == *" exit "* ]] && block "systemctl --user exit" ;;
+        [[ $rest == *" --user "* && $rest == *" exit "* ]] && block "systemctl --user exit"
+        # kill or stop of every user unit: a pattern that is only a glob.
+        [[ $rest == *" --user "* && $rest =~ \ (kill|stop)\  && $rest =~ \ \*(\.[a-z]+)?\  ]] && block "systemctl --user kill/stop of every unit ('*')" ;;
     esac
   done
 }
-
-# Inline Python.
-if [[ $cmd =~ os\.kill\([[:space:]]*-1[[:space:]]*, || $cmd =~ killpg\([[:space:]]*1[[:space:]]*, ]]; then
-  block "os.kill(-1) / os.killpg(1)"
-fi
 
 # names_tool <text>: the text names one of the guarded tools, once quotes and
 # backslashes are taken out ('k'ill, k\ill).
@@ -372,6 +380,16 @@ export LC_ALL=C
 cmd=${cmd//$'\\\n'/}
 # Nothing to look at unless the command names one of the tools at all.
 names_tool "$cmd" || exit 0
+
+# Inline code: kill(-1, ...) and killpg(1, ...) in any language (os.kill,
+# a bare kill after `from os import kill`, node's process.kill(-1)), and a
+# kill argv written as a list with -1 after the signal: ["kill", "-9", "-1"].
+re_fn='kill\([[:space:]]*-0*1[[:space:]]*[,)]|killpg\([[:space:]]*0*1[[:space:]]*[,)]'
+# Bounded, so the match costs the length of the text, not its square.
+re_argv='["'\'']kill["'\''][[:space:]]{0,4},([^],]{0,32},){1,4}[[:space:]]{0,4}["'\'']-0*1["'\''][[:space:]]{0,4}[],]'
+if [[ $cmd == *kill* ]] && [[ $cmd =~ $re_fn || ( $cmd == *kill[\"\']* && $cmd =~ $re_argv ) ]]; then
+  block "kill(-1) / killpg(1) in inline code"
+fi
 
 CH=256
 # Runs of characters that end nothing: inside '...', inside "...", and

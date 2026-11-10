@@ -10,7 +10,9 @@
 # mean only the command's own processes; nothing outside is visible to it.
 #
 # Files, network, your uid and environment are unchanged, so a test suite runs
-# as it does outside. What changes: `ps` shows only the jail; sudo does not
+# as it does outside (files owned by root or another user show as owned by
+# nobody, and supplementary groups as 65534, but access to them is the same).
+# What changes: `ps` shows only the jail; sudo does not
 # work inside (it is a user namespace); the command has no controlling
 # terminal; a process left running when the command exits is killed with the
 # jail, and so is the whole jail if pidjail itself is killed. TERM, INT or HUP
@@ -31,7 +33,7 @@ fi
 flags=(--user --map-current-user --pid --fork --mount-proc --kill-child)
 # The whole chain the command will run under, so a missing or old tool is a
 # refusal too, not an exit status the caller could take for the command's.
-if ! err="$(setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w env --default-signal=INT,QUIT -- true 2>&1)"; then
+if ! err="$(env --ignore-signal=HUP -- setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w env --default-signal=INT,QUIT,HUP -- true 2>&1)"; then
   echo "pidjail: refused: cannot set up the jail here, so the command was not run (${err:-setpriv/unshare/setsid/env failed}; needs unprivileged user namespaces, util-linux >= 2.38 and coreutils >= 8.31)" >&2
   exit 125
 fi
@@ -42,6 +44,10 @@ pending=0
 trap 'pending=1' TERM INT HUP
 
 # Inside:
+# - env --ignore-signal=HUP: unshare blocks TERM and INT while it waits, but
+#   not HUP, and a HUP to the caller's process group (a closed terminal, a
+#   dropped ssh session) would kill it and so the whole jail, before the
+#   command could see a TERM. pidjail's own trap passes the HUP on as TERM.
 # - setpriv --pdeathsig: unshare gets SIGKILL if pidjail dies, even by
 #   SIGKILL, and --kill-child then takes the jail down with it.
 # - setsid: the jail's own session and process group, so `kill 0` or the
@@ -51,18 +57,18 @@ trap 'pending=1' TERM INT HUP
 #   the command, and exits with its status. A signal to -1 inside the jail does
 #   not reach PID 1 itself.
 # - env --default-signal: an async command in a script starts with INT and
-#   QUIT ignored; the command gets them back.
+#   QUIT ignored, and HUP is ignored from above; the command gets them back.
 # shellcheck disable=SC2016
-setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w bash -c '
+env --ignore-signal=HUP -- setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w bash -c '
   p=0 c=
-  trap "p=1; [ -n \"\$c\" ] && kill -TERM \$c 2>/dev/null" TERM INT HUP
-  env --default-signal=INT,QUIT -- "$@" <&0 &
+  trap "p=1; [ -n \"\$c\" ] && kill -TERM \$c 2>/dev/null" TERM INT
+  env --default-signal=INT,QUIT,HUP -- "$@" <&0 &
   c=$!
   [ $p -eq 1 ] && kill -TERM $c 2>/dev/null
-  while :; do
-    wait "$c"; rc=$?
-    kill -0 "$c" 2>/dev/null || break
-  done
+  # A trap cuts a wait short; wait again until the command is gone, then
+  # once more for its own status (bash keeps it).
+  while kill -0 "$c" 2>/dev/null; do wait "$c"; done
+  wait "$c"; rc=$?
   exit "$rc"
 ' pidjail "$@" <&0 &
 u=$!
