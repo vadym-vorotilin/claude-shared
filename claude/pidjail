@@ -29,8 +29,10 @@ if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 flags=(--user --map-current-user --pid --fork --mount-proc --kill-child)
-if ! err="$(unshare "${flags[@]}" true 2>&1)"; then
-  echo "pidjail: refused: cannot create a user+PID namespace here, so the command was not run (unshare: ${err:-failed}; needs util-linux >= 2.38 and unprivileged user namespaces)" >&2
+# The whole chain the command will run under, so a missing or old tool is a
+# refusal too, not an exit status the caller could take for the command's.
+if ! err="$(setpriv --pdeathsig KILL -- unshare "${flags[@]}" -- setsid -w env --default-signal=INT,QUIT -- true 2>&1)"; then
+  echo "pidjail: refused: cannot set up the jail here, so the command was not run (${err:-setpriv/unshare/setsid/env failed}; needs unprivileged user namespaces, util-linux >= 2.38 and coreutils >= 8.31)" >&2
   exit 125
 fi
 

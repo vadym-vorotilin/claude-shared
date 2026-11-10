@@ -23,6 +23,8 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'kill --signal KILL -1'
   blocked 'kill -1 -1'
   blocked 'kill -9 1234 -1'
+  blocked 'kill -9 -01'
+  blocked 'kill -- -001'
   blocked '/bin/kill -9 -1'
   blocked 'cd /tmp && kill -TERM -1; echo done'
   blocked 'echo $(kill -9 -1)'
@@ -55,6 +57,10 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'pkill --euid me'
   blocked 'pkill --uid=1000'
   blocked 'pkill -n -u me'
+  blocked 'pkill -u me -q 5'
+  blocked 'pkill -r S'
+  blocked 'pkill --ns 1'
+  blocked 'pkill -G 1000'
   blocked 'killall --user me'
   blocked 'killall -u me -s KILL'
   blocked 'pkill -f .'
@@ -80,6 +86,10 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed 'pkill -f "dotnet test MyApp.Tests"'
   allowed 'pkill -u "$USER" -f vite'
   allowed 'pkill -u "$USER" -n node'
+  allowed 'pkill -r S -f "my-test-server"'
+  allowed 'pkill -P 4321'
+  allowed 'pkill -F run/app.pid'
+  allowed 'kill -9 -10'
   allowed 'killall -u me node'
   allowed 'killall -r "^node"'
   allowed 'killall node'
@@ -110,10 +120,25 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
 
 # -------------------------------------------------------------- pidjail ----
 
-jail_available() { unshare --user --map-current-user --pid --fork --mount-proc true 2>/dev/null; }
+# The whole chain pidjail runs the command under.
+jail_available() {
+  setpriv --pdeathsig KILL -- unshare --user --map-current-user --pid --fork --mount-proc --kill-child \
+    -- setsid -w env --default-signal=INT,QUIT -- true 2>/dev/null
+}
 need_jail() {
-  jail_available || skip "no unprivileged user+PID namespaces here (the refusal tests cover pidjail here)"
+  jail_available || skip "cannot set up a jail here (the refusal tests cover pidjail here)"
   command -v ps >/dev/null && command -v pgrep >/dev/null || skip "needs ps and pgrep (procps)"
+}
+# A sleep length unique to this run, so suites running at once (two
+# worktrees, two sessions) never match each other's processes.
+uniq_secs() { echo "29$1.$$$RANDOM"; }
+# Retry a check for up to 10 s.
+wait_for() { local n=200; until "$@"; do n=$((n - 1)); [ $n -gt 0 ] || fail "timed out waiting for: $*"; sleep 0.05; done; }
+running() { pgrep -fx "sleep $1" >/dev/null; }
+# True once process $1 has a TERM handler (SigCgt bit 14).
+has_term_trap() {
+  local c; c="$(awk '/^SigCgt:/ {print $2}' "/proc/$1/status" 2>/dev/null)"
+  [ -n "$c" ] && (( (16#$c >> 14) & 1 ))
 }
 
 @test "pidjail refuses, and runs nothing, when unshare fails (stubbed)" {
@@ -124,6 +149,16 @@ need_jail() {
   assert_equal "$status" 125
   assert_contains "$output" "pidjail: refused:"
   assert_contains "$output" "stub failure"
+  [ ! -e "$TEST_TMP/ran" ] || fail "the command ran unjailed"
+}
+
+@test "pidjail refuses, and runs nothing, when another tool in its chain fails (stubbed)" {
+  mkdir -p "$TEST_TMP/bin"
+  printf '#!/bin/sh\necho "setpriv: stub failure" >&2\nexit 127\n' > "$TEST_TMP/bin/setpriv"
+  chmod +x "$TEST_TMP/bin/setpriv"
+  PATH="$TEST_TMP/bin:$PATH" run "$REPO/claude/pidjail" touch "$TEST_TMP/ran"
+  assert_equal "$status" 125
+  assert_contains "$output" "pidjail: refused:"
   [ ! -e "$TEST_TMP/ran" ] || fail "the command ran unjailed"
 }
 
@@ -172,30 +207,40 @@ need_jail() {
   assert_equal "$output" "survived 143"
 }
 
-@test "pidjail passes TERM on to the command, even straight after it starts" {
+@test "pidjail passes TERM on to the command" {
   need_jail
-  "$REPO/claude/pidjail" bash -c "trap 'echo got-term > \"$TEST_TMP/t\"; exit 143' TERM; sleep 297.5 & wait" &
+  d=$(uniq_secs 7)
+  "$REPO/claude/pidjail" bash -c "trap 'echo got-term > \"$TEST_TMP/t\"; exit 143' TERM; sleep $d & wait" &
   p=$!
   # The sleep exists once the command's trap is set.
-  until pgrep -fx "sleep 297.5" >/dev/null; do sleep 0.05; done
+  wait_for running "$d"
   kill -TERM "$p"
   wait "$p" && rc=0 || rc=$?
   assert_equal "$rc" 143
   assert_equal "$(cat "$TEST_TMP/t")" got-term
-  # A TERM before the jail is up is held, not lost.
-  "$REPO/claude/pidjail" sleep 297.25 & p=$!
+}
+
+@test "pidjail holds a TERM that arrives before the jail is up" {
+  need_jail
+  d=$(uniq_secs 6)
+  "$REPO/claude/pidjail" sleep "$d" & p=$!
+  # Once pidjail's own trap is set (its first statement after the checks),
+  # the jail is not up yet: the TERM has to be held and delivered later.
+  wait_for has_term_trap "$p"
   kill -TERM "$p"
   wait "$p" && rc=0 || rc=$?
   assert_equal "$rc" 143
+  ! running "$d" || { pkill -fx "sleep $d"; fail "the command outlived a TERM"; }
 }
 
 @test "pidjail takes the jail down when it is killed itself" {
   need_jail
-  "$REPO/claude/pidjail" sleep 298.5 & p=$!
-  until pgrep -fx "sleep 298.5" >/dev/null; do sleep 0.05; done
+  d=$(uniq_secs 8)
+  "$REPO/claude/pidjail" sleep "$d" & p=$!
+  wait_for running "$d"
   kill -KILL "$p"; wait "$p" 2>/dev/null || true
   sleep 0.5
-  ! pgrep -fx "sleep 298.5" >/dev/null || { pkill -fx "sleep 298.5"; fail "the jail outlived pidjail"; }
+  ! running "$d" || { pkill -fx "sleep $d"; fail "the jail outlived pidjail"; }
 }
 
 @test "pidjail: the command starts with INT and QUIT not ignored" {
@@ -209,7 +254,8 @@ need_jail() {
   need_jail
   run "$REPO/claude/pidjail" bash -c '(sleep 0.2 &); sleep 0.6; ps -e -o stat= | grep -c Z'
   assert_equal "$output" 0
-  "$REPO/claude/pidjail" bash -c "sleep 299.5 & disown"
+  d=$(uniq_secs 9)
+  "$REPO/claude/pidjail" bash -c "sleep $d & disown"
   sleep 0.3
-  ! pgrep -fx "sleep 299.5" >/dev/null || { pkill -fx "sleep 299.5"; fail "a leftover survived the jail"; }
+  ! running "$d" || { pkill -fx "sleep $d"; fail "a leftover survived the jail"; }
 }

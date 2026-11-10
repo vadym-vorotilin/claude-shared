@@ -3,12 +3,14 @@
 # you own, or end your login session, before it runs.
 #
 # Blocked, when they appear literally in the command (any path, e.g. /bin/kill):
-#   - kill with -1 among its pids: `kill -9 -1`, `kill -KILL -- -1`,
+#   - kill with -1 (or -01, ...) among its pids: `kill -9 -1`, `kill -KILL -- -1`,
 #     `kill --signal TERM -1`, `kill -9 1234 -1` (`kill -1 <pid>`, signal 1 to
 #     one pid, and `kill -l -1` are allowed); os.kill(-1, ...) and
 #     os.killpg(1, ...) in inline Python
-#   - pkill / killall filtered by user (-u, -U, --euid, --uid, --user) with no
-#     process name or pattern, so every process of that user; pkill, or
+#   - pkill / killall with a broad selector and no process name or pattern:
+#     a user (-u, -U, --euid, --uid, --user), and for pkill also run states
+#     (-r), a namespace (--ns), a group (-g, -G), a session (-s), a terminal
+#     (-t) or a cgroup; pkill, or
 #     killall -r, with a match-anything pattern (`.`, `.*`, `^`, `''`); killall5
 #   - loginctl terminate-/kill- user, session or seat
 #   - hyprctl dispatch exit, uwsm stop, systemctl --user exit
@@ -44,6 +46,7 @@ block() {
   cat >&2 <<EOF
 kill-guard: blocked. "$1" would signal every process this user owns, or end the login session: the desktop, the terminals and every other Claude session on the machine.
 Signal specific pids, or one process group you started and checked (> 1); with pkill/killall, name the process. Code that must send broad signals (a test of a process supervisor, say) goes in a script run under ~/.claude/bin/pidjail. If the user really wants this, ask them to run it themselves.
+If this is only text that mentions such a command (a grep pattern, a commit message, a heredoc of docs), it is a false positive: put the text in a file, or for a grep pattern write the word with a bracket (p[k]ill), and run it again.
 EOF
   exit 2
 }
@@ -54,21 +57,29 @@ check_kill() {
   case "${1:-}" in -l|-L|--list|--table) return ;; esac
   # A leading -1 is a signal number (HUP), so `kill -1 1234` passes; a -1
   # after an option, after --, or after a pid is a pid.
+  # -1, -01, -001 ... all mean pid -1 to kill.
+  minus1() { [[ $1 =~ ^-0*1$ ]]; }
   while [ $# -gt 0 ]; do
     a=$1; shift
+    if minus1 "$a"; then
+      [ $first -eq 0 ] && block "kill $a (every process)"
+      first=0; continue
+    fi
     case $a in
-      --) for a in "$@"; do [ "$a" = -1 ] && block "kill -- -1"; done; return ;;
+      --) for a in "$@"; do minus1 "$a" && block "kill -- $a"; done; return ;;
       -s|-n|--signal|-q|--queue) shift; first=0 ;;
-      -1) [ $first -eq 0 ] && block "kill -1 (every process)"; first=0 ;;
       -*) first=0 ;;
-      *) for a in "$@"; do [ "$a" = -1 ] && block "kill ... -1"; done; return ;;
+      *) for a in "$@"; do minus1 "$a" && block "kill ... $a"; done; return ;;
     esac
   done
 }
 
-# pkill / killall <args>: block a user filter with no name, or a match-all pattern.
+# pkill / killall <args>: block a broad selector (a user, run states, a
+# namespace, a group, a session, a terminal) with no process name, or a
+# match-all pattern. The two tools' options differ (procps-ng 4 pkill,
+# psmisc killall), so each has its own table of options that take a value.
 check_pkill() {
-  local name=$1 user=0 npat=0 regex=0 a; shift
+  local name=$1 broad= npat=0 regex=0 a; shift
   # pkill patterns are regexes; killall's names are only with -r.
   match_all() {
     [ "$name" = pkill ] || [ $regex -eq 1 ] || return 0
@@ -76,19 +87,22 @@ check_pkill() {
   }
   while [ $# -gt 0 ]; do
     a=$1; shift
-    case $a in
-      -u|-U|--euid|--uid|--user) user=1; shift ;;
-      -u*|-U*|--euid=*|--uid=*|--user=*) user=1 ;;
-      -g|-G|-P|-s|-t|-F|--signal|--group|--pgroup|--parent|--session|--terminal|--pidfile|--ns|--nslist|--older-than|--younger-than|--context) shift ;;
-      # killall's -o/-y/-n/-Z take a value; pkill's -o/-n (oldest/newest) don't.
-      -o|-y|-n|-Z) [ "$name" = killall ] && shift ;;
-      -r|--regexp) regex=1 ;;
-      --) for a in "$@"; do npat=$((npat + 1)); match_all "$a"; done; break ;;
-      -*) ;;
+    case $name:$a in
+      # Broad selectors, with the value as the next word or attached.
+      *:-u|*:--user|pkill:-U|pkill:--euid|pkill:--uid|pkill:-r|pkill:--runstates|pkill:-g|pkill:--pgroup|pkill:-G|pkill:--group|pkill:-s|pkill:--session|pkill:-t|pkill:--terminal|*:--ns|pkill:--nslist|pkill:--cgroup)
+        broad=$a; shift ;;
+      *:-u?*|*:--user=*|pkill:-U?*|pkill:--euid=*|pkill:--uid=*|pkill:-r?*|pkill:--runstates=*|pkill:-g?*|pkill:--pgroup=*|pkill:-G?*|pkill:--group=*|pkill:-s?*|pkill:--session=*|pkill:-t?*|pkill:--terminal=*|*:--ns=*|pkill:--nslist=*|pkill:--cgroup=*)
+        broad=$a ;;
+      # Other options that take a value.
+      pkill:-P|pkill:--parent|pkill:-F|pkill:--pidfile|pkill:-q|pkill:--queue|*:--signal|killall:-s|killall:-o|killall:--older-than|killall:-y|killall:--younger-than|killall:-n|killall:-Z|killall:--context)
+        shift ;;
+      killall:-r|killall:--regexp) regex=1 ;;
+      *:--) for a in "$@"; do npat=$((npat + 1)); match_all "$a"; done; break ;;
+      *:-*) ;;
       *) npat=$((npat + 1)); match_all "$a" ;;
     esac
   done
-  [ $user -eq 1 ] && [ $npat -eq 0 ] && block "$name -u (no process name)"
+  [ -n "$broad" ] && [ $npat -eq 0 ] && block "$name $broad (no process name)"
 }
 
 # Every word of a simple command is looked at, not only the first, so the
