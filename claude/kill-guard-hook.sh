@@ -36,11 +36,10 @@
 # quotes and at newlines, then into words at blanks outside quotes, with
 # redirections (2>/dev/null, >&2) left out and a # ending the command, and
 # every word is looked at; each quoted part is also checked as a command of
-# its own. This
-# is not real shell parsing: text inside a heredoc, a commit message or an
-# echo can be blocked too. Reword it, or put it in a file. Needs bash and jq; without jq
-# it lets everything through and says so (exit 1, a non-blocking error the
-# user sees).
+# its own. This is not real shell parsing: text inside a heredoc, a commit
+# message, a comment or an echo can be blocked too. Reword it, or put it in
+# a file. Needs bash and jq; without jq it lets everything through and says
+# so (exit 1, a non-blocking error the user sees).
 #
 # Settings (sync.sh merges this in):
 #   "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command",
@@ -226,10 +225,12 @@ check_words() {
   local i w base
   local -a ws=("$@")
   for ((i = 0; i < ${#ws[@]}; i++)); do
-    # Only a word that ends in a tool's name; ${w##*/} costs the square of
-    # a long word's length.
+    # Only a word that ends in a tool's name, and only its last 12 bytes
+    # (the longest name is 9): ${w##*/} costs the square of a long word's
+    # length.
     case ${ws[i]} in *kill|*killall|*killall5|*loginctl|*hyprctl|*uwsm|*systemctl) ;; *) continue ;; esac
-    w=${ws[i]#\\}; base=${w##*/}
+    w=${ws[i]}; [ ${#w} -gt 12 ] && w=${w: -12}
+    w=${w#\\}; base=${w##*/}
     case $base in
       kill) check_kill "${ws[@]:i+1}" ;;
       pkill|killall) check_pkill "$base" "${ws[@]:i+1}" ;;
@@ -252,8 +253,17 @@ fi
 # names_tool <text>: the text names one of the guarded tools, once quotes and
 # backslashes are taken out ('k'ill, k\ill).
 names_tool() {
-  local p=${1//[\'\"\\]/}
-  [[ $p == *kill* || $p == *loginctl* || $p == *hyprctl* || $p == *uwsm* || $p == *systemctl* ]]
+  local p=$1
+  has_name() { [[ $p == *kill* || $p == *loginctl* || $p == *hyprctl* || $p == *uwsm* || $p == *systemctl* ]]; }
+  has_name && return 0
+  [[ $p == *[\'\"\\]* ]] || return 1
+  # ${p//...} costs the square of the length on long text; tr does not.
+  if [ ${#p} -gt 4096 ]; then
+    p=$(printf '%s' "$p" | tr -d "\\\\'\"")
+  else
+    p=${p//[\'\"\\]/}
+  fi
+  has_name
 }
 
 # check_line <text>: check each line that names a guarded tool. A quote left
@@ -281,7 +291,7 @@ check_line() {
 # and sh -c "...". The line is walked in chunks of CH bytes, because a
 # substring costs the length of the string it is taken from.
 check_seg() {
-  local s=$1 n=${#1} base j c nx chunk q= w= have=0 part= skip=0 tgt=0 redir=0 br=0 re r
+  local s=$1 n=${#1} base j c nx chunk q= w= have=0 part= skip=0 tgt=0 redir=0 br=0 re r rl=
   local -a ws=() parts=()
   word() {
     if [ $have -eq 1 ]; then
@@ -318,9 +328,10 @@ check_seg() {
         w+=$c; [ "$c" = '}' ] && br=0; continue
       fi
       if [ $redir -eq 1 ]; then
-        # `2>&-` closes the fd: it has no target word.
-        [ "$c" = - ] && [ $have -eq 0 ] && { tgt=0; continue; }
-        case $c in '<'|'>'|'&'|'|') [ $have -eq 0 ] && continue ;; esac
+        # `2>&-` closes the fd: it has no target word. (`>-log` writes to
+        # the file "-log".)
+        [ "$c" = - ] && [ $have -eq 0 ] && [ "$rl" = '&' ] && { tgt=0 redir=0; continue; }
+        case $c in '<'|'>'|'&'|'|') [ $have -eq 0 ] && { rl=$c; continue; } ;; esac
         redir=0
       fi
       if [[ ${chunk:j:$CH-j} =~ $re_pl ]]; then
@@ -332,9 +343,9 @@ check_seg() {
         [[:space:]]) word ;;
         '<'|'>')
           [ $have -eq 1 ] && [[ $w =~ ^[0-9]+$ ]] && w= have=0
-          word; tgt=1 redir=1 ;;
+          word; tgt=1 redir=1 rl=$c ;;
         '&')
-          if [ "$nx" = '>' ]; then word; tgt=1 redir=1; else cmdend; fi ;;
+          if [ "$nx" = '>' ]; then word; tgt=1 redir=1 rl=$c; else cmdend; fi ;;
         ';'|'|'|'('|')'|'{'|'}'|'`') cmdend ;;
         '$')
           case $nx in

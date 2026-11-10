@@ -9,7 +9,12 @@ bats_require_minimum_version 1.5.0
 setup()    { common_setup; }
 teardown() { common_teardown; }
 
-HOOK() { printf '%s' "$(jq -cn --arg c "$1" '{tool_name:"Bash", tool_input:{command:$c}}')" | bash "$REPO/claude/kill-guard-hook.sh"; }
+# The command goes to jq on stdin: an argument over 128 KB fails to exec.
+HOOK() {
+  local j
+  j="$(printf '%s' "$1" | jq -Rsc '{tool_name:"Bash", tool_input:{command:.}}')" || return 99
+  printf '%s' "$j" | bash "$REPO/claude/kill-guard-hook.sh"
+}
 
 blocked() { run HOOK "$1"; [ "$status" -eq 2 ] || fail "not blocked: $1"; assert_contains "$output" "kill-guard: blocked"; }
 allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; }
@@ -125,6 +130,8 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'killall -u "$USER" -9 2>/dev/null'
   blocked 'pkill -u "$USER" # stop everything'
   blocked 'pkill 2>&- -u me'
+  blocked 'pkill -u me >-log'
+  blocked 'pkill -u "$USER" 2>-err'
   # A # ends the command, not the line: the line may be inside a string.
   blocked $'git commit -m "fix\n\nCloses #12" && pkill -u "$USER"'
   blocked 'echo $(date)#x; pkill -u me'
@@ -234,10 +241,15 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   SECONDS=0
   allowed "$line"
   [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for a ${#line}-byte word"
-  line="$(printf '"a" %.0s' $(seq 1 100000))"
+  line="$(printf '"a" %.0s' $(seq 1 250000))"
   SECONDS=0
   allowed "$line"
   [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for ${#line} bytes naming no tool"
+  # A long word that ends in a tool's name.
+  line="echo $(head -c 400000 /dev/zero | tr '\0' a)kill; pkill -u me"
+  SECONDS=0
+  blocked "$line"
+  [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for a long word ending in a tool name"
 }
 
 @test "hook names the matched command" {
