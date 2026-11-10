@@ -12,6 +12,8 @@ RUN apt-get update \
       gawk \
       python3 \
       coreutils \
+      procps \
+      util-linux \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 

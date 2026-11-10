@@ -39,6 +39,9 @@ there is no copy to restore from).
     progress of long commands, on one line.
 - [**The agent panel**](#the-agent-panel) — one row per live subagent, in the
   session line's columns and colors.
+- [**The kill guard**](#whats-shared) — a hook that blocks commands which
+  would kill every process you own (the desktop and every other session), and
+  `pidjail`, which runs a test suite where even `kill -- -1` stays inside it.
 - [**Shared skills**](#shared-skills) — symlinked into
   `~/.claude/skills/`: guided setup and sync, installers for per-repo skills,
   long-running and multi-agent work, PR review, token reporting, briefs.
@@ -477,6 +480,8 @@ eligible issue). Commit the written file in the target repo.
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
 | `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
+| `claude/kill-guard-hook.sh` | `~/.claude/kill-guard-hook.sh`, plus a PreToolUse entry in `settings.json` | Blocks a Bash command that would signal every process you own or end the login session (`kill -9 -1`, `pkill -u`, `loginctl terminate-user`, …). A tripwire on the command line only; see `pidjail` |
+| `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace, so no signal it sends (not even `kill -- -1`) reaches anything outside it. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |
@@ -487,8 +492,11 @@ eligible issue). Commit the written file in the target repo.
 Running `./sync.sh` touches your `~/.claude` in five ways. It is idempotent and
 backs up `settings.json` before merging:
 
-1. Copies the status line scripts, their shared helpers and the progress
-   writer to `~/.claude/`.
+1. Copies the status line scripts, their shared helpers, the progress
+   writer and the kill-guard hook to `~/.claude/`, and `pidjail` to
+   `~/.claude/bin/`. The progress hook (PostToolUse) and the kill guard
+   (PreToolUse) are each added once to `settings.json`, after any hooks
+   already there.
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
    The shared keys win on conflict, so a local `model` or `effortLevel` is
