@@ -481,7 +481,7 @@ eligible issue). Commit the written file in the target repo.
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
 | `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
 | `claude/kill-guard-hook.sh` | `~/.claude/kill-guard-hook.sh`, plus a PreToolUse entry in `settings.json` | Blocks a Bash command that would signal every process you own or end the login session (`kill -9 -1`, `pkill -u`, `loginctl terminate-user`, …). A tripwire on the command line only; see `pidjail` |
-| `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace, so no signal it sends (not even `kill -- -1`) reaches anything outside it. For tests and scripts that signal process groups |
+| `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace and session, so no signal it sends (not even `kill -- -1` or `kill 0`) reaches anything outside it. Refuses, rather than run it unjailed, where namespaces are unavailable. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
 | `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer (see "What `sync.sh` writes") |

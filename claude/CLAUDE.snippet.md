@@ -24,6 +24,7 @@ the desktop session and every other Claude session on the machine.
   computes, such as tests of a job runner or process supervisor, their
   teardowns, or `stop`/cleanup scripts under test, under
   `~/.claude/bin/pidjail <command>`. Inside it, `-1` and every group reach only
-  the jail. Example: `~/.claude/bin/pidjail bats tests/`. If pidjail exits 125
-  (no namespaces here), stop and ask; don't run it unjailed.
+  the jail. Example: `~/.claude/bin/pidjail bats tests/`. If it prints
+  `pidjail: refused:` (no namespaces here), stop and ask; don't run the
+  command unjailed.
 <!-- <<< claude-shared <<< -->

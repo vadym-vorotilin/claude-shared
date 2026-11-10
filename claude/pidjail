@@ -1,41 +1,45 @@
 #!/usr/bin/env bash
 #
-# pidjail <command> [args...]: run a command in its own PID namespace, so that
-# no signal it sends can reach a process outside it.
+# pidjail <command> [args...]: run a command in its own PID namespace and
+# session, so that no signal it sends can reach a process outside it.
 #
 # Every process an agent starts runs as you, and the kernel lets you signal
 # any process you own. One `kill -KILL -- -1` (or a process group read from a
 # file that holds "1") then kills the compositor, the terminals and every
-# other session on the machine. Inside pidjail, -1 and every process group
+# other session on the machine. Inside pidjail, -1, 0 and every process group
 # mean only the command's own processes; nothing outside is visible to it.
 #
 # Files, network, your uid and environment are unchanged, so a test suite runs
 # as it does outside. What changes: `ps` shows only the jail; sudo does not
-# work inside (it is a user namespace); a process left running when the command
-# exits is killed with the jail. Ctrl-C reaches the command as TERM.
+# work inside (it is a user namespace); the command has no controlling
+# terminal; a process left running when the command exits is killed with the
+# jail. TERM, INT or HUP to pidjail (Ctrl-C included) reach the command as TERM.
 #
-# Needs unprivileged user and PID namespaces (util-linux `unshare`, Linux).
-# Where they are unavailable (some containers, hardened kernels) pidjail
-# refuses to run the command at all rather than run it unjailed. Exit 125.
-set -euo pipefail
+# Needs unprivileged user and PID namespaces and util-linux >= 2.38 `unshare`
+# (for --map-current-user). Where they are unavailable (some containers,
+# hardened kernels) pidjail refuses: it prints a line starting
+# "pidjail: refused:" and exits 125 without running the command.
+set -uo pipefail
 
 if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-  sed -n '3,19p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,21p' "$0" | sed 's/^# \{0,1\}//'
   [ $# -eq 0 ] && exit 2 || exit 0
 fi
 
 flags=(--user --map-current-user --pid --fork --mount-proc --kill-child)
-if ! unshare "${flags[@]}" true 2>/dev/null; then
-  echo "pidjail: cannot create a user+PID namespace here (unshare failed); not running the command unjailed" >&2
+if ! err="$(unshare "${flags[@]}" true 2>&1)"; then
+  echo "pidjail: refused: cannot create a user+PID namespace here, so the command was not run (unshare: ${err:-failed}; needs util-linux >= 2.38 and unprivileged user namespaces)" >&2
   exit 125
 fi
 
-# PID 1 in the jail is a small bash that reaps orphans (a test's double-forked
-# children would otherwise stay zombies and still answer `kill -0`), passes
-# TERM/INT/HUP on to the command, and exits with the command's status. A
-# signal to -1 inside the jail does not reach PID 1 itself.
+# Inside: setsid gives the jail its own session and process group, so
+# `kill 0` or a group read from the caller reaches nothing outside. PID 1 is
+# a small bash that reaps orphans (a test's double-forked children would
+# otherwise stay zombies and still answer `kill -0`), passes TERM/INT/HUP on
+# to the command, and exits with its status. A signal to -1 inside the jail
+# does not reach PID 1 itself.
 # shellcheck disable=SC2016
-exec unshare "${flags[@]}" -- bash -c '
+unshare "${flags[@]}" -- setsid -w bash -c '
   trap "kill -TERM \$c 2>/dev/null" TERM INT HUP
   "$@" <&0 &
   c=$!
@@ -44,4 +48,19 @@ exec unshare "${flags[@]}" -- bash -c '
     kill -0 "$c" 2>/dev/null || break
   done
   exit "$rc"
-' pidjail "$@"
+' pidjail "$@" <&0 &
+u=$!
+
+# unshare blocks TERM/INT while it waits, so a signal to pidjail is passed to
+# the jail's PID 1 (unshare's child) directly. --kill-child covers SIGKILL.
+forward() {
+  local init
+  init="$(cat "/proc/$u/task/$u/children" 2>/dev/null)"
+  [ -n "$init" ] && kill -TERM $init 2>/dev/null
+}
+trap forward TERM INT HUP
+while :; do
+  wait "$u"; rc=$?
+  kill -0 "$u" 2>/dev/null || break
+done
+exit "$rc"
