@@ -182,6 +182,19 @@ assert_malformed_untouched() {
   cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
 }
 
+# Require that no CLAUDE.md temp file (CLAUDE.md.*) is left in a directory,
+# apart from the names given, which the user already had there.
+assert_no_md_temp() { # dir [expected-name...]
+  local dir="$1" f found="" want=""
+  shift
+  for f in "$dir"/CLAUDE.md.*; do
+    [ -e "$f" ] || [ -L "$f" ] || continue
+    found="$found ${f##*/}"
+  done
+  for f in "$@"; do want="$want $f"; done
+  assert_equal "$found" "$want"
+}
+
 @test "replace keeps a symlinked CLAUDE.md a symlink and updates its target" {
   mkdir -p "$HOME/.claude" "$TEST_TMP/dotfiles"
   printf '%s\n' 'TOP LINE' "$MD_START" 'STALE BLOCK TEXT' "$MD_END" 'BOTTOM LINE' > "$TEST_TMP/dotfiles/CLAUDE.md"
@@ -194,7 +207,7 @@ assert_malformed_untouched() {
   assert_contains "$body" "BOTTOM LINE"
   refute_contains "$body" "STALE BLOCK TEXT"
   assert_equal "$(count_occurrences "$TEST_TMP/dotfiles/CLAUDE.md" '>>> claude-shared')" 1
-  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+  assert_no_md_temp "$HOME/.claude"
 }
 
 file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
@@ -225,16 +238,16 @@ file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
   assert_equal "$status" 1
   refute_contains "$output" "Synced"
   cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
-  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+  assert_no_md_temp "$HOME/.claude"
 }
 
-# An mv shim that fails only when moving a CLAUDE.md temp file.
+# An mv shim that fails only when moving a CLAUDE.md temp file (CLAUDE.md.XXXXXX).
 make_failing_mv() {
   mkdir -p "$TEST_TMP/bin"
   real_mv="$(command -v mv)"
   {
     echo '#!/bin/sh'
-    echo 'for a in "$@"; do case "$a" in *CLAUDE.md.tmp) exit 1 ;; esac; done'
+    echo 'for a in "$@"; do case "$a" in *CLAUDE.md.?*) exit 1 ;; esac; done'
     echo "exec \"$real_mv\" \"\$@\""
   } > "$TEST_TMP/bin/mv"
   chmod +x "$TEST_TMP/bin/mv"
@@ -250,7 +263,7 @@ make_failing_mv() {
   refute_contains "$output" "Synced"
   assert_contains "$output" "CLAUDE.md"
   cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
-  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+  assert_no_md_temp "$HOME/.claude"
 }
 
 @test "a failing write-back through a symlink leaves the target and no .tmp" {
@@ -264,7 +277,63 @@ make_failing_mv() {
   refute_contains "$output" "Synced"
   assert_symlink "$HOME/.claude/CLAUDE.md"
   cmp "$TEST_TMP/dotfiles/CLAUDE.md" "$TEST_TMP/before" || fail "target was modified"
-  [ ! -e "$TEST_TMP/dotfiles/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+  assert_no_md_temp "$TEST_TMP/dotfiles"
+}
+
+@test "a failing write-back on the first append is an error, CLAUDE.md is byte-identical and no temp is left" {
+  mkdir -p "$HOME/.claude"
+  printf 'MY PERSONAL NOTES\n' > "$HOME/.claude/CLAUDE.md"   # no markers: the append path
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  make_failing_mv
+  PATH="$TEST_TMP/bin:$PATH" run bash "$REPO/sync.sh"
+  assert_equal "$status" 1
+  refute_contains "$output" "Synced"
+  assert_contains "$output" "CLAUDE.md"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
+  assert_no_md_temp "$HOME/.claude"
+}
+
+@test "a file the user keeps at CLAUDE.md.tmp is left untouched" {
+  mkdir -p "$HOME/.claude"
+  printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" > "$HOME/.claude/CLAUDE.md"
+  printf 'MY SCRATCH FILE\n' > "$HOME/.claude/CLAUDE.md.tmp"
+  cp "$HOME/.claude/CLAUDE.md.tmp" "$TEST_TMP/scratch-before"
+  run_sync
+  assert_equal "$status" 0
+  refute_contains "$(cat "$HOME/.claude/CLAUDE.md")" "stale"
+  cmp "$HOME/.claude/CLAUDE.md.tmp" "$TEST_TMP/scratch-before" || fail "CLAUDE.md.tmp was modified"
+  assert_no_md_temp "$HOME/.claude" CLAUDE.md.tmp
+}
+
+@test "replace rewrites a read-only CLAUDE.md and keeps it read-only" {
+  mkdir -p "$HOME/.claude"
+  printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" 'BOTTOM' > "$HOME/.claude/CLAUDE.md"
+  chmod 444 "$HOME/.claude/CLAUDE.md"
+  if [ "$(id -u)" = 0 ]; then
+    # Root ignores write permission, so run as an unprivileged user to
+    # exercise the read-only case for real.
+    command -v setpriv >/dev/null || skip "running as root without setpriv"
+    chown -R 65534:65534 "$TEST_TMP"
+    run setpriv --reuid=65534 --regid=65534 --clear-groups bash "$REPO/sync.sh"
+  else
+    run_sync
+  fi
+  assert_equal "$status" 0
+  body="$(cat "$HOME/.claude/CLAUDE.md")"
+  refute_contains "$body" "stale"
+  assert_contains "$body" "TOP"
+  assert_contains "$body" "BOTTOM"
+  assert_contains "$body" "Shared Claude setup"
+  assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" 444
+  assert_no_md_temp "$HOME/.claude"
+}
+
+@test "a new CLAUDE.md gets the mode the umask gives a new file" {
+  umask 027
+  run_sync
+  assert_equal "$status" 0
+  assert_equal "$(file_mode "$HOME/.claude/CLAUDE.md")" 640
+  assert_no_md_temp "$HOME/.claude"
 }
 
 @test "an unreadable snippet during the replace is an error, not an emptied block" {
@@ -287,7 +356,7 @@ make_failing_mv() {
   assert_equal "$status" 1
   refute_contains "$output" "Synced"
   cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
-  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+  assert_no_md_temp "$HOME/.claude"
 }
 
 # A checkout with a local bare origin, one commit behind it.

@@ -159,30 +159,55 @@ done
 # any other content in the file.
 log "ensure /claude-shared pointer in ~/.claude/CLAUDE.md"
 # (the markers and snippet were validated before step 1)
+# Both the append (no markers yet) and the replace (one pair) are written the
+# same way: copy the real file to a fresh temp file beside it (a symlinked
+# CLAUDE.md is resolved first, so the link itself is left alone), change the
+# copy, then rename it over the original. Any failure leaves CLAUDE.md as it
+# was and removes the temp file.
+REAL="$GLOBAL_MD"
+while [ -h "$REAL" ]; do
+  d="$(cd -P "$(dirname "$REAL")" >/dev/null 2>&1 && pwd)"
+  REAL="$(readlink "$REAL")"
+  case "$REAL" in /*) ;; *) REAL="$d/$REAL" ;; esac
+done
+md_tmp=""
+md_cleanup() {
+  if [ -n "$md_tmp" ]; then rm -f "$md_tmp"; fi
+  md_tmp=""
+}
+md_fail() { # message
+  md_cleanup
+  echo "error: $1; $REAL was left unchanged." >&2
+  exit 1
+}
+# sync.sh sets no other trap, so these replace nothing. If one is ever added,
+# have it remove "$md_tmp" too instead of overwriting these.
+trap md_cleanup EXIT
+trap 'md_cleanup; exit 130' INT
+trap 'md_cleanup; exit 143' TERM
+md_tmp="$(mktemp "$REAL.XXXXXX")" || { md_tmp=""; md_fail "could not create a temp file beside $REAL"; }
+md_writable=1
+if [ -e "$REAL" ]; then
+  # cp -p carries the mode over; a read-only file is made writable for the
+  # rewrite only, and read-only again before the rename.
+  [ -w "$REAL" ] || md_writable=0
+  cp -p "$REAL" "$md_tmp" || md_fail "could not copy $REAL to $md_tmp"
+  chmod u+w "$md_tmp" || md_fail "could not make $md_tmp writable"
+else
+  # A new CLAUDE.md gets the mode a plain redirect would give it.
+  chmod "$(printf '%o' $(( 0666 & ~0$(umask) )))" "$md_tmp" || md_fail "could not set the mode of $md_tmp"
+fi
 case "$marker_state" in
   none)
     # Append (with a separating blank line if the file already has content).
-    [ -s "$GLOBAL_MD" ] && printf '\n' >> "$GLOBAL_MD"
-    cat "$SNIPPET" >> "$GLOBAL_MD"
+    if [ -s "$md_tmp" ]; then
+      printf '\n' >> "$md_tmp" || md_fail "could not write $md_tmp"
+    fi
+    cat "$SNIPPET" >> "$md_tmp" || md_fail "could not write $md_tmp"
     ;;
   pair)
     # Replace the existing managed block with the current snippet.
-    # Write atomically: build the new file next to the real one (a symlinked
-    # CLAUDE.md is resolved first, so the link itself is left alone), copy the
-    # mode onto the temp file, then rename it over the original. Any failure
-    # leaves CLAUDE.md as it was.
-    REAL="$GLOBAL_MD"
-    while [ -h "$REAL" ]; do
-      d="$(cd -P "$(dirname "$REAL")" >/dev/null 2>&1 && pwd)"
-      REAL="$(readlink "$REAL")"
-      case "$REAL" in /*) ;; *) REAL="$d/$REAL" ;; esac
-    done
-    if ! cp -p "$REAL" "$REAL.tmp"; then
-      rm -f "$REAL.tmp"
-      echo "error: could not write $REAL.tmp; $REAL was left unchanged." >&2
-      exit 1
-    fi
-    if ! awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
+    awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
       function emit(   l, r){
         while ((r = (getline l < snip)) > 0) print l
         if (r < 0) { bad = 1; exit 1 }
@@ -194,18 +219,14 @@ case "$marker_state" in
       skip { next }
       { print }
       END { if (bad) exit 1 }
-    ' "$REAL" > "$REAL.tmp"; then
-      rm -f "$REAL.tmp"
-      echo "error: could not rewrite $REAL; it was left unchanged." >&2
-      exit 1
-    fi
-    if ! mv "$REAL.tmp" "$REAL"; then
-      rm -f "$REAL.tmp"
-      echo "error: could not replace $REAL; it was left unchanged." >&2
-      exit 1
-    fi
+    ' "$REAL" > "$md_tmp" || md_fail "could not rewrite $REAL"
     ;;
 esac
+if [ "$md_writable" = 0 ]; then
+  chmod u-w "$md_tmp" || md_fail "could not restore the mode of $md_tmp"
+fi
+mv "$md_tmp" "$REAL" || md_fail "could not replace $REAL"
+md_tmp=""
 
 # 5. Record repo location so the skill can find it later --------------------
 printf '%s\n' "$REPO" > "$CLAUDE_DIR/claude-shared-repo"

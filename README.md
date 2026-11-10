@@ -506,10 +506,15 @@ backs up `settings.json` before merging:
    an error before `~/.claude` is changed (the markers are checked before step 1, and
    with `--pull`, after the pull, by the updated script) and
    leaves the file untouched until you fix them by hand. A missing or unreadable
-   snippet is refused the same way. The block is written to a temp file beside the real file and renamed over it, so
-   a failed write leaves `CLAUDE.md` unchanged, and a symlinked `CLAUDE.md` stays
-   a symlink and keeps its mode. Unlike
-   `settings.json`, `CLAUDE.md` is not backed up first.
+   snippet is refused the same way. Whether the block is appended (the first
+   sync) or replaced (every later one), the new `CLAUDE.md` is written to a
+   fresh temp file beside the real file and renamed over it, so a failed or
+   interrupted write leaves `CLAUDE.md` unchanged and removes the temp file. A
+   symlinked `CLAUDE.md` stays a symlink, and the file keeps its mode, read-only
+   included. The folder holding the real file (for a symlink, the target's
+   folder) must be writable, or `sync.sh` exits 1 and leaves the file unchanged.
+   A hard-linked `CLAUDE.md` is replaced by a new file, so its other names keep
+   the old content. Unlike `settings.json`, `CLAUDE.md` is not backed up first.
 5. Writes `~/.claude/claude-shared-repo` recording this checkout's path.
 
 ### How the merge works
