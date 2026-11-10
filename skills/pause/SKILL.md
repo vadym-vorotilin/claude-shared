@@ -12,8 +12,9 @@ command").
 
 ## Compacting without pausing
 
-A request to compact is not a request to stop. Without "/pause", "drain",
-"wrap up", "stop" or a deadline, use `smart-compact` instead: it writes the
+A request to compact is not a request to stop. Without "pause" or "/pause",
+"drain", "wrap up", "stop", "for today", "heading off", or a deadline, use
+`smart-compact` instead: it writes the
 `/compact` line and stops nothing. If unsure, that is the default — a drain
 cannot be undone.
 

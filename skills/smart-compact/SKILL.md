@@ -15,7 +15,7 @@ that the compacted session still knows what is in flight and how to reach it.
   this skill writes it out; it never claims to have compacted.
 - Helpers are subagents reachable with `SendMessage`; timers are `CronCreate`,
   `ScheduleWakeup` (inside `/loop`), `Monitor`, or a background Bash `sleep`
-  heartbeat. Skip what the session does not use.
+  heartbeat (`cache-warmth`). Skip what the session does not use.
 - A project **handoff** (a `/handoff` skill or a `docs/HANDOFF.md`) and **git**
   are optional.
 
@@ -26,19 +26,27 @@ that the compacted session still knows what is in flight and how to reach it.
 - Push. Commit only what the project already commits (a handoff doc), and only
   if the user's rules allow committing without asking.
 
-If the user also says the work ends ("and stop", "wrap up", "for today", a
-deadline), this is a pause: use `/pause`.
+If the user also says the work ends — "pause" or "/pause", "drain", "wrap up",
+"stop", "for today", "heading off", or a deadline — this is a pause: use
+`/pause`.
 
 ## 1. Read the clock and take inventory
 
 Run `date '+%Y-%m-%d %H:%M %Z'`. Then list what is alive, by named means, not
 from memory — and touch none of it:
 
-- each agent this session launched and has not had a final report from: agent
-  ID or name (what `SendMessage` needs), worktree or branch, what it is doing;
+- each agent with no final report yet: agent ID or name (what `SendMessage`
+  needs), worktree or branch, what it is doing;
 - each background command: task ID, command, log or output path;
 - each timer: `CronList` for crons (with IDs), a `/loop` and its prompt, each
   `Monitor` or heartbeat task ID and what it watches.
+
+Look in this session's own tool calls and, after an earlier compaction, in the
+previous keep text's or summary's running list — a second compaction must not
+drop what the first one carried. Confirm each item by its handle (task status,
+agent output). For a heartbeat or detached process whose launch is out of view,
+`pgrep -fl '<the command it ran>'` (e.g. `'sleep 3000'`); report a hit by PID
+and do not kill it: the pattern can match another session's process.
 
 Found nothing? Say `No agents, jobs or timers running.` — after the check.
 
@@ -72,12 +80,19 @@ of the session, under ~1,500 characters, in this order:
 4. **still running**, every item from step 1 with the handle needed to reach
    it after compaction: agent ID or name and worktree; task ID and log path;
    cron ID; loop prompt; monitor task ID. Add `Do not restart these; wait for
-   their reports.`;
+   their reports.` For a timer, say how it keeps going: `heartbeat <task ID>:
+   re-arm when it fires (cache-warmth)`; `/loop: keep calling ScheduleWakeup
+   with <prompt>`;
 5. next steps, literal and in order — usually what to do when each running
    item reports;
 6. decisions the user made that are not yet written in a file.
 
 Over the limit, shorten the done list first; never drop items 2, 4 or 5.
+
+**The line goes stale.** It is a snapshot, and the session keeps working until
+the user pastes it. If a helper reports, a command ends or a timer fires
+before then and the state changes, end that reply with a refreshed `/compact`
+line and say the earlier one is stale.
 
 ## 4. After the compaction
 
@@ -93,7 +108,7 @@ before re-dispatching anything.
 | "Compaction is cleaner with nothing running" | The user asked to compact, not stop. Leave it all running. |
 | "I'll wait for the agents to finish first" | Don't. The keep text carries them. |
 | "The summary will remember the agent IDs" | Maybe not. The keep text names every handle. |
-| "Nothing's running, I'm fairly sure" | Check with `CronList` and the IDs this session launched. |
+| "Nothing's running, I'm fairly sure" | Check with `CronList`, the IDs this session launched, the last keep text's list, and `pgrep`. |
 | "After compacting I'll re-dispatch the stuck one" | Check its handle first; it may have reported. |
 
 ## Example (fictional)
