@@ -237,14 +237,16 @@ def cmd_batch(a):
         if not f.exists() or digest(load(f)) != h:
             die(f"{f.name} is missing or was changed after build; run build again and upload what it prints")
         ds = state["datasets"].setdefault(k, {})
-        if ds.get("pending") and ds["pending"] != h:
-            die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. If it applied: "
-                f"track.py record DIR {k}-{ds['pending']}.json=<version>; if it was refused or never sent: "
-                f"ArtifactData get it, then track.py record DIR --version-only {k}=<version>")
+        if ds.get("pending") and (ds["pending"] != h or k in a.first):
+            die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. ArtifactData get "
+                f"collection 'datasets' doc_id '{k}'. If it applied: track.py record {a.dir} "
+                f"{k}-{ds['pending']}.json=<version>; if it exists but was not this write: "
+                f"track.py record {a.dir} --version-only {k}=<version>; pass --first only if get finds nothing, "
+                f"after track.py record {a.dir} --version-only {k}=0 clears the pending batch")
         v = ds.get("version")
         if not v and k not in a.first:
             die(f"no version recorded for {k}. If the page already has this dataset, ArtifactData get "
-                f"collection 'datasets' doc_id '{k}', then: track.py record --version-only DIR {k}=<version>. "
+                f"collection 'datasets' doc_id '{k}', then: track.py record {a.dir} --version-only {k}=<version>. "
                 f"Only if it does not exist yet, pass --first {k}.")
         w = {"op": "update" if v else "set", "collection": "datasets", "doc_id": k, "data": {
             "source": {"format": "json", "kind": "file", "name": f"{k}.json", "url": blob},

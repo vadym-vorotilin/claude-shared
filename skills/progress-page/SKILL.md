@@ -84,7 +84,11 @@ the answer must be yes.
    need there comes from `track.py now`. **Never type a time** (hand stamps
    drift by the time-zone offset).
 2. New images first: upload them with `Artifact` publish, `url` = the page,
-   `asset: true`, `file_paths` (up to 25 per call). Pass each result's `url` to
+   `asset: true`, `file_paths` (up to 25 per call; a file outside the working
+   directory, such as a track directory kept out of the repo, goes in a call
+   of its own with `file_path`). If uploads are refused because the page
+   lacks the `assets` capability, follow the type's instructions for adding
+   it, or stop and tell the user. Pass each result's `url` to
    `add-visual`. Thumbnails, not originals: ~1200 px wide JPEG. Never
    embed images as `data:` URIs in a dataset — the file balloons and every
    update re-sends it.
@@ -114,7 +118,10 @@ the pending batch so the next `build` offers that content again. Then
 with its datasets already there): `batch` stops rather than send an unpinned
 write. Get each dataset and `record --version-only` its version. Only for a
 dataset the page does not have yet, add `--first <name>` after the pairs
-(once per dataset); that write is a `set`, which creates it. Pointing `init`
+(the flag once per such dataset); that write is a `set`, which creates it and
+would replace one that exists, so never re-send a `--first` batch: if its
+result was lost, get the dataset and `record` the pending file with the
+version it shows. `batch` refuses a repeat while one is pending. Pointing `init`
 at a different page URL forgets the old page's versions, so its first update
 goes through this step.
 
