@@ -127,13 +127,16 @@ the answer must be yes.
 4. `track.py batch DIR items-<hash>.json=<asset url> ...`, copying the pairs
    `build` printed, prints one `ArtifactData` batch with `if_version` pins and
    fresh stamps (stdout only; hints go to stderr, and the same batch is saved
-   as `out/batch-<stamp>.json` in case the output is lost). Send it as
-   printed (if the output was lost, send the saved file only if the batch
-   was never sent; never send one holding a `--first` set, see "No recorded
-   version" below), then `track.py record DIR
+   as `out/batch-<stamp>.json` for the record). Send it as
+   printed, then `track.py record DIR
    items-<hash>.json=<v> ...` (the same file names) with the versions the
    result returns. Only `record` marks content as live;
-   until then the next `build` offers it again.
+   until then the next `build` offers it again. **If the output or the
+   result is lost**, don't guess and don't re-send: `get` each dataset in
+   the batch and run `track.py resolve DIR <name> --version <v> --url
+   <its source.url>` (or `--missing`). It compares with what the batch sent,
+   records a write that applied, re-arms one that never did, and stops for
+   review when someone else changed or deleted the dataset in between.
 
 **When a pinned write is refused**, someone (often the user) changed that
 dataset on the page. `ArtifactData` `get` it; the rows are in the asset its
@@ -152,12 +155,8 @@ write. Get each dataset and `record --version-only` its version. Only for a
 dataset the page does not have yet, add `--first <name>` after the pairs
 (the flag once per such dataset); that write is a `set`, which creates it and
 would replace one that exists, so never re-send a `--first` batch or its
-saved file. If its result was lost, get every dataset in it and compare its
-`source.url` with the asset url you gave `batch`: the same url means the write
-applied, so `record` that file with the version get shows; another url means
-it didn't, so `record --version-only <name>=<version>`; a dataset still
-missing gets `record --version-only <name>=0`, then `batch --first <name>`
-again. `batch` refuses a repeat while one is pending. Pointing `init`
+saved file; if its result was lost, use `track.py resolve` as above. `batch`
+refuses a repeat while one is pending. Pointing `init`
 at a different page URL forgets the old page's versions, so its first update
 goes through this step.
 

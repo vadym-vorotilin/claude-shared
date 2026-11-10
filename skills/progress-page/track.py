@@ -18,6 +18,8 @@ version is ever typed by hand.
   track.py batch  DIR FILE=BLOB... [--first NAME]...  print the ArtifactData batch for uploaded files
   track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
   track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
+  track.py resolve DIR NAME (--version V --url U | --missing)   settle a pending write whose result was
+                                          lost, from what ArtifactData get shows for NAME
   track.py show   DIR                     print the page URL, versions and pending uploads
   track.py page   DIR (--version V | --new) [--file F]   print the pinned write that installs the page
                                           (F: an edited copy; default this skill's page.html)
@@ -321,11 +323,8 @@ def cmd_batch(a):
         ds = state["datasets"].setdefault(k, {})
         if ds.get("pending") and (ds["pending"] != h or k in a.first or not ds.get("version")):
             die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. ArtifactData get "
-                f"collection 'datasets' doc_id '{k}'. If it applied (its source.url is the asset url that batch "
-                f"sent): track.py record {a.dir} "
-                f"{k}-{ds['pending']}.json=<version>; if it exists but was not this write: "
-                f"track.py record {a.dir} --version-only {k}=<version>; pass --first only if get finds nothing, "
-                f"after track.py record {a.dir} --version-only {k}=0 clears the pending batch")
+                f"collection 'datasets' doc_id '{k}', then: track.py resolve {a.dir} {k} "
+                f"--version <its version> --url <its source.url>, or --missing if get finds nothing")
         v = ds.get("version")
         if not v and k not in a.first:
             die(f"no version recorded for {k}. If the page already has this dataset, ArtifactData get "
@@ -341,7 +340,7 @@ def cmd_batch(a):
         if v:
             w["if_version"] = v
         writes.append(w)
-        ds["pending"] = h
+        ds["pending"], ds["sent"] = h, {"url": blob, "pin": v or None}
     body = {"action": "batch", "url": state["url"], "writes": writes}
     stem = f"batch-{at.replace(':', '')}-" + "-".join(sorted(seen))
     bf, n = out / f"{stem}.json", 2
@@ -352,17 +351,14 @@ def cmd_batch(a):
     print(json.dumps(body, indent=1))
     if any(w["op"] == "set" for w in writes):
         print(f"\nalso saved as {bf}. It holds an unpinned set (--first): never send that file. If this "
-              f"output is lost, get each dataset in it: if its source.url is the asset url you gave here, "
-              f"the write applied: track.py record {a.dir} <its file>=<version>; if it exists with another "
-              f"url: track.py record {a.dir} --version-only <name>=<version>; if it is missing: "
-              f"track.py record {a.dir} --version-only <name>=0, then batch --first <name> again",
-              file=sys.stderr)
+              f"output or its result is lost, get each dataset in it and run track.py resolve {a.dir} <name> "
+              f"--version <v> --url <its source.url> (or --missing)", file=sys.stderr)
     else:
-        print(f"\nalso saved as {bf}; if this output is lost before you sent it, send that file's batch "
-              f"(its pins refuse it if it already applied)", file=sys.stderr)
+        print(f"\nalso saved as {bf}, for the record", file=sys.stderr)
     print(f"after it succeeds: track.py record {a.dir} " +
           " ".join(f"{p.partition('=')[0]}=<its new version>" for p in a.pairs), file=sys.stderr)
-    print("record only the writes the result says applied; for a refused one see SKILL.md", file=sys.stderr)
+    print("record only the writes the result says applied; for a refused one see SKILL.md; if the result "
+          f"is lost, get each dataset and track.py resolve {a.dir} <name> ...", file=sys.stderr)
 
 
 def cmd_record(a):
@@ -389,10 +385,50 @@ def cmd_record(a):
         ds = state["datasets"].setdefault(k, {})
         ds["version"] = v
         ds.pop("pending", None)
+        ds.pop("sent", None)
         if h:
             ds["hash"], ds["at"] = h, now()
     save(st, state)
     print("recorded " + ", ".join(a.pairs) + (" (version only)" if a.version_only else ""))
+
+
+def cmd_resolve(a):
+    _, _, st, _ = paths(a.dir)
+    state = load(st, {"datasets": {}})
+    k = a.name
+    ds = state["datasets"].get(k, {})
+    if not ds.get("pending"):
+        die(f"nothing pending for {k}")
+    sent = ds.get("sent")
+    if not sent:
+        die(f"this pending write predates resolve: find its source.url in the newest out/batch-*.json "
+            f"that writes {k}; if get shows that url, track.py record {a.dir} {k}-{ds['pending']}.json=<v>; "
+            f"otherwise follow SKILL.md's 'When a pinned write is refused'")
+    first, pin = sent["pin"] is None, sent["pin"]
+    review = (f"Follow SKILL.md's 'When a pinned write is refused': read the rows its source.url names, fold a "
+              f"real edit into status.json or ask the user, then track.py record {a.dir} --version-only {k}=<v>")
+    if a.missing:
+        if not first:
+            die(f"{k} was on the page (pinned at {pin}) and is gone: someone deleted it. Ask the user before "
+                f"creating it again; nothing recorded")
+        ds["version"] = 0
+        msg = f"{k}: the --first write never applied; run batch again with --first {k}"
+    elif a.version is None or not a.url:
+        die("give --version and --url from get, or --missing")
+    elif a.url == sent["url"]:
+        ds["version"], ds["hash"], ds["at"] = a.version, ds["pending"], now()
+        msg = f"{k}: the write applied; recorded {k}-{ds['pending']}.json at version {a.version}"
+    elif not first and a.version == pin:
+        msg = f"{k}: the write never applied and nobody changed it; the next build offers it again"
+    elif first:
+        die(f"{k} exists with another url: someone created it after the batch. {review}; nothing recorded")
+    else:
+        die(f"{k} moved from version {pin} to {a.version} with another url: someone changed it. {review}; "
+            f"nothing recorded")
+    ds.pop("pending", None)
+    ds.pop("sent", None)
+    save(st, state)
+    print(msg)
 
 
 def cmd_page(a):
@@ -453,6 +489,9 @@ def main():
     p.add_argument("--first", action="append", default=[], choices=DATASETS); p.set_defaults(f=cmd_batch)
     p = sub.add_parser("record"); p.add_argument("dir"); p.add_argument("pairs", nargs="+")
     p.add_argument("--version-only", action="store_true"); p.set_defaults(f=cmd_record)
+    p = sub.add_parser("resolve"); p.add_argument("dir"); p.add_argument("name", choices=DATASETS)
+    p.add_argument("--version", type=int); p.add_argument("--url"); p.add_argument("--missing", action="store_true")
+    p.set_defaults(f=cmd_resolve)
     a = ap.parse_args()
     a.f(a)
 
