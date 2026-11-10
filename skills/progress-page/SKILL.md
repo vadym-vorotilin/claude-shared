@@ -129,7 +129,8 @@ the answer must be yes.
    fresh stamps (stdout only; hints go to stderr, and the same batch is saved
    as `out/batch-<stamp>.json` in case the output is lost). Send it as
    printed (if the output was lost, send the saved file only if the batch
-   was never sent, and never one holding a `--first` set), then `track.py record DIR
+   was never sent; never send one holding a `--first` set, see "No recorded
+   version" below), then `track.py record DIR
    items-<hash>.json=<v> ...` (the same file names) with the versions the
    result returns. Only `record` marks content as live;
    until then the next `build` offers it again.

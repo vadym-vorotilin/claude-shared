@@ -350,9 +350,9 @@ def cmd_batch(a):
     save(st, state)
     print(json.dumps(body, indent=1))
     if any(w["op"] == "set" for w in writes):
-        print(f"\nalso saved as {bf}. It holds an unpinned set (--first): send it only if this batch was "
-              f"never sent. If you can't tell, get each dataset and record what it shows; never re-send it",
-              file=sys.stderr)
+        print(f"\nalso saved as {bf}. It holds an unpinned set (--first): never send that file. If this "
+              f"output is lost, get each dataset: record what exists; for one still missing, "
+              f"track.py record {a.dir} --version-only <name>=0, then batch --first again", file=sys.stderr)
     else:
         print(f"\nalso saved as {bf}; if this output is lost before you sent it, send that file's batch "
               f"(its pins refuse it if it already applied)", file=sys.stderr)
@@ -398,14 +398,15 @@ def cmd_page(a):
         die("no page url recorded; run track.py init DIR URL")
     if a.version is None and not a.new:
         die("pass --version V, the version ArtifactData get shows for collection 'files' doc_id "
-            "'index.html' (read its text first: replace only the type's starter page or a copy you made, "
-            "never a user's edit unseen), or --new if get finds no such document")
+            "'index.html' (read its text first: replace only the type's starter page; anything else is "
+            "someone's page, so ask first), or --new if get finds no such document")
     src = pathlib.Path(a.file).expanduser().resolve() if a.file else HERE / "page.html"
     if not src.is_file():
         die(f"no page file {src}")
     out.mkdir(exist_ok=True)
-    doc = out / "index.doc.json"
-    save(doc, {"text": src.read_text(), "edit": {"via": "claude", "at": now()}})
+    text = src.read_text()
+    doc = out / f"index-{hashlib.sha256(text.encode()).hexdigest()[:12]}.doc.json"
+    save(doc, {"text": text, "edit": {"via": "claude", "at": now()}})
     w = {"op": "set", "collection": "files", "doc_id": "index.html", "file_path": str(doc)}
     if a.version is not None:
         w["if_version"] = a.version
