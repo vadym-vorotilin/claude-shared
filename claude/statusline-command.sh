@@ -328,12 +328,14 @@ EOF
       seg="${c}100% done"
     else
       seg="${c}${est_pct}%"
-      # A passed ETA is the same clock, in red.
+      # The ETA as time left, counted down from now in whole minutes,
+      # rounded up; a passed one reads "overdue", not in red: an ETA is a guess.
       if [ -n "$est_eta" ]; then
         if [ "$est_eta" -ge "$now" ]; then
-          seg="$seg ≈$(fmt_clock "$est_eta")"
+          left=$(( (est_eta - now + 59) / 60 * 60 )); [ "$left" -ge 60 ] || left=60
+          seg="$seg ~$(fmt_dur "$left")"
         else
-          seg="$seg ${RED}≈$(fmt_clock "$est_eta")${c}"
+          seg="$seg overdue"
         fi
       fi
     fi

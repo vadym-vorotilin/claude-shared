@@ -55,9 +55,9 @@ progress_line() { render | sed -n '3,$p' | grep -v '^⠀$' || true; }
   assert_equal "$(progress_line)" ""
 }
 
-@test "a /progress header renders the percentage and the ETA clock" {
+@test "a /progress header renders the percentage and the time left" {
   assistant_turn "$T0" $'**2026-01-01 00:00 UTC — Progress: 3/5 · ~55% · ETA ~20–30 min**\n- **Now:** x\n- **ETA:** ≈00:25 · medium — y'
-  assert_equal "$(progress_line)" "55% ≈00:25 (5m ago)"
+  assert_equal "$(progress_line)" "55% ~20m (5m ago)"
 }
 
 @test "an /unattended-run stamp counts as an estimate" {
@@ -122,21 +122,21 @@ progress_line() { render | sed -n '3,$p' | grep -v '^⠀$' || true; }
   assert_equal "$(progress_line)" "100% done"
 }
 
-@test "a passed ETA is the same clock, in red, with no countdown" {
+@test "a passed ETA reads overdue, not in red, with no count" {
   assistant_turn "$T0" $'**x — Progress: 1/2 · ~50% · ETA ~2 min**\n- **ETA:** ≈00:02 · high'
-  assert_equal "$(progress_line)" "50% ≈00:02 (5m ago)"
-  assert_contains "$(render_raw)" $'\033[31m≈00:02'
+  assert_equal "$(progress_line)" "50% overdue (5m ago)"
+  assert_contains "$(render_raw)" $'\033[37m50% overdue'
   refute_contains "$(render)" "late"
-  # One still ahead is not red.
+  # One still ahead is not overdue.
   : > "$TR"; rm -f "$(EST_FILE)"
   PROG estimate 50 1/2 00:30
-  refute_contains "$(render_raw)" $'\033[31m≈'
+  refute_contains "$(render)" "overdue"
 }
 
 @test "an ETA past midnight is tomorrow, not 23 hours ago" {
   t=$(( T0 - 600 ))                           # 23:50 the day before
   assistant_turn "$t" $'**x — Progress: 1/2 · ~50% · ETA ~30 min**\n- **ETA:** ≈00:20 · high'
-  assert_equal "$(progress_line)" "50% ≈00:20 (15m ago)"
+  assert_equal "$(progress_line)" "50% ~15m (15m ago)"
 }
 
 @test "an estimate over 4 hours old is hidden; a finished one after 30 min" {
@@ -148,9 +148,11 @@ progress_line() { render | sed -n '3,$p' | grep -v '^⠀$' || true; }
   assert_equal "$(STATUSLINE_NOW=$(( T0 + 1800 )) progress_line)" ""
 }
 
-@test "estimate: a hand-written ETA clock is shown" {
+@test "estimate: a hand-written ETA clock is shown as time left" {
   PROG estimate 40 2/5 00:45
-  assert_equal "$(progress_line)" "40% ≈00:45"
+  assert_equal "$(progress_line)" "40% ~40m"
+  PROG estimate 40 2/5 01:25
+  assert_equal "$(progress_line)" "40% ~1h20m"
 }
 
 @test "estimate rejects a bad percentage" {
@@ -181,7 +183,7 @@ progress_line() { render | sed -n '3,$p' | grep -v '^⠀$' || true; }
   export TZ=Europe/Berlin
   ref=$(date -d '2026-03-29 01:50' +%s)          # CET; 03:20 is CEST, 30 min on
   STATUSLINE_NOW=$ref PROG estimate 50 1/2 03:20
-  assert_equal "$(STATUSLINE_NOW=$ref progress_line)" "50% ≈03:20"
+  assert_equal "$(STATUSLINE_NOW=$ref progress_line)" "50% ~30m"
 }
 
 # -------------------------------------------------------------------- jobs --
@@ -206,7 +208,7 @@ progress_line() { render | sed -n '3,$p' | grep -v '^⠀$' || true; }
 }
 
 @test "run: output and the row stream live, a \\r-only redraw included" {
-  PROG run live -- sh -c 'printf "first 10%%\r"; sleep 3; printf "second 20%%\n"' \
+  PROG run live -- sh -c 'printf "first 10%%\r"; sleep 6; printf "second 20%%\n"' \
     > "$TEST_TMP/live" 3>&- &
   sleep 1.5
   assert_equal "$(cat "$TEST_TMP/live")" "$(printf 'first 10%%\r')"
@@ -685,6 +687,13 @@ task_file() { echo "/tmp/claude-$(id -u)/-demo-proj/$SID/tasks/$1.output"; }
   row_reads "delayed build" "0s"
   printf '\n[killed]\n' >> "$(task_file t6)"
   sleep 2.5
+  # Work on a later line is still work, even after "sleep N && echo".
+  printf 'x\n' > "$(task_file t7)"
+  ml=$(hook_event true t7 "two-line build" | jq -c '.tool_input.command = "sleep 5 && echo\nmake"')
+  printf '%s' "$ml" | bash "$REPO/claude/statusline-progress-hook.sh" > /dev/null
+  row_reads "two-line build" "0s"
+  printf '\n[killed]\n' >> "$(task_file t7)"
+  sleep 2.5
   printf 'x\n' > "$(task_file t5)"
   wl=$(hook_event true t5 "wait for deploy" | jq -c '.tool_input.command = "until test -e done; do sleep 60; done"')
   printf '%s' "$wl" | bash "$REPO/claude/statusline-progress-hook.sh" > /dev/null
@@ -779,14 +788,14 @@ task_file() { echo "/tmp/claude-$(id -u)/-demo-proj/$SID/tasks/$1.output"; }
   PROG job lint done
   run PROG run deploy -- false
   touch -d "@$(( $(date +%s) - 60 ))" "$(JOBS_DIR)/lint" "$(JOBS_DIR)/deploy"
-  assert_equal "$(progress_line)" "60% ≈00:30 · test suite 38% · ✓1 ✗1"
+  assert_equal "$(progress_line)" "60% ~25m · test suite 38% · ✓1 ✗1"
   refute_contains "$(render)" "█"
   refute_contains "$(render)" "3/5"
 }
 
 @test "an estimate alone, and jobs alone, each make the line by themselves" {
   PROG estimate 60 3/5 00:30
-  assert_equal "$(progress_line)" "60% ≈00:30"
+  assert_equal "$(progress_line)" "60% ~25m"
   rm -f "$(EST_FILE)"
   PROG job build 38
   assert_equal "$(progress_line)" "build 38%"
@@ -862,10 +871,11 @@ plant_estimate() { # age pct [eta_epoch]
   plant_estimate 1800 50; assert_contains "$(render_raw)" $'\033[90m50%'
 }
 
-@test "an ETA of exactly now is not red yet" {
+@test "an ETA of exactly now is not overdue yet" {
   plant_setup
-  plant_estimate 0 50 "$NOW"; refute_contains "$(render_raw)" $'\033[31m'
-  plant_estimate 0 50 $(( NOW - 60 )); assert_contains "$(render_raw)" $'\033[31m≈'
+  plant_estimate 0 50 "$NOW"; refute_contains "$(render)" "overdue"
+  assert_contains "$(render)" "50% ~1m"
+  plant_estimate 0 50 $(( NOW - 60 )); assert_contains "$(render)" "50% overdue"
 }
 
 @test "a running row from another pid namespace is not judged by this one's pids" {

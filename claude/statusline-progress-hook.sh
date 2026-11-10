@@ -26,11 +26,13 @@ command -v jq >/dev/null 2>&1 || exit 0
 
 # A bare "sleep N" (a heartbeat or a wake-up timer), followed by nothing
 # but an echo, printf, true or ":", is waiting, not working, so it gets no
-# row. "sleep 5 && make" is work after a delay, and is followed.
+# row. "sleep 5 && make" is work after a delay, and is followed, and so is
+# work on a later line. A "$(...)" inside the echo is not looked into: a
+# heartbeat's own "$(date)" cannot be told from "$(make)".
 row=$(jq -r '
   select(.tool_input.run_in_background == true)
   | select((.tool_input.command // "")
-      | test("^\\s*sleep\\s+[0-9.]+[smhd]?\\s*((;|&&)\\s*(echo|printf|true|:)(\\s[^;&|]*)?)?\\s*$") | not)
+      | test("^\\s*sleep\\s+[0-9.]+[smhd]?\\s*((;|&&)\\s*(echo|printf|true|:)([ \\t][^;&|\\n]*)?)?\\s*$") | not)
   | [ (.tool_response.backgroundTaskId // ""), (.session_id // ""),
       (.transcript_path // ""),
       ((.tool_input.description // "") | if . == "" then "background" else . end) ]

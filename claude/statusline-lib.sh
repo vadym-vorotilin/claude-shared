@@ -278,8 +278,6 @@ local_clock() { # epoch strftime-format -> string
   date -r "$1" "+$2" 2>/dev/null || date -d "@$1" "+$2" 2>/dev/null
 }
 
-fmt_clock() { local_clock "$1" '%H:%M'; } # epoch -> local "HH:MM"
-
 # The epoch of a local date and time, or nothing. BSD date parses with
 # -j -f (given the seconds, or it takes the current ones), GNU with -d.
 local_epoch() { # YYYY-MM-DD HH:MM -> epoch, or nothing
