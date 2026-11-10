@@ -96,6 +96,9 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'hyprctl --batch "keyword general:gaps_in 0; dispatch exit"'
   blocked "systemctl --user kill --signal=KILL '*'"
   blocked "systemctl --user stop '*.service'"
+  blocked 'systemctl --user start exit.target'
+  blocked 'systemctl --user stop graphical-session.target'
+  blocked 'systemctl --user --no-block stop default.target'
 }
 
 @test "hook blocks kill(-1) in inline code" {
@@ -105,6 +108,11 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked "node -e 'process.kill(-1)'"
   blocked "python3 -c 'import subprocess; subprocess.run([\"kill\", \"-9\", \"-1\"])'"
   blocked "python3 -c \"import subprocess; subprocess.run(['kill','-KILL','--','-1'])\""
+  blocked "python3 -c \"import subprocess; subprocess.check_call(('kill','-s','KILL','-1'))\""
+  blocked "python3 -c 'import subprocess; subprocess.run([\"/bin/kill\", \"-9\", \"-1\"])'"
+  blocked "ruby -e 'Process.kill(\"KILL\", -1)'"
+  blocked "perl -e 'kill(9, -1)'"
+  blocked "perl -e 'kill \"KILL\", -1;'"
 }
 
 @test "hook reads pkill and killall options as the tools do, and fails closed" {
@@ -251,6 +259,10 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed "systemctl --user stop 'app-*.scope'"
   allowed 'python3 -c "import os; os.kill(1234, 9)"'
   allowed "python3 -c 'import subprocess; subprocess.run([\"kill\", \"-1\", \"1234\"])'"
+  allowed "ruby -e 'Process.kill(\"TERM\", 1234)'"
+  allowed "perl -e 'kill 9, 1234;'"
+  allowed 'systemctl --user stop app-foo.service'
+  allowed 'systemctl --user start graphical-session.target'
 }
 
 @test "hook reads a long command in time, and still finds a kill at its end" {

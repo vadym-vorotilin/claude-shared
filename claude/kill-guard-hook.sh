@@ -5,9 +5,11 @@
 # Blocked, when they appear literally in the command (any path, e.g. /bin/kill):
 #   - kill with -1 (or -01, ...) among its pids: `kill -9 -1`, `kill -KILL -- -1`,
 #     `kill --signal TERM -1`, `kill -9 1234 -1` (`kill -1 <pid>`, signal 1 to
-#     one pid, and `kill -l -1` are allowed); kill(-1, ...) and
-#     killpg(1, ...) in inline code (os.kill, process.kill), and a kill
-#     argv written as a list: ["kill", "-9", "-1"]
+#     one pid, and `kill -l -1` are allowed), and ' -1' with blanks;
+#     kill(-1, ...) and killpg(1, ...) in inline code (os.kill,
+#     process.kill), kill(SIG, -1) where the signal comes first (Ruby's
+#     Process.kill, Perl's kill), and a kill argv written as a list or a
+#     tuple, with any path: ["/bin/kill", "-9", "-1"]
 #   - pkill / killall with a broad selector and no process name or pattern:
 #     for pkill a user (-u/--euid, -U/--uid), run states (-r), a group (-g,
 #     -G), a session (-s), a terminal (-t), a namespace (--ns), a cgroup or
@@ -23,7 +25,9 @@
 #     anything else is blocked until it is spelled out
 #   - loginctl terminate-/kill- user, session or seat, after options too
 #   - hyprctl dispatch exit (after options, or in --batch), uwsm stop,
-#     systemctl --user exit, systemctl --user kill/stop '*'
+#     systemctl --user exit, systemctl --user kill/stop '*', systemctl
+#     --user start exit.target, systemctl --user stop graphical-session.target
+#     (or default.target)
 # wherever they appear: behind sudo, timeout, env, eval, watch, xargs, inside
 # bash -c '...', $(...), a loop, an if, or { ...; }.
 #
@@ -252,6 +256,8 @@ check_words() {
       systemctl)
         local rest=" ${ws[*]:i+1} "
         [[ $rest == *" --user "* && $rest == *" exit "* ]] && block "systemctl --user exit"
+        # The same by way of a target.
+        [[ $rest == *" --user "* && ( $rest =~ \ (start|isolate)\ (.*\ )?exit\.target\  || $rest =~ \ (stop|kill)\ (.*\ )?(graphical-session|default)\.target\  ) ]] && block "systemctl --user ${BASH_REMATCH[0]}"
         # kill or stop of every user unit: a pattern that is only a glob.
         [[ $rest == *" --user "* && $rest =~ \ (kill|stop)\  && $rest =~ \ \*(\.[a-z]+)?\  ]] && block "systemctl --user kill/stop of every unit ('*')" ;;
     esac
@@ -384,9 +390,12 @@ names_tool "$cmd" || exit 0
 # Inline code: kill(-1, ...) and killpg(1, ...) in any language (os.kill,
 # a bare kill after `from os import kill`, node's process.kill(-1)), and a
 # kill argv written as a list with -1 after the signal: ["kill", "-9", "-1"].
-re_fn='kill\([[:space:]]*-0*1[[:space:]]*[,)]|killpg\([[:space:]]*0*1[[:space:]]*[,)]'
+# Languages that put the signal first: Ruby's Process.kill("KILL", -1),
+# Perl's kill(9, -1) and kill 'KILL', -1.
+re_fn='kill\([[:space:]]*-0*1[[:space:]]*[,)]|killpg\([[:space:]]*0*1[[:space:]]*[,)]|kill(\(|[[:space:]]+)[^;(),]{1,32}(,[^;(),]{0,32}){0,4},[[:space:]]*-0*1[[:space:]]*[,;)]'
 # Bounded, so the match costs the length of the text, not its square.
-re_argv='["'\'']kill["'\''][[:space:]]{0,4},([^],]{0,32},){1,4}[[:space:]]{0,4}["'\'']-0*1["'\''][[:space:]]{0,4}[],]'
+# A list or a tuple, and any path: ("/bin/kill", "-s", "KILL", "-1").
+re_argv='["'\''][^"'\'', ]{0,32}kill["'\''][[:space:]]{0,4},([^],)]{0,32},){1,4}[[:space:]]{0,4}["'\'']-0*1["'\''][[:space:]]{0,4}[],)]'
 if [[ $cmd == *kill* ]] && [[ $cmd =~ $re_fn || ( $cmd == *kill[\"\']* && $cmd =~ $re_argv ) ]]; then
   block "kill(-1) / killpg(1) in inline code"
 fi

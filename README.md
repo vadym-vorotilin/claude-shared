@@ -347,8 +347,11 @@ before it runs and blocks it (exit 2, with the reason shown to the agent) when
 it would:
 
 - **send to pid -1**: `kill -9 -1`, `kill -KILL -- -1`, `kill -s TERM -1`,
-  `kill -9 1234 -1`, `kill -- -01`, or `os.kill(-1, …)` / `os.killpg(1, …)`
-  in inline Python;
+  `kill -9 1234 -1`, `kill -- -01`, `kill -9 ' -1'`; in inline code,
+  `kill(-1, …)` / `killpg(1, …)` (Python's `os.kill`, node's
+  `process.kill`), `kill(SIG, -1)` where the signal comes first (Ruby's
+  `Process.kill`, Perl's `kill`), or a kill argv as a list or tuple with any
+  path (`["/bin/kill", "-9", "-1"]`);
 - **match every process of a user, or similar, with no process name**:
   - for `pkill`: a user (`-u`/`--euid`, `-U`/`--uid`), run states (`-r`), a
     group (`-g`, `-G`), a session (`-s`), a terminal (`-t`), a namespace
@@ -369,8 +372,11 @@ it would:
   option tables come from the `--help` of procps-ng 4.0.7 `pkill` and psmisc
   23.7 `killall`;
 - **end the session**: `loginctl terminate-user|session|seat` and
-  `kill-user|session|seat`, `hyprctl dispatch exit`, `uwsm stop`,
-  `systemctl --user exit`.
+  `kill-user|session|seat` (after options too), `hyprctl dispatch exit`
+  (after options, or inside `hyprctl --batch`), `uwsm stop`,
+  `systemctl --user exit`, `systemctl --user start exit.target`,
+  `systemctl --user stop graphical-session.target` (or `default.target`), and
+  `systemctl --user kill|stop '*'`.
 
 It finds these wherever they sit on the line: behind `sudo`, `timeout`, `env`,
 `eval`, `watch` or `xargs`, inside `bash -c '…'`, `$(…)`, a loop, an `if`, or
