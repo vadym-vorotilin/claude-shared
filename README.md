@@ -514,7 +514,7 @@ backs up `settings.json` before merging:
    `CLAUDE.md.XXXXXX` file beside the real file (for a symlink, beside the
    target), and it can be deleted safely. A symlinked `CLAUDE.md` stays a
    symlink, and the file keeps its mode, read-only included, even when
-   `sync.sh` runs as root. The new file is owned by the user who ran `sync.sh`.
+   `sync.sh` runs as root. Run as a regular user, the new file is owned by that user; run as root, it keeps the original file's owner and group. A new CLAUDE.md is owned by whoever ran `sync.sh`.
    The folder holding the real file (for a symlink, the target's
    folder) must be writable, or `sync.sh` exits 1 and leaves the file unchanged.
    A hard-linked `CLAUDE.md` is replaced by a new file, so its other names keep
