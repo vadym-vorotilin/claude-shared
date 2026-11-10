@@ -14,16 +14,19 @@ version is ever typed by hand.
   track.py add-item   DIR ID PHASE NAME [--ref R] [--state S] [--stage S]
   track.py add-visual DIR TITLE CAPTION IMG_URL [--item ID]
   track.py build  DIR                     check status.json, write out/<name>-<hash>.json for changes
-  track.py batch  DIR FILE=BLOB... [--first NAME...]   print the ArtifactData batch for uploaded files
-  track.py record DIR NAME=VERSION... [--version-only] store versions the batch result returned
+  track.py batch  DIR FILE=BLOB... [--first NAME]...  print the ArtifactData batch for uploaded files
+  track.py record DIR FILE=VERSION...     confirm applied writes: FILE as batch was given it
+  track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
   track.py show   DIR                     print the page URL, versions and pending uploads
 
 State lives in DIR/track-state.json, per dataset: `hash` (content the page
 shows), `version` (the dataset document's version), `pending` (content sent in
-the last printed batch, not yet confirmed by `record`).
+the last printed batch, not yet confirmed by `record`). One batch per dataset
+may be pending at a time.
 
 Assumed write shape (from the Data type as first used): collection "datasets",
-doc_id = dataset name, fields source/updated/edit. If the type's own
+doc_id = dataset name, fields source/updated/edit; `update` for an existing
+document, `set` (which creates) for a --first one. If the type's own
 instructions name a different shape, stop and report it; don't hand-edit.
 """
 import argparse, datetime, hashlib, json, pathlib, re, shutil, sys
@@ -31,7 +34,7 @@ import argparse, datetime, hashlib, json, pathlib, re, shutil, sys
 DATASETS = ("track", "phases", "items", "log", "visuals")
 STATES = ("done", "review", "building", "queued", "blocked", "cut")
 HERE = pathlib.Path(__file__).resolve().parent
-BLOB = re.compile(r"^(/_blob/[A-Za-z0-9_-]+|https://\S+)$")
+BLOB = re.compile(r"^(/_blob/\S+|https://\S+)$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
 
@@ -120,6 +123,9 @@ def cmd_init(a):
         shutil.copy(HERE / "status.example.json", sp)
         print(f"wrote {sp} from the FICTIONAL example: replace all of it; build refuses it until then")
     state = load(st, {})
+    if state.get("url") and state["url"] != a.url and state.get("datasets"):
+        print(f"new page (was {state['url']}): forgetting the old page's versions and hashes")
+        state["datasets"] = {}
     state["url"] = a.url
     state.setdefault("datasets", {})
     save(st, state)
@@ -231,12 +237,16 @@ def cmd_batch(a):
         if not f.exists() or digest(load(f)) != h:
             die(f"{f.name} is missing or was changed after build; run build again and upload what it prints")
         ds = state["datasets"].setdefault(k, {})
+        if ds.get("pending") and ds["pending"] != h:
+            die(f"an earlier batch for {k} ({k}-{ds['pending']}.json) is unconfirmed. If it applied: "
+                f"track.py record DIR {k}-{ds['pending']}.json=<version>; if it was refused or never sent: "
+                f"ArtifactData get it, then track.py record DIR --version-only {k}=<version>")
         v = ds.get("version")
         if not v and k not in a.first:
             die(f"no version recorded for {k}. If the page already has this dataset, ArtifactData get "
                 f"collection 'datasets' doc_id '{k}', then: track.py record --version-only DIR {k}=<version>. "
                 f"Only if it does not exist yet, pass --first {k}.")
-        w = {"op": "update", "collection": "datasets", "doc_id": k, "data": {
+        w = {"op": "update" if v else "set", "collection": "datasets", "doc_id": k, "data": {
             "source": {"format": "json", "kind": "file", "name": f"{k}.json", "url": blob},
             "updated": {"at": at, "by": "Claude"},
             "edit": {"via": "claude", "at": at},
@@ -248,23 +258,36 @@ def cmd_batch(a):
     save(st, state)
     print(json.dumps({"action": "batch", "url": state["url"], "writes": writes}, indent=1))
     print(f"\nafter it succeeds: track.py record {a.dir} " +
-          " ".join(f"{w['doc_id']}=<its new version>" for w in writes), file=sys.stderr)
+          " ".join(f"{p.partition('=')[0]}=<its new version>" for p in a.pairs), file=sys.stderr)
+    print("record only the writes the result says applied; for a refused one see SKILL.md", file=sys.stderr)
 
 
 def cmd_record(a):
     _, _, st, _ = paths(a.dir)
     state = load(st, {"datasets": {}})
+    todo = []
     for pair in a.pairs:
-        k, _, v = pair.partition("=")
-        if k not in DATASETS or not v.isdigit():
-            die(f"bad pair {pair!r}: want NAME=VERSION with NAME in {', '.join(DATASETS)}")
+        key, _, v = pair.partition("=")
+        if not v.isdigit():
+            die(f"bad pair {pair!r}: the version must be a number")
+        if a.version_only:
+            if key not in DATASETS:
+                die(f"bad pair {pair!r}: want NAME=VERSION with NAME in {', '.join(DATASETS)}")
+            todo.append((key, None, int(v)))
+            continue
+        m = re.fullmatch(r"([a-z]+)-([0-9a-f]{12})\.json", pathlib.Path(key).name)
+        if not m or m.group(1) not in DATASETS:
+            die(f"bad pair {pair!r}: want <name>-<hash>.json=VERSION, the file the batch sent")
+        k, h = m.groups()
+        if state["datasets"].get(k, {}).get("pending") != h:
+            die(f"{key} is not the pending batch for {k}; nothing recorded")
+        todo.append((k, h, int(v)))
+    for k, h, v in todo:
         ds = state["datasets"].setdefault(k, {})
-        ds["version"] = int(v)
-        if not a.version_only:
-            if "pending" not in ds:
-                die(f"{k}: no batch is pending; to store a version you read, use --version-only")
-            ds["hash"] = ds.pop("pending")
-            ds["at"] = now()
+        ds["version"] = v
+        ds.pop("pending", None)
+        if h:
+            ds["hash"], ds["at"] = h, now()
     save(st, state)
     print("recorded " + ", ".join(a.pairs) + (" (version only)" if a.version_only else ""))
 
@@ -295,7 +318,7 @@ def main():
     for name, f in (("build", cmd_build), ("show", cmd_show)):
         p = sub.add_parser(name); p.add_argument("dir"); p.set_defaults(f=f)
     p = sub.add_parser("batch"); p.add_argument("dir"); p.add_argument("pairs", nargs="+")
-    p.add_argument("--first", nargs="+", default=[], choices=DATASETS); p.set_defaults(f=cmd_batch)
+    p.add_argument("--first", action="append", default=[], choices=DATASETS); p.set_defaults(f=cmd_batch)
     p = sub.add_parser("record"); p.add_argument("dir"); p.add_argument("pairs", nargs="+")
     p.add_argument("--version-only", action="store_true"); p.set_defaults(f=cmd_record)
     a = ap.parse_args()

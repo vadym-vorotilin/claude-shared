@@ -21,7 +21,8 @@ a lookalike.
    must outlive the session. Ask only if the project has no obvious place.
    The directory holds the private page's whole content and its URL: in a
    public repo (`gh repo view --json visibility`), add it to `.gitignore` or
-   keep it outside the repo unless the user says it may be published.
+   keep it outside the repo unless the user says it may be published. If you
+   can't confirm the repo is private, treat it as public.
 2. **Create the page.** `Artifact` `action: "quickstart"`, `intent: "other"`;
    publish with the Data `type_url` it names, a `title` (the track's own name,
    e.g. "Tidewater Beta Track"), and no `auto_open` (the first writes are
@@ -55,7 +56,8 @@ a lookalike.
    base) comes from a dataset, so the page itself is never republished for a
    status change.
 5. Do the first update (below), then give the user the link.
-6. **Record it in the handoff** (`/handoff`, or the session's notes): page URL,
+6. **Record it in the handoff** (`/handoff`, or the session's notes; leave
+   the URL out of a handoff that is committed to a public repo): page URL,
    track directory, and that `track.py show DIR` prints the versions. A later
    session picks the page up from there.
 
@@ -93,21 +95,28 @@ the answer must be yes.
    uploaded file, so an event that lands mid-update can't slip through.
 4. `track.py batch DIR items-<hash>.json=<asset url> ...`, copying the pairs
    `build` printed, prints one `ArtifactData` batch with `if_version` pins and
-   fresh stamps. Send it as printed, then `track.py record DIR items=<v> ...`
-   with the versions the result returns. Only `record` marks content as live;
+   fresh stamps. Send it as printed, then `track.py record DIR
+   items-<hash>.json=<v> ...` (the same file names) with the versions the
+   result returns. Only `record` marks content as live;
    until then the next `build` offers it again.
 
 **When a pinned write is refused**, someone (often the user) changed that
 dataset on the page. `ArtifactData` `get` it and look at what changed. If it
 is a real edit (a renamed item, a moved date), fold it into `status.json` or
-ask the user; never overwrite it unseen. Then `track.py record --version-only
-DIR <name>=<version it shows>` (this keeps the pending content unconfirmed),
+ask the user; never overwrite it unseen. Then, for each write in that batch:
+a write the result reports as applied gets a plain `record` with its new
+version; a refused one, or every one if the batch was all-or-nothing, gets
+`track.py record DIR --version-only <name>=<version get shows>`, which drops
+the pending batch so the next `build` offers that content again. Then
 `build`, upload and `batch` again.
 
 **No recorded version** (a lost `track-state.json`, or a page the type created
 with its datasets already there): `batch` stops rather than send an unpinned
-write. Get each dataset and `record --version-only` its version. Pass
-`--first <name>` only for a dataset the page does not have yet.
+write. Get each dataset and `record --version-only` its version. Only for a
+dataset the page does not have yet, add `--first <name>` after the pairs
+(once per dataset); that write is a `set`, which creates it. Pointing `init`
+at a different page URL forgets the old page's versions, so its first update
+goes through this step.
 
 **Page code changes** are rare: re-read the stored page with `Artifact`
 `read` first — the user may have edited it — and build on that copy.
