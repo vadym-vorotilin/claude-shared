@@ -228,6 +228,102 @@ file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
   [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
 }
 
+# An mv shim that fails only when moving a CLAUDE.md temp file.
+make_failing_mv() {
+  mkdir -p "$TEST_TMP/bin"
+  real_mv="$(command -v mv)"
+  {
+    echo '#!/bin/sh'
+    echo 'for a in "$@"; do case "$a" in *CLAUDE.md.tmp) exit 1 ;; esac; done'
+    echo "exec \"$real_mv\" \"\$@\""
+  } > "$TEST_TMP/bin/mv"
+  chmod +x "$TEST_TMP/bin/mv"
+}
+
+@test "a failing write-back is an error, CLAUDE.md is byte-identical and no .tmp is left" {
+  run_sync
+  printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" 'BOTTOM' > "$HOME/.claude/CLAUDE.md"
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  make_failing_mv
+  PATH="$TEST_TMP/bin:$PATH" run bash "$REPO/sync.sh"
+  assert_equal "$status" 1
+  refute_contains "$output" "Synced"
+  assert_contains "$output" "CLAUDE.md"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
+  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+}
+
+@test "a failing write-back through a symlink leaves the target and no .tmp" {
+  mkdir -p "$HOME/.claude" "$TEST_TMP/dotfiles"
+  printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" > "$TEST_TMP/dotfiles/CLAUDE.md"
+  ln -s "$TEST_TMP/dotfiles/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+  cp "$TEST_TMP/dotfiles/CLAUDE.md" "$TEST_TMP/before"
+  make_failing_mv
+  PATH="$TEST_TMP/bin:$PATH" run bash "$REPO/sync.sh"
+  assert_equal "$status" 1
+  refute_contains "$output" "Synced"
+  assert_symlink "$HOME/.claude/CLAUDE.md"
+  cmp "$TEST_TMP/dotfiles/CLAUDE.md" "$TEST_TMP/before" || fail "target was modified"
+  [ ! -e "$TEST_TMP/dotfiles/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+}
+
+@test "an unreadable snippet during the replace is an error, not an emptied block" {
+  run_sync
+  printf '%s\n' 'TOP' "$MD_START" 'stale' "$MD_END" 'BOTTOM' > "$HOME/.claude/CLAUDE.md"
+  cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
+  mkdir -p "$TEST_TMP/bin"
+  real_awk="$(command -v awk)"
+  # Point the replace pass's snippet at a missing file, as if it vanished after the preflight.
+  {
+    echo '#!/bin/sh'
+    echo 'for a in "$@"; do'
+    echo '  case "$a" in snip=*) a="snip=/nonexistent/snippet" ;; esac'
+    echo '  set -- "$@" "$a"; shift'
+    echo 'done'
+    echo "exec \"$real_awk\" \"\$@\""
+  } > "$TEST_TMP/bin/awk"
+  chmod +x "$TEST_TMP/bin/awk"
+  PATH="$TEST_TMP/bin:$PATH" run bash "$REPO/sync.sh"
+  assert_equal "$status" 1
+  refute_contains "$output" "Synced"
+  cmp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before" || fail "CLAUDE.md was modified"
+  [ ! -e "$HOME/.claude/CLAUDE.md.tmp" ] || fail "left a .tmp file behind"
+}
+
+# A checkout with a local bare origin, one commit behind it.
+make_pull_fixture() {
+  mkdir -p "$TEST_TMP/seed"
+  cp -R "$REPO/claude" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/seed/"
+  git -C "$TEST_TMP/seed" init -q
+  git -C "$TEST_TMP/seed" add -A
+  git -C "$TEST_TMP/seed" commit -q -m seed
+  git clone -q --bare "$TEST_TMP/seed" "$TEST_TMP/origin.git"
+  git clone -q "$TEST_TMP/origin.git" "$TEST_TMP/clone"
+}
+
+@test "--pull pulls first, then deploys the pulled snippet" {
+  make_pull_fixture
+  echo 'PULLED SNIPPET LINE' >> "$TEST_TMP/seed/claude/CLAUDE.snippet.md"
+  git -C "$TEST_TMP/seed" commit -q -am up
+  git -C "$TEST_TMP/seed" push -q "$TEST_TMP/origin.git" HEAD:main
+  run bash "$TEST_TMP/clone/sync.sh" --pull
+  assert_equal "$status" 0
+  assert_contains "$(cat "$HOME/.claude/CLAUDE.md")" "PULLED SNIPPET LINE"
+  assert_contains "$output" "Synced"
+}
+
+@test "--pull checks the pulled snippet, so a snippet removed upstream changes nothing" {
+  make_pull_fixture
+  git -C "$TEST_TMP/seed" rm -q claude/CLAUDE.snippet.md
+  git -C "$TEST_TMP/seed" commit -q -m drop
+  git -C "$TEST_TMP/seed" push -q "$TEST_TMP/origin.git" HEAD:main
+  run bash "$TEST_TMP/clone/sync.sh" --pull
+  assert_equal "$status" 1
+  assert_contains "$output" "snippet"
+  [ ! -e "$HOME/.claude/settings.json" ] || fail "settings.json was written"
+  [ ! -e "$HOME/.claude/statusline-command.sh" ] || fail "status line was deployed"
+}
+
 @test "a missing snippet refuses before changing anything and keeps the block" {
   run_sync
   cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"

@@ -41,6 +41,16 @@ CLAUDE_DIR="$HOME/.claude"
 
 log() { printf '  \033[36m›\033[0m %s\n' "$1"; }
 
+# --pull: update the checkout first, then re-run the updated script without
+# --pull (so it cannot loop), so every check below is the pulled script's and
+# looks at the pulled snippet.
+if [ "${1:-}" = "--pull" ]; then
+  shift
+  log "git pull in $REPO"
+  git -C "$REPO" pull --ff-only
+  exec bash "$REPO/sync.sh" "$@"
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "error: jq is required (used to merge settings.json). Install it and re-run." >&2
   exit 1
@@ -73,22 +83,17 @@ if [ -f "$GLOBAL_MD" ]; then
   ' "$GLOBAL_MD")"
 fi
 if [ ! -f "$SNIPPET" ] || [ ! -r "$SNIPPET" ]; then
-  echo "error: snippet $SNIPPET is missing or unreadable; nothing was changed." >&2
+  echo "error: snippet $SNIPPET is missing or unreadable; ~/.claude was not changed." >&2
   exit 1
 fi
 case "$marker_state" in
   none|pair) ;;
   *)
     echo "error: $GLOBAL_MD has malformed claude-shared markers: $marker_state." >&2
-    echo "Fix the markers by hand (one START line, then one END line), then re-run. Nothing was changed." >&2
+    echo "Fix the markers by hand (one START line, then one END line), then re-run. ~/.claude was not changed." >&2
     exit 1
     ;;
 esac
-
-if [ "${1:-}" = "--pull" ]; then
-  log "git pull in $REPO"
-  git -C "$REPO" pull --ff-only
-fi
 
 mkdir -p "$CLAUDE_DIR/skills"
 
@@ -162,21 +167,43 @@ case "$marker_state" in
     ;;
   pair)
     # Replace the existing managed block with the current snippet.
-    awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
-      function emit(   l){ while ((getline l < snip) > 0) print l; close(snip) }
+    # Write atomically: build the new file next to the real one (a symlinked
+    # CLAUDE.md is resolved first, so the link itself is left alone), copy the
+    # mode onto the temp file, then rename it over the original. Any failure
+    # leaves CLAUDE.md as it was.
+    REAL="$GLOBAL_MD"
+    while [ -h "$REAL" ]; do
+      d="$(cd -P "$(dirname "$REAL")" >/dev/null 2>&1 && pwd)"
+      REAL="$(readlink "$REAL")"
+      case "$REAL" in /*) ;; *) REAL="$d/$REAL" ;; esac
+    done
+    if ! cp -p "$REAL" "$REAL.tmp"; then
+      rm -f "$REAL.tmp"
+      echo "error: could not write $REAL.tmp; $REAL was left unchanged." >&2
+      exit 1
+    fi
+    if ! awk -v start="$START" -v end="$END" -v snip="$SNIPPET" '
+      function emit(   l, r){
+        while ((r = (getline l < snip)) > 0) print l
+        if (r < 0) { bad = 1; exit 1 }
+        close(snip)
+      }
       { line = $0; sub(/\r$/, "", line) }
       line == start { emit(); skip = 1; next }
       skip && line == end { skip = 0; next }
       skip { next }
       { print }
-    ' "$GLOBAL_MD" > "$GLOBAL_MD.tmp" || {
-      rm -f "$GLOBAL_MD.tmp"
-      echo "error: could not rewrite $GLOBAL_MD; it was left unchanged." >&2
+      END { if (bad) exit 1 }
+    ' "$REAL" > "$REAL.tmp"; then
+      rm -f "$REAL.tmp"
+      echo "error: could not rewrite $REAL; it was left unchanged." >&2
       exit 1
-    }
-    # Write back through the file (not mv) so a symlinked CLAUDE.md stays a
-    # symlink and the file keeps its mode.
-    cat "$GLOBAL_MD.tmp" > "$GLOBAL_MD" && rm -f "$GLOBAL_MD.tmp"
+    fi
+    if ! mv "$REAL.tmp" "$REAL"; then
+      rm -f "$REAL.tmp"
+      echo "error: could not replace $REAL; it was left unchanged." >&2
+      exit 1
+    fi
     ;;
 esac
 

@@ -503,10 +503,12 @@ backs up `settings.json` before merging:
    is ever changed** — the rest of your `CLAUDE.md` is left alone. If you don't
    have a `CLAUDE.md`, one is created with just that block. If the markers are
    malformed (only one of them, duplicated, or out of order), `sync.sh` exits with
-   an error before changing anything (the markers are checked before step 1) and
+   an error before `~/.claude` is changed (the markers are checked before step 1, and
+   with `--pull`, after the pull, by the updated script) and
    leaves the file untouched until you fix them by hand. A missing or unreadable
-   snippet is refused the same way. The block is rewritten in place, so a
-   symlinked `CLAUDE.md` stays a symlink and keeps its mode. Unlike
+   snippet is refused the same way. The block is written to a temp file beside the real file and renamed over it, so
+   a failed write leaves `CLAUDE.md` unchanged, and a symlinked `CLAUDE.md` stays
+   a symlink and keeps its mode. Unlike
    `settings.json`, `CLAUDE.md` is not backed up first.
 5. Writes `~/.claude/claude-shared-repo` recording this checkout's path.
 
