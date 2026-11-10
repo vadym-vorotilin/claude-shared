@@ -45,8 +45,10 @@ Look in this session's own tool calls and, after an earlier compaction, in the
 previous keep text's or summary's running list — a second compaction must not
 drop what the first one carried. Confirm each item by its handle (task status,
 agent output). For a heartbeat or detached process whose launch is out of view,
-`pgrep -fl '<the command it ran>'` (e.g. `'sleep 3000'`); report a hit by PID
-and do not kill it: the pattern can match another session's process.
+`pgrep -fl '<the command it ran>'` (e.g. `'sleep 3000'`); list a hit as
+`unconfirmed PID <n>` and do not kill it: the pattern can match another
+session's process, and a process with no task ID never notifies this session,
+so it does not count as this session's heartbeat.
 
 Found nothing? Say `No agents, jobs or timers running.` — after the check.
 
@@ -80,9 +82,13 @@ of the session, under ~1,500 characters, in this order:
 4. **still running**, every item from step 1 with the handle needed to reach
    it after compaction: agent ID or name and worktree; task ID and log path;
    cron ID; loop prompt; monitor task ID. Add `Do not restart these; wait for
-   their reports.` For a timer, say how it keeps going: `heartbeat <task ID>:
-   re-arm when it fires (cache-warmth)`; `/loop: keep calling ScheduleWakeup
-   with <prompt>`;
+   their reports.` For a timer, say how it keeps going. A heartbeat gets a new
+   task ID each time it is re-armed, so carry it by its command and armed
+   time: `heartbeat (<command>, armed <time>): re-arm when it fires, only if no
+   other heartbeat task of this session is running (cache-warmth)`. No
+   heartbeat confirmed by task ID while work is running: `no heartbeat
+   confirmed: arm one (cache-warmth)`. For a loop: `/loop: keep calling
+   ScheduleWakeup with <prompt>`;
 5. next steps, literal and in order — usually what to do when each running
    item reports;
 6. decisions the user made that are not yet written in a file.
@@ -91,8 +97,9 @@ Over the limit, shorten the done list first; never drop items 2, 4 or 5.
 
 **The line goes stale.** It is a snapshot, and the session keeps working until
 the user pastes it. If a helper reports, a command ends or a timer fires
-before then and the state changes, end that reply with a refreshed `/compact`
-line and say the earlier one is stale.
+before then and the state changes — a re-armed heartbeat counts, since its
+task ID changed — end that reply with a refreshed `/compact` line and say the
+earlier one is stale.
 
 ## 4. After the compaction
 
