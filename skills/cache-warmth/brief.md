@@ -13,5 +13,5 @@ cost of a cache read. So:
 - Never fire `run_in_background` and then wait on it blind, and never arm the
   `Monitor` tool.
 - Use a long Bash timeout (`timeout: 600000`) as a ceiling for a runaway
-  command, never as a poll cadence. It cannot keep a call in the foreground past
-  180 seconds, so anything longer runs detached.
+  command, never as a poll cadence. It may not keep a call in the foreground past
+  180 seconds, so anything that may not finish within 170 seconds runs detached.

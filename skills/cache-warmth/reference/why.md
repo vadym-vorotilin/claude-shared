@@ -56,9 +56,11 @@ first agent still has to wait for the result, and waiting is the thing that
 costs. An agent that kept taking turns across a long run paid none of it, which
 is what makes this a briefing choice rather than a fact of life.
 
-So the rule is **poll, do not block**: anything expected to outlast the cache
-runs detached and is polled on a short cadence, and anything shorter blocks as
-before. A poll turn costs one cache read; a blocked wait costs a full rewrite,
+So the rule is **poll, do not block**: anything that may not finish within 170
+seconds runs detached and is polled on a short cadence, and anything shorter
+blocks as before. The threshold sits under the cache's five minutes because
+Claude Code moves a capped subagent's foreground call to the background at 180
+seconds (see SKILL.md). A poll turn costs one cache read; a blocked wait costs a full rewrite,
 which is more than an order of magnitude dearer at the context a long-running agent
 reaches. Polling also detects the stall the ban was written to prevent — a
 poll that stops coming back is a stall, visible in minutes rather than at the

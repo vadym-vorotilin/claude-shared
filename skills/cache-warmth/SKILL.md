@@ -55,15 +55,16 @@ timeout 170 bash -c 'until grep -qE "<done marker>" <log>; do sleep 15; done'; t
 - **What stays banned is unpolled backgrounding** — `run_in_background` followed
   by a blind wait, or a `Monitor` armed and waited on.
 - **Keep the bound under three minutes.** Claude Code (2.1.322) moves the
-  foreground Bash call of a background subagent on the five-minute cache, in an
-  interactive session, to the background after 180 seconds, whatever its
+  foreground Bash call of a background subagent on the five-minute cache,
+  outside a headless `claude -p` run, to the background after 180 seconds, whatever its
   `timeout`. The agent is then told to wait for a notification, which is the
   blind wait banned above. A foreground subagent, a subagent whose own cache is
   an hour, and the subagents of a headless `claude -p` run are exempt; poll
   under three minutes anyway, since the five-minute cache sets the bound.
 - Set a long Bash timeout (e.g. `timeout: 600000`) as a ceiling for a runaway
   command, never a poll cadence. In a capped subagent it cannot hold a command
-  in the foreground past 180 seconds, so anything longer runs detached.
+  in the foreground past 180 seconds, so anything that may not finish within
+  170 seconds runs detached.
 
 ## Briefing a subagent
 
@@ -130,8 +131,9 @@ The form is chosen against these alternatives:
 
 ## Red flags
 
-- A brief that lets an agent **block** on a command expected to outlast its
-  five-minute cache — the next turn rewrites the whole context at the write rate
+- A brief that lets an agent **block** on a command that may not finish within
+  170 seconds — past the 180-second cap it is left in a blind wait, and past its
+  five-minute cache the next turn rewrites the whole context at the write rate
 - A poll form given as an example with no maximum — the bound gets stretched
   toward the Bash timeout to save turns; say "every poll call returns in
   under three minutes"
