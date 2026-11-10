@@ -239,18 +239,20 @@ check_words() {
     case ${ws[i]} in *kill|*killall|*killall5|*loginctl|*hyprctl|*uwsm|*systemctl) ;; *) continue ;; esac
     w=${ws[i]}; [ ${#w} -gt 12 ] && w=${w: -12}
     w=${w#\\}; base=${w##*/}
-    # The words after kill, pkill or killall are its arguments, not a
-    # command, so the first one ends the search: checking each kill word
-    # against every word after it costs the square of the line. The others
-    # search the rest of the command, so the first of each is enough (its
-    # rest holds every later one's). hyprctl dispatch exec and uwsm app run
-    # a command, so the search goes on past them.
+    # Each tool is checked at its first word only: checking every one
+    # against all the words after it costs the square of the line, and the
+    # first one's rest holds every later one's. The search goes on past it,
+    # because the word may be an option's value, not the command
+    # (`timeout -s kill 5 pkill -u me`), and hyprctl dispatch exec and uwsm
+    # app run a command.
+    [[ $seen == *" $base "* ]] && continue
+    seen+=" $base "
     case $base in
-      loginctl|hyprctl|systemctl) [[ $seen == *" $base"* ]] && continue; seen+=" $base"; rest=" ${ws[*]:i+1} " ;;
+      loginctl|hyprctl|systemctl) rest=" ${ws[*]:i+1} " ;;
     esac
     case $base in
-      kill) check_kill "${ws[@]:i+1}"; return ;;
-      pkill|killall) check_pkill "$base" "${ws[@]:i+1}"; return ;;
+      kill) check_kill "${ws[@]:i+1}" ;;
+      pkill|killall) check_pkill "$base" "${ws[@]:i+1}" ;;
       killall5) block killall5 ;;
       # The verb may come after options (loginctl --no-ask-password
       # terminate-user, hyprctl -i 0 dispatch exit), so the rest of the

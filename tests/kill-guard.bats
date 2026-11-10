@@ -42,6 +42,12 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'sudo kill -9 -1'
   blocked 'sudo -u root kill -9 -1'
   blocked 'timeout -s KILL 5 kill -9 -1'
+  # kill as an option's value, not the command.
+  blocked 'timeout -s kill 5 pkill -u me'
+  blocked 'timeout --signal kill 5 pkill -u me'
+  blocked 'timeout -s kill 5 loginctl terminate-user me'
+  blocked 'timeout -s kill 5 systemctl --user exit'
+  blocked 'timeout -s kill 5 kill -9 -1'
   blocked 'env FOO=1 kill -9 -1'
   blocked "bash -c 'kill -9 -1'"
   blocked 'sh -c "kill -9 -1"'
