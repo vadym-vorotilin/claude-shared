@@ -62,6 +62,9 @@ EOF
   [ "$status" -ne 0 ]
   assert_contains "$output" "no version recorded for items"
   assert_equal "$(state '.datasets.items.pending // "none"')" none
+  run --separate-stderr python3 "$TOOL" batch "$D" "$(built items)=/_blob/i" --first items
+  [ "$status" -eq 0 ]
+  assert_equal "$(jq -r '.writes[0] | [.op, has("if_version"), (.data | has("title"))] | join(" ")' <<<"$output")" "set false true"
 }
 
 @test "a pinned update carries if_version and leaves the title alone" {
@@ -78,6 +81,10 @@ EOF
   [ "$status" -ne 0 ]
   assert_contains "$output" "track.py resolve"
   assert_equal "$(state .datasets.phases.sent.url)" /_blob/p1
+  run python3 "$TOOL" batch "$D" "$(built visuals)=/_blob/v2" --first visuals
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "track.py resolve"
+  assert_equal "$(state .datasets.visuals.sent.url)" /_blob/v1
 }
 
 @test "record marks the pending file live; a --first set past version 1 is flagged" {
@@ -88,6 +95,7 @@ EOF
   run python3 "$TOOL" record "$D" "$(built phases)=6" "$(built visuals)=1"
   [ "$status" -eq 0 ]
   assert_equal "$(state '.datasets.phases | "\(.version) \(.pending // "-")"')" "6 -"
+  assert_equal "$(state .datasets.phases.hash)" "$(built phases | sed 's/^phases-//; s/\.json$//')"
 }
 
 @test "resolve: our url at pin+1 is recorded as applied" {
