@@ -69,8 +69,10 @@ guard", describes them for users.
   adds an option, add it with its kind. A wrong kind can let a broad selector
   through: an option that takes a value but is marked as a flag makes the hook
   read the value as a process name. Keep the parsing rules too:
-  - pkill uses getopt_long, and takes out signal words first;
-  - killall uses getopt_long_only, so `-user` is `--user`;
+  - pkill takes out the first signal word wherever it stands, in any case,
+    and then uses getopt_long;
+  - killall uses getopt_long_only, so `-user` is `--user`, and reads a
+    signal only when it starts upper-case;
   - both accept unique prefixes of long options.
 - **Test any broad signal only inside `pidjail`**, after checking you are
   inside it, as the existing jail tests do: PID 1 is not the host's init, and

@@ -352,7 +352,8 @@ it would:
 - **match every process of a user, or similar, with no process name**:
   - for `pkill`: a user (`-u`/`--euid`, `-U`/`--uid`), run states (`-r`), a
     group (`-g`, `-G`), a session (`-s`), a terminal (`-t`), a namespace
-    (`--ns`), a cgroup (`--cgroup`) or an environment variable (`--env`);
+    (`--ns`), a cgroup (`--cgroup`), an environment variable (`--env`), or
+    the children of PID 1 (`-P 1`, which includes `systemd --user`);
   - for `killall`: a user (`-u`/`--user`) or an SELinux context
     (`-Z`/`--context`);
 - **match everything another way**: `pkill .`, `pkill '.*'`, `killall -r .`,
@@ -360,8 +361,11 @@ it would:
 - **use a `pkill` or `killall` option it does not know**. The hook fails
   closed here. It reads options the way each tool does: bundles (`-fu me`),
   attached values (`-u1000`), unique prefixes of long options (`--eu me`),
-  killall's one-dash long options (`-user me`), and signal names in any case
-  (`-stop`). It blocks anything else until it is spelled out in full. Its
+  and killall's one-dash long options (`-user me`). It reads signals the
+  same way too: pkill takes the first signal word out wherever it stands, in
+  any case (`-stop`), while killall takes only names that start upper-case
+  (to killall, `-usr1` is `-u sr1`). It blocks anything else until it is
+  spelled out in full. Its
   option tables come from the `--help` of procps-ng 4.0.7 `pkill` and psmisc
   23.7 `killall`;
 - **end the session**: `loginctl terminate-user|session|seat` and
@@ -385,14 +389,20 @@ What it does not do:
 - **`kill 0` is allowed.** It signals the caller's own process group (the
   agent's shell), not the desktop.
 - **It does not parse shell.** It splits the line at `;`, `&`, `|`, brackets,
-  braces, backticks and `$(`, then into words at blanks outside quotes, and
-  looks at every word. It also checks each quoted part as a command of its
+  braces, backticks and `$(` outside quotes, then into words at blanks
+  outside quotes. It leaves out redirections (`2>/dev/null`, `>&2`) and
+  comments, and looks at every other word. It also checks each quoted part as a command of its
   own, which is how it catches `bash -c '…'`. So text that only mentions such
   a command, in a heredoc, a commit message or a `grep` pattern, can be
   blocked too. Put the text in a file, or write the
   word with a bracket in a grep pattern (`p[k]ill`).
 - **It needs `jq`.** Without it the hook lets everything through and says so
   (exit 1, a non-blocking error you see).
+- **It is slow on long text that keeps naming the tools.** A line that names
+  none of them is skipped, so most commands take about 10 ms. Text that
+  names one on nearly every line takes about 3 s per 100 KB. A hook that
+  runs past Claude Code's timeout does not block, so a few MB of such text
+  would get through unchecked.
 
 ### pidjail
 

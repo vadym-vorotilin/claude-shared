@@ -114,6 +114,37 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'pkill --env HOME=/home/me'
   blocked 'pkill --env=HOME=/home/me'
   blocked 'pkill -v node'
+  # A redirection or a comment is not a process name.
+  blocked 'pkill -u me 2>/dev/null'
+  blocked 'pkill -u me >/dev/null'
+  blocked 'pkill -u me > /dev/null 2>&1'
+  blocked 'pkill -u me >&2'
+  blocked 'pkill -u me </dev/null'
+  blocked 'pkill -u me &>log'
+  blocked 'pkill -U 1000 2>/dev/null || true'
+  blocked 'killall -u "$USER" -9 2>/dev/null'
+  blocked 'pkill -u "$USER" # stop everything'
+  # killall reads a lower-case signal as options: -usr1 is -u sr1.
+  blocked 'killall -usr1'
+  blocked 'killall -quit'
+  # pkill takes out only the first signal word, wherever it stands.
+  blocked 'pkill -u me -- -9'
+  blocked 'pkill -u me -O -9 60'
+  blocked 'pkill -u me --signal -9 KILL'
+  blocked 'pkill -9 -usr1'
+  # Every child of PID 1 (systemd --user among them).
+  blocked 'pkill -P 1'
+  blocked 'pkill --parent=1'
+  blocked 'pkill -P 4321,1'
+  # A line continued with a backslash.
+  blocked $'pkill \\\n  -u me'
+  blocked $'kill -9 \\\n -1'
+  # Quotes and backslashes inside the command name.
+  blocked "'k'ill -9 -1"
+  blocked 'ki""ll -9 -1'
+  blocked "pk''ill -u me"
+  blocked 'k\ill -9 -1'
+  blocked "login''ctl terminate-user me"
   # Anything unknown, until it is spelled out.
   blocked 'pkill --no-such-option -u me node'
   blocked 'pkill -w node'
@@ -165,6 +196,14 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed 'pkill -f "vite --port 5173"'
   allowed "pkill -f 'node server.js --inspect -u x'"
   allowed 'pkill -f "my\"server --x"'
+  allowed "pkill -f '(vite|esbuild)'"
+  allowed 'pkill -f "$(cat pat)"'
+  allowed 'pkill -f ${PAT}'
+  allowed 'pkill -f "${PAT:-vite}" 2>/dev/null || true'
+  allowed 'pkill -x node # the dev server'
+  allowed 'killall -USR1 node'
+  allowed 'pkill -P 4321 2>/dev/null'
+  allowed 'pkill -P 10 -x node'
   allowed 'kill -9 -10'
   allowed 'killall -u me node'
   allowed 'killall -r "^node"'
@@ -175,6 +214,14 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed 'git log --oneline -1'
   allowed 'grep -c kill notes.txt'
   allowed 'echo "${HOME}/x" 2>&1 | tee log'
+}
+
+@test "hook reads a long command in time, and still finds a kill at its end" {
+  local line
+  line="$(printf 'echo "a (b) | c; d" %.0s' $(seq 1 4000))"
+  SECONDS=0
+  blocked "$line; kill -9 -1"
+  [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for ${#line} bytes"
 }
 
 @test "hook names the matched command" {
