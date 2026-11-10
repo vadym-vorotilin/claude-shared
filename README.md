@@ -408,10 +408,11 @@ What it does not do:
   (exit 1, a non-blocking error you see).
 - **It is slow on very long commands.** An everyday command takes about
   10 ms, and a line that names none of the tools is skipped. A long command
-  takes longer: text that names a tool on nearly every line costs about 3 s
-  per 100 KB, and text that names none costs about 0.25 s per MB just to be
-  skipped. A hook that runs past Claude Code's timeout (60 s by default)
-  does not block, so a command of several MB would get through unchecked.
+  takes longer: text dense with the tools' names costs about 1.5 to 6 s per
+  100 KB (most for a line of nothing but `pkill` options), and text that
+  names none costs about 0.25 s per MB just to be skipped. A hook that runs
+  past Claude Code's timeout (60 s by default) does not block, so about
+  1 MB of such text would get through unchecked.
 
 ### pidjail
 

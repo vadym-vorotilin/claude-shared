@@ -230,7 +230,7 @@ check_pkill() {
 # check still applies behind any wrapper: sudo -u x, timeout -s KILL 5,
 # bash -c '...', eval, watch, xargs, `do`, `then`, `{`, `!`.
 check_words() {
-  local i w base
+  local i w base rest seen=
   local -a ws=("$@")
   for ((i = 0; i < ${#ws[@]}; i++)); do
     # Only a word that ends in a tool's name, and only its last 12 bytes
@@ -239,27 +239,36 @@ check_words() {
     case ${ws[i]} in *kill|*killall|*killall5|*loginctl|*hyprctl|*uwsm|*systemctl) ;; *) continue ;; esac
     w=${ws[i]}; [ ${#w} -gt 12 ] && w=${w: -12}
     w=${w#\\}; base=${w##*/}
+    # The words after kill, pkill or killall are its arguments, not a
+    # command, so the first one ends the search: checking each kill word
+    # against every word after it costs the square of the line. The others
+    # search the rest of the command, so the first of each is enough (its
+    # rest holds every later one's). hyprctl dispatch exec and uwsm app run
+    # a command, so the search goes on past them.
     case $base in
-      kill) check_kill "${ws[@]:i+1}" ;;
-      pkill|killall) check_pkill "$base" "${ws[@]:i+1}" ;;
+      loginctl|hyprctl|systemctl) [[ $seen == *" $base"* ]] && continue; seen+=" $base"; rest=" ${ws[*]:i+1} " ;;
+    esac
+    case $base in
+      kill) check_kill "${ws[@]:i+1}"; return ;;
+      pkill|killall) check_pkill "$base" "${ws[@]:i+1}"; return ;;
       killall5) block killall5 ;;
       # The verb may come after options (loginctl --no-ask-password
       # terminate-user, hyprctl -i 0 dispatch exit), so the rest of the
       # command is searched, and hyprctl --batch "dispatch exit" too.
       loginctl)
-        local rest=" ${ws[*]:i+1} "
         [[ $rest =~ \ (terminate|kill)-(user|session|seat)\  ]] && block "loginctl ${BASH_REMATCH[0]}" ;;
       hyprctl)
-        local rest=" ${ws[*]:i+1} "
         [[ $rest =~ [[:space:]\;]dispatch[[:space:]]+exit[[:space:]\;] ]] && block "hyprctl dispatch exit" ;;
       uwsm) [ "${ws[i+1]:-}" = stop ] && block "uwsm stop" ;;
       systemctl)
-        local rest=" ${ws[*]:i+1} "
-        [[ $rest == *" --user "* && $rest == *" exit "* ]] && block "systemctl --user exit"
-        # The same by way of a target.
-        [[ $rest == *" --user "* && ( $rest =~ \ (start|isolate)\ (.*\ )?exit\.target\  || $rest =~ \ (stop|kill)\ (.*\ )?(graphical-session|default)\.target\  ) ]] && block "systemctl --user ${BASH_REMATCH[0]}"
+        [[ $rest == *" --user "* ]] || continue
+        [[ $rest == *" exit "* ]] && block "systemctl --user exit"
+        # The same by way of a target. Verb and target are matched apart:
+        # one pattern with .* between them costs the square of the line.
+        [[ $rest =~ \ (start|isolate)\  && $rest == *" exit.target "* ]] && block "systemctl --user start exit.target"
+        [[ $rest =~ \ (stop|kill)\  && $rest =~ \ (graphical-session|default)\.target\  ]] && block "systemctl --user stop graphical-session.target"
         # kill or stop of every user unit: a pattern that is only a glob.
-        [[ $rest == *" --user "* && $rest =~ \ (kill|stop)\  && $rest =~ \ \*(\.[a-z]+)?\  ]] && block "systemctl --user kill/stop of every unit ('*')" ;;
+        [[ $rest =~ \ (kill|stop)\  && $rest =~ \ \*(\.[a-z]+)?\  ]] && block "systemctl --user kill/stop of every unit ('*')" ;;
     esac
   done
 }
@@ -392,7 +401,7 @@ names_tool "$cmd" || exit 0
 # kill argv written as a list with -1 after the signal: ["kill", "-9", "-1"].
 # Languages that put the signal first: Ruby's Process.kill("KILL", -1),
 # Perl's kill(9, -1) and kill 'KILL', -1.
-re_fn='kill\([[:space:]]*-0*1[[:space:]]*[,)]|killpg\([[:space:]]*0*1[[:space:]]*[,)]|kill(\(|[[:space:]]+)[^;(),]{1,32}(,[^;(),]{0,32}){0,4},[[:space:]]*-0*1[[:space:]]*[,;)]'
+re_fn='kill\([[:space:]]*-0*1[[:space:]]*[,)]|killpg\([[:space:]]*0*1[[:space:]]*[,)]|kill(\(|[[:space:]]+)[^;(),]{1,32}(,[^;(),]{0,32}){0,4},[[:space:]]*-0*1([^0-9]|$)'
 # Bounded, so the match costs the length of the text, not its square.
 # A list or a tuple, and any path: ("/bin/kill", "-s", "KILL", "-1").
 re_argv='["'\''][^"'\'', ]{0,32}kill["'\''][[:space:]]{0,4},([^],)]{0,32},){1,4}[[:space:]]{0,4}["'\'']-0*1["'\''][[:space:]]{0,4}[],)]'

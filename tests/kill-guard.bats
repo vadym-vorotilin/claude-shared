@@ -113,6 +113,8 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked "ruby -e 'Process.kill(\"KILL\", -1)'"
   blocked "perl -e 'kill(9, -1)'"
   blocked "perl -e 'kill \"KILL\", -1;'"
+  blocked "ruby -e 'Process.kill 9, -1'"
+  blocked "perl -e 'kill 9, -1'"
 }
 
 @test "hook reads pkill and killall options as the tools do, and fails closed" {
@@ -263,6 +265,8 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   allowed "perl -e 'kill 9, 1234;'"
   allowed 'systemctl --user stop app-foo.service'
   allowed 'systemctl --user start graphical-session.target'
+  allowed "perl -e 'kill 9, -12345'"
+  allowed 'echo kill a, b, -10'
 }
 
 @test "hook reads a long command in time, and still finds a kill at its end" {
@@ -286,6 +290,15 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   SECONDS=0
   blocked "$line"
   [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for a long word ending in a tool name"
+  # Many tool words on one line: each is not checked against all the rest.
+  line="echo $(printf 'kill %.0s' $(seq 1 20000))"
+  SECONDS=0
+  allowed "$line"
+  [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for ${#line} bytes of kill words"
+  line="systemctl --user stop $(printf 'start stop systemctl hyprctl loginctl %.0s' $(seq 1 3000))"
+  SECONDS=0
+  allowed "$line"
+  [ "$SECONDS" -lt 5 ] || fail "took ${SECONDS}s for ${#line} bytes of systemctl verbs"
 }
 
 @test "hook names the matched command" {
