@@ -17,6 +17,7 @@ There are two lifetimes and each gets its own rule:
 |---|---|---|
 | A **subagent** | about **five minutes** idle | **Poll, do not block** — every wait call returns within about four minutes |
 | The **main session** | about **an hour** | **Never take a turn to wait** — wake on a notification or a 50-minute heartbeat |
+| A **headless `claude -p` session** | about **an hour**, as the main session | Main-session rules; the subagents it dispatches still poll |
 
 ## What this assumes
 

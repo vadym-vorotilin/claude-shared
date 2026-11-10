@@ -24,15 +24,20 @@ flight run **under** that hour, so the main session is reading its cache rather
 than rewriting it. A sweep interval longer than the cache lifetime pays the
 rewrite the sweep exists to save.
 
-**A headless `claude -p` session gets the hour too.** Measured on 2026-11-05
-(Claude Code 2.1.314, Haiku, Sonnet and Opus, inside the weekly quota): every
-cache write was `ephemeral_1h`, also with restricted tools and a stripped
-environment, and a session resumed after 7.5 idle minutes read its whole context
-from cache. Only subagents wrote `ephemeral_5m`. One cost to know: the **first**
-`--resume` of a headless session re-writes about 16k tokens even when it comes
-at once, because its prompt does not line up with the first call's; later
-resumes line up. To check a session yourself, read `usage.cache_creation` in
-`--output-format json`, or the same field in its transcript.
+**A headless `claude -p` session gets the hour too**, so it follows the
+main-session rules; the subagents it dispatches still poll. Measured on
+2026-11-05 (Claude Code 2.1.314, Haiku, Sonnet and Opus, inside the weekly
+quota): every cache write of the headless session itself went to the one-hour
+bucket, also with restricted tools and a stripped environment, and a session
+resumed after 7.5 idle minutes read its whole context from cache. Only its
+subagents wrote to the five-minute bucket. Over quota, the fallback in
+[SKILL.md](../SKILL.md) applies here as to any main session. One cost to know:
+the **first** `--resume` of a headless session re-writes a sizeable part of its
+context (about 16k tokens in that setup) even when it comes at once, because its
+prompt does not line up with the first call's; later resumes line up. To check a
+session yourself, read `.message.usage.cache_creation` on its assistant lines in
+the transcript: `ephemeral_1h_input_tokens` is the hour bucket,
+`ephemeral_5m_input_tokens` the five-minute one.
 
 **It is the waiting, not the test suite.** The suite is the commonest instance
 and not necessarily the majority of the cost: builds, worktree
