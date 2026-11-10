@@ -1,0 +1,37 @@
+{
+ "track": {
+  "title": "Tidewater Beta Track",
+  "goal": "Tidewater sync client in beta testers' hands",
+  "deadline": "2026-05-29"
+ },
+ "phases": [
+  {"order": 1, "id": "alpha", "name": "Alpha: sync core", "start": "2026-05-04", "target": "2026-05-12",
+   "contents": "Conflict-free merge of two offline edits; resumable upload"},
+  {"order": 2, "id": "beta", "name": "Beta build", "start": "2026-05-12", "target": "2026-05-22",
+   "contents": "Installer for three platforms; crash reporting; tester invite flow"},
+  {"order": 3, "id": "ship", "name": "Ship to testers", "start": "2026-05-26", "target": "2026-05-29",
+   "contents": "Signed builds, release notes, first 50 invites"}
+ ],
+ "items": [
+  {"id": "merge", "phase": "alpha", "name": "Merge two offline edits without data loss", "ref": "#41",
+   "state": "done", "stage": "Merged after 2 review rounds", "updated": "2026-05-08T14:02:11Z"},
+  {"id": "resume", "phase": "alpha", "name": "Resume an upload after the network drops", "ref": "#44",
+   "state": "review", "stage": "Second review round", "updated": "2026-05-09T09:40:05Z"},
+  {"id": "installer", "phase": "beta", "name": "Installers for three platforms", "ref": "",
+   "state": "building", "stage": "Agent building the first platform", "updated": "2026-05-09T10:15:30Z"},
+  {"id": "crash", "phase": "beta", "name": "Crash reports reach the inbox", "ref": "",
+   "state": "queued", "stage": "", "updated": "2026-05-08T08:00:00Z"},
+  {"id": "themes", "phase": "beta", "name": "Custom themes", "ref": "",
+   "state": "cut", "stage": "Cut: not needed for testers", "updated": "2026-05-08T16:20:00Z"}
+ ],
+ "log": [
+  {"at": "2026-05-09T10:15:30Z", "text": "Installer agent started on the first platform"},
+  {"at": "2026-05-09T09:40:05Z", "text": "Resumable upload PR opened", "ref": "#44"},
+  {"at": "2026-05-08T14:02:11Z", "text": "Offline merge merged", "ref": "#41"}
+ ],
+ "visuals": [
+  {"title": "Merge timeline", "caption": "Two offline edits merged in order; no keystroke lost.",
+   "item": "merge", "at": "2026-05-08T14:05:00Z", "file": "img/merge-timeline.png",
+   "img": "/_blob/EXAMPLE-replace-with-the-asset-url"}
+ ]
+}

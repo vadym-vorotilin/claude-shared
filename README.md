@@ -410,6 +410,12 @@ of these are available in every project on the machine.
   session, rather than summarising it.
 - **`/progress`** — a mid-task pulse: timestamped count/%/ETA header, a few
   short lines, then the session carries on.
+- **`/progress-page`** — a live, private web page of a long track: phases on
+  a timeline, what is in progress, a timestamped log, a gallery of results and
+  every item's state. The session updates it at each PR, agent or render
+  without being asked; `track.py` stamps times from the clock and prints the
+  exact data write. Needs the claude.ai **Data** Artifact type; see *What this
+  assumes* in `skills/progress-page/SKILL.md`.
 - **`/pause`** — end a working stretch in one request: work until a cutoff
   (from an optional deadline, e.g. `/pause 17:30`), drain helpers and timers,
   save the handoff, and end with a ready-to-paste `/compact` line. It never
