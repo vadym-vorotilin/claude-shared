@@ -106,15 +106,19 @@ the answer must be yes.
    drift by the time-zone offset). Starting mid-track, past events and done
    items (`log`, `item`, `add-item`) take `--at` with a time read from a record (`git log -1
    --format=%cI <sha>`, `gh pr view N --json mergedAt`), never from memory.
-2. New images: make a thumbnail of each, at most 150 KB (an ~800 px JPEG:
-   `sips -Z 800 -s format jpeg in.png --out t.jpg` on macOS, `magick in.png
-   -resize 800x -quality 75 t.jpg` elsewhere), keep it under `DIR/img/`, and
+2. New images: make a copy of each, at most 600 KB, sharp enough to read when
+   enlarged: a plot as a PNG at its own resolution (draw it at 150-200 dpi), a
+   picture or map as a JPEG at most 1,600 px on its longest side (`magick
+   in.png -resize '1600x1600>' -quality 80 t.jpg`; on macOS, `sips -s format
+   jpeg -s formatOptions 80 in.png --out t.jpg`, adding `-Z 1600` only when the
+   image is larger, since `sips -Z` also enlarges), keep it under `DIR/img/`, and
    `track.py add-visual DIR "<title>" "<caption>" img/t.jpg --item <id>`.
    `build` embeds it as a `data:` URI, because the Data type's pages load
    nothing from the network. Show what is worth seeing: drop superseded
-   images rather than growing the gallery past a couple of dozen.
+   images rather than growing the gallery past about ten: every viewer loads
+   them all, and `build` refuses more than 6 MB of images in all.
 3. `track.py build DIR` checks the file (states, phase ids, order and
-   YYYY-MM-DD dates, UTC stamps, thumbnail files and sizes, duplicate ids,
+   YYYY-MM-DD dates, UTC stamps, image files and sizes, duplicate ids,
    https link templates, the example marker) and writes each changed dataset as `out/<name>-<hash>.json`.
    Upload each file it prints with `Artifact` publish, `url` = the page,
    `asset: true`, one call per JSON file (a file outside the working

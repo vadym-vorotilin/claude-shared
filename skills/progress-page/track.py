@@ -28,8 +28,9 @@ version is ever typed by hand.
 with any UTC offset; it is stored as UTC. Never a time typed from memory.
 
 Images are embedded in the visuals dataset as data: URIs (the Data type's
-pages load nothing from the network), so each must be a small JPEG or PNG
-thumbnail of at most 150 KB.
+pages load nothing from the network), so each must be a JPEG or PNG of at
+most 600 KB: a plot as a PNG at its own resolution, a picture or map as a
+~1,600 px JPEG.
 
 State lives in DIR/track-state.json, per dataset: `hash` (content the page
 shows), `version` (the dataset document's version), `pending` (content sent in
@@ -53,7 +54,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 BLOB = re.compile(r"^(/_blob/\S+|https://\S+)$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
-MAX_IMAGE_KB = 150
+MAX_IMAGE_KB = 600
+MAX_VISUALS_MB = 6  # all images together, before base64 (~8 MB in the dataset)
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 TITLES = {
     "track": ("Track", "Title, goal, deadline and link bases of the track"),
@@ -182,11 +184,12 @@ def check(s, d):
     for e in s["log"]:
         if not STAMP.match(str(e.get("at", ""))):
             errs.append(f"log entry {str(e.get('text', ''))[:30]!r}: 'at' must be a UTC stamp from track.py")
+    total = 0
     for v in s["visuals"]:
         if not STAMP.match(str(v.get("at", ""))):
             errs.append(f"visual {v.get('title', '?')!r}: 'at' must be a UTC stamp from track.py")
         if "img" in v:
-            errs.append(f"visual {v.get('title', '?')!r}: give 'file' (a local thumbnail), not 'img'; "
+            errs.append(f"visual {v.get('title', '?')!r}: give 'file' (a local image), not 'img'; "
                         f"build embeds it")
         f = image_file(d, str(v.get("file", "")))
         if not v.get("file") or not f.is_file():
@@ -194,8 +197,14 @@ def check(s, d):
         elif f.suffix.lower() not in MIME:
             errs.append(f"visual {v.get('title', '?')!r}: {f.name} must be .jpg, .jpeg or .png")
         elif f.stat().st_size > MAX_IMAGE_KB * 1024:
-            errs.append(f"visual {v.get('title', '?')!r}: {f.name} is {f.stat().st_size // 1024} KB; "
-                        f"make a thumbnail of at most {MAX_IMAGE_KB} KB (~800 px JPEG)")
+            errs.append(f"visual {v.get('title', '?')!r}: {f.name} is {-(-f.stat().st_size // 1024)} KB; "
+                        f"make it at most {MAX_IMAGE_KB} KB (a ~1,600 px JPEG; a plot at a lower dpi, "
+                        f"or as a quality-90 JPEG)")
+        else:
+            total += f.stat().st_size
+    if total > MAX_VISUALS_MB * 1024 * 1024:
+        errs.append(f"visuals: the images add up to {total / 1048576:.1f} MB, over {MAX_VISUALS_MB} MB; "
+                    f"drop superseded ones (about ten 600 KB images fit)")
     return errs
 
 
@@ -270,7 +279,7 @@ def cmd_add_visual(a):
     d = paths(a.dir)[0]
     f = image_file(d, a.file)
     if not f.is_file() or f.suffix.lower() not in MIME:
-        die(f"{a.file} must be an existing .jpg, .jpeg or .png thumbnail")
+        die(f"{a.file} must be an existing .jpg, .jpeg or .png image")
 
     def fn(s):
         v = {"title": a.title, "caption": a.caption, "file": a.file, "at": now()}
