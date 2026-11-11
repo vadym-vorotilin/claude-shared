@@ -44,7 +44,8 @@ there is no copy to restore from).
   `pidjail`, which runs a test suite where even `kill -- -1` stays inside it.
 - [**Shared skills**](#shared-skills) — symlinked into
   `~/.claude/skills/`: guided setup and sync, installers for per-repo skills,
-  long-running and multi-agent work, PR review, token reporting, briefs.
+  long-running and multi-agent work, PR review, token reporting, briefs,
+  disk cleanup.
 - [**Per-repo skill templates**](#per-repo-skill-templates) — `/handoff` and
   `/work-on-gh-issue`, filled in for a target repo by an installer skill.
 - [**`sync.sh`**](#what-syncsh-writes) — one idempotent deploy for all of the
@@ -502,6 +503,19 @@ of these are available in every project on the machine.
   legs (code surveys, web research, benchmarks, design), dispatch each on the
   model and effort its kind needs instead of inheriting the session's, keep a
   running log, and synthesise a recommendation with checked evidence.
+
+### Machine upkeep
+
+- **`/disk-cleanup`** — find what fills a nearly full disk and free space
+  without losing anything: a read-only survey per drive that ends in a ranked
+  SAFE / REVIEW / KEEP proposal, then deletion of only the items you approve,
+  each measured with `df`. A blanket "just do it" covers only the SAFE tier
+  (git-ignored, rebuildable and not in use); with no go-ahead at all it only
+  proposes. A check in doubt keeps the item. It never runs `sudo` (root-only
+  items go in a script you run), never forces past a permission error, never
+  proposes deleting a git repository, and proves a duplicate is a second copy
+  before dropping one. Linux-first; see *What this assumes* in
+  `skills/disk-cleanup/SKILL.md`.
 
 ## Per-repo skill templates
 
