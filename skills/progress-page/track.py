@@ -28,8 +28,9 @@ version is ever typed by hand.
 with any UTC offset; it is stored as UTC. Never a time typed from memory.
 
 Images are embedded in the visuals dataset as data: URIs (the Data type's
-pages load nothing from the network), so each must be a small JPEG or PNG
-thumbnail of at most 150 KB.
+pages load nothing from the network), so each must be a JPEG or PNG of at
+most 600 KB: a plot as a PNG at its own resolution, a picture or map as a
+~1,600 px JPEG.
 
 State lives in DIR/track-state.json, per dataset: `hash` (content the page
 shows), `version` (the dataset document's version), `pending` (content sent in
@@ -53,7 +54,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 BLOB = re.compile(r"^(/_blob/\S+|https://\S+)$")
 STAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 DAY = re.compile(r"^\d{4}-\d\d-\d\d$")
-MAX_IMAGE_KB = 150
+MAX_IMAGE_KB = 600
 MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 TITLES = {
     "track": ("Track", "Title, goal, deadline and link bases of the track"),
@@ -195,7 +196,7 @@ def check(s, d):
             errs.append(f"visual {v.get('title', '?')!r}: {f.name} must be .jpg, .jpeg or .png")
         elif f.stat().st_size > MAX_IMAGE_KB * 1024:
             errs.append(f"visual {v.get('title', '?')!r}: {f.name} is {f.stat().st_size // 1024} KB; "
-                        f"make a thumbnail of at most {MAX_IMAGE_KB} KB (~800 px JPEG)")
+                        f"make it at most {MAX_IMAGE_KB} KB (a ~1,600 px JPEG, or a PNG plot)")
     return errs
 
 

@@ -106,9 +106,11 @@ the answer must be yes.
    drift by the time-zone offset). Starting mid-track, past events and done
    items (`log`, `item`, `add-item`) take `--at` with a time read from a record (`git log -1
    --format=%cI <sha>`, `gh pr view N --json mergedAt`), never from memory.
-2. New images: make a thumbnail of each, at most 150 KB (an ~800 px JPEG:
-   `sips -Z 800 -s format jpeg in.png --out t.jpg` on macOS, `magick in.png
-   -resize 800x -quality 75 t.jpg` elsewhere), keep it under `DIR/img/`, and
+2. New images: make a copy of each, at most 600 KB, sharp enough to read when
+   enlarged: a plot as a PNG at its own resolution (draw it at 150-200 dpi), a
+   picture or map as a ~1,600 px JPEG (`sips -Z 1600 -s format jpeg -s
+   formatOptions 80 in.png --out t.jpg` on macOS, `magick in.png -resize 1600x
+   -quality 80 t.jpg` elsewhere), keep it under `DIR/img/`, and
    `track.py add-visual DIR "<title>" "<caption>" img/t.jpg --item <id>`.
    `build` embeds it as a `data:` URI, because the Data type's pages load
    nothing from the network. Show what is worth seeing: drop superseded
