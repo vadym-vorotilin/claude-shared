@@ -50,7 +50,7 @@ while IFS= read -r line; do
         # A first -1 is the signal HUP; a -1 after it is the pid -1.
         case "${ws[i+1]:-}" in -l|-L|--list|--table) continue ;; esac
         for ((j = i + 2; j < n && j < i + 16; j++)); do
-          [[ ${ws[j]%%[<>]*} =~ ^-0*1$ ]] && block "kill ... -1"
+          [[ ${ws[j]} == -*1* && ${ws[j]%%[<>]*} =~ ^-0*1$ ]] && block "kill ... -1"
         done ;;
       pkill|killall)
         user=0 name=0
@@ -69,7 +69,7 @@ while IFS= read -r line; do
         [ $user -eq 1 ] && [ $name -eq 0 ] && block "${w##*/} -u <user>" ;;
       loginctl)
         for ((j = i + 1; j < n && j < i + 16; j++)); do
-          [[ ${ws[j]} =~ ^(terminate|kill)-(user|session|seat)$ ]] && block "loginctl ${ws[j]}"
+          [[ ${ws[j]} == *-* && ${ws[j]} =~ ^(terminate|kill)-(user|session|seat)$ ]] && block "loginctl ${ws[j]}"
         done ;;
     esac
   done

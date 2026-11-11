@@ -361,7 +361,10 @@ computes the bad pid at run time gets past it (that is what `pidjail` is for),
 and so does an unusual spelling. Text that only mentions such a command, in a
 commit message or a heredoc, can be blocked too: put it in a file. It needs
 `jq`; without it, it lets everything through and says so (exit 1, a
-non-blocking error you see).
+non-blocking error you see). Its time grows with the line: an everyday command
+takes a few ms, and the worst case, a line of nothing but `pkill` words, about
+20 s per MB. A hook that runs past Claude Code's timeout (60 s by default)
+does not block, so such a line over about 3 MB gets through unchecked.
 
 ### pidjail
 
