@@ -31,6 +31,7 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'kill -- "-1"'
   blocked '/bin/kill -9 -1'
   blocked '\kill -9 -1'
+  blocked 'kill -9 -1>/dev/null'
 }
 
 @test "hook blocks a user's processes by user, with no process name" {
@@ -43,6 +44,11 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   blocked 'killall -u me'
   blocked 'killall --user me'
   blocked 'pkill -u me 2>/dev/null'
+  blocked 'pkill -u me > /dev/null'
+  blocked 'pkill -u me 2> /dev/null'
+  blocked 'killall -s KILL -u me'
+  blocked 'killall -u me -s 9'
+  blocked 'pkill --signal KILL -u me'
 }
 
 @test "hook blocks loginctl ending a user, session or seat" {
@@ -89,6 +95,13 @@ allowed() { run HOOK "$1"; [ "$status" -eq 0 ] || fail "blocked: $1 ($output)"; 
   local long; long="$(printf 'kill x %.0s' $(seq 1 20000))"
   SECONDS=0
   allowed "echo $long"
+  blocked "echo $long; kill -9 -1"
+  [ "$SECONDS" -lt 20 ] || fail "took ${SECONDS}s"
+}
+
+@test "hook reads a long line dense in quotes and separators in time" {
+  local long; long="$(printf '"kill"; x | %.0s' $(seq 1 40000))"
+  SECONDS=0
   blocked "echo $long; kill -9 -1"
   [ "$SECONDS" -lt 20 ] || fail "took ${SECONDS}s"
 }

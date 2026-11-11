@@ -38,8 +38,8 @@ EOF
 # Quotes become blanks, so a quoted command (bash -c '...') is read too; the
 # separators become line breaks, one simple command per line. Each tool's
 # arguments are read up to 15 words on, so a long line stays linear.
-s="${cmd//[\'\"]/ }"
-s="${s//[;&|()\{\}\`]/$'\n'}"
+# (tr, not ${s//…}: bash's substitution is quadratic in the matches.)
+s="$(printf '%s' "$cmd" | tr "'\";&|(){}\`" '  \n\n\n\n\n\n\n\n')"
 
 while IFS= read -r line; do
   read -ra ws <<<"$line"; n=${#ws[@]}
@@ -50,14 +50,16 @@ while IFS= read -r line; do
         # A first -1 is the signal HUP; a -1 after it is the pid -1.
         case "${ws[i+1]:-}" in -l|-L|--list|--table) continue ;; esac
         for ((j = i + 2; j < n && j < i + 16; j++)); do
-          [[ ${ws[j]} =~ ^-0*1$ ]] && block "kill ... -1"
+          [[ ${ws[j]%%[<>]*} =~ ^-0*1$ ]] && block "kill ... -1"
         done ;;
       pkill|killall)
         user=0 name=0
         for ((j = i + 1; j < n && j < i + 16; j++)); do
           a="${ws[j]}"
           case "$a" in
-            *[\<\>]*) ;;                                   # a redirection
+            *[\<\>]) j=$((j + 1)) ;;                       # a redirection: > file
+            *[\<\>]*) ;;                                   # >file
+            -s|--signal) j=$((j + 1)) ;;                   # takes a value
             -[uU]|-[A-Za-z]*[uU]|--euid|--uid|--user) user=1; j=$((j + 1)) ;;
             -u?*|--euid=*|--uid=*|--user=*) user=1 ;;
             -*) ;;
