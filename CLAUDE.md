@@ -63,17 +63,9 @@ guard", describes them for users.
   - its header comment;
   - README, "The kill guard";
   - a `blocked` or `allowed` line in `tests/kill-guard.bats`.
-- **pkill and killall have separate option tables** (`PKILL_*` and
-  `KILLALL_*`, taken from each tool's `--help`), and the hook fails closed: it
-  blocks an option it does not find in the table. When a new tool version
-  adds an option, add it with its kind. A wrong kind can let a broad selector
-  through: an option that takes a value but is marked as a flag makes the hook
-  read the value as a process name. Keep the parsing rules too:
-  - pkill takes out the first signal word wherever it stands, in any case,
-    and then uses getopt_long;
-  - killall uses getopt_long_only, so `-user` is `--user`, and reads a
-    signal only when it starts upper-case;
-  - both accept unique prefixes of long options.
+- **Keep the hook small.** It catches an agent's mistakes, not evasion; the
+  rule in the snippet and `pidjail` do the rest. Add a form only when an agent
+  has actually typed it, not because some other spelling would get past.
 - **Test any broad signal only inside `pidjail`**, after checking you are
   inside it, as the existing jail tests do: PID 1 is not the host's init, and
   the command is PID 2. Never try a blocked form on the host to see whether it

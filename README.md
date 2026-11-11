@@ -344,75 +344,27 @@ wrong. Two pieces guard against it, and `sync.sh` deploys both.
 
 `claude/kill-guard-hook.sh` is a PreToolUse hook on Bash. It reads the command
 before it runs and blocks it (exit 2, with the reason shown to the agent) when
-it would:
+it contains:
 
-- **send to pid -1**: `kill -9 -1`, `kill -KILL -- -1`, `kill -s TERM -1`,
-  `kill -9 1234 -1`, `kill -- -01`, `kill -9 ' -1'`; in inline code,
-  `kill(-1, …)` / `killpg(1, …)` (Python's `os.kill`, node's
-  `process.kill`), `kill(SIG, -1)` where the signal comes first (Ruby's
-  `Process.kill`, Perl's `kill`), or a kill argv as a list or tuple with any
-  path (`["/bin/kill", "-9", "-1"]`);
-- **match every process of a user, or similar, with no process name**:
-  - for `pkill`: a user (`-u`/`--euid`, `-U`/`--uid`), run states (`-r`), a
-    group (`-g`, `-G`), a session (`-s`), a terminal (`-t`), a namespace
-    (`--ns`), a cgroup (`--cgroup`), an environment variable (`--env`), or
-    the children of PID 1 (`-P 1`, which includes `systemd --user`);
-  - for `killall`: a user (`-u`/`--user`) or an SELinux context
-    (`-Z`/`--context`);
-- **match everything another way**: `pkill .`, `pkill '.*'`, `killall -r .`,
-  `pkill --inverse <name>` (or `-v`), `killall5`;
-- **use a `pkill` or `killall` option it does not know**. The hook fails
-  closed here. It reads options the way each tool does: bundles (`-fu me`),
-  attached values (`-u1000`), unique prefixes of long options (`--eu me`),
-  and killall's one-dash long options (`-user me`). It reads signals the
-  same way too: pkill takes the first signal word out wherever it stands, in
-  any case (`-stop`), while killall takes only names that start upper-case
-  (to killall, `-usr1` is `-u sr1`). It blocks anything else until it is
-  spelled out in full. Its
-  option tables come from the `--help` of procps-ng 4.0.7 `pkill` and psmisc
-  23.7 `killall`;
-- **end the session**: `loginctl terminate-user|session|seat` and
-  `kill-user|session|seat` (after options too), `hyprctl dispatch exit`
-  (after options, or inside `hyprctl --batch`), `uwsm stop`,
-  `systemctl --user exit`, `systemctl --user start exit.target`,
-  `systemctl --user stop graphical-session.target` (or `default.target`), and
-  `systemctl --user kill|stop '*'`.
+- `kill` with a pid of -1: `kill -9 -1`, `kill -KILL -- -1`, `kill -s TERM -1`;
+- `pkill` or `killall` with a user and no process name: `pkill -u me`,
+  `killall -u me`;
+- `loginctl terminate-` or `kill-` `user`, `session` or `seat`.
 
-It finds these wherever they sit on the line: behind `sudo`, `timeout`, `env`,
-`eval`, `watch` or `xargs`, inside `bash -c '…'`, `$(…)`, a loop, an `if`, or
-`{ …; }`, and with any path (`/bin/kill`) or a leading backslash.
+It finds them behind `sudo`, `timeout` or `xargs`, inside `bash -c '…'` or
+`$(…)`, and after `;`, `&&` or `|`. Targeted signals pass: `kill 1234`,
+`kill -1 1234` (HUP to one pid), `kill -TERM -- -4321` (one group), `kill 0`,
+`pkill -u me node`.
 
-Targeted signals pass: `kill 1234`, `kill -1 1234` (HUP to one pid),
-`kill -TERM -- -4321` (one process group), `pkill -f "vite --port 5173"`,
-`pkill -u "$USER" -n node`, `pkill -USR1 -F run/app.pid`,
-`killall -u me node`.
-
-What it does not do:
-
-- **It is a tripwire, not a sandbox.** It sees only the command line. A script
-  or test that computes the bad pid at run time gets past it; that is what
-  `pidjail` is for.
-- **`kill 0` is allowed.** It signals the caller's own process group (the
-  agent's shell), not the desktop.
-- **It does not parse shell.** It splits the line at `;`, `&`, `|`, brackets,
-  braces, backticks and `$(` outside quotes, then into words at blanks
-  outside quotes. It leaves out redirections (`2>/dev/null`, `>&2`), and
-  looks at every other word. A `#` that starts a word ends the command, but
-  the words after it are still checked, since a line it reads as a comment
-  may be inside a multi-line string. It also checks each quoted part as a
-  command of its own, which is how it catches `bash -c '…'`. So text that
-  only mentions such a command, in a heredoc, a commit message, a comment or
-  a `grep` pattern, can be blocked too. Put the text in a file, or write the
-  word with a bracket in a grep pattern (`p[k]ill`).
-- **It needs `jq`.** Without it the hook lets everything through and says so
-  (exit 1, a non-blocking error you see).
-- **It is slow on very long commands.** An everyday command takes about
-  10 ms, and a line that names none of the tools is skipped. A long command
-  takes longer: text dense with the tools' names costs about 1.5 to 6 s per
-  100 KB (most for a line of nothing but `pkill` options), and text that
-  names none costs about 0.25 s per MB just to be skipped. A hook that runs
-  past Claude Code's timeout (60 s by default) does not block, so about
-  1 MB of such text would get through unchecked.
+It catches mistakes, not evasion. It reads only the text, so a script that
+computes the bad pid at run time gets past it (that is what `pidjail` is for),
+and so does an unusual spelling. Text that only mentions such a command, in a
+commit message or a heredoc, can be blocked too: put it in a file. It needs
+`jq`; without it, it lets everything through and says so (exit 1, a
+non-blocking error you see). Its time grows with the line: an everyday command
+takes a few ms, and the worst case, a line of nothing but `pkill` words, about
+20 s per MB. A hook that runs past Claude Code's timeout (60 s by default)
+does not block, so such a line over about 3 MB gets through unchecked.
 
 ### pidjail
 
