@@ -24,6 +24,8 @@
   .clearfix div { float: left; width: 60px; height: 30px; background: #ddd; }
   .avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; }
   .stack label { display: block; margin-bottom: 0; }
+  .card { clip-path: inset(0 round 12px); background: #f4f4f4; padding: 12px; margin-bottom: 12px; }
+  .card button { padding: 6px 12px; }
 </style>
 <header>Site title</header>
 <main>
@@ -54,6 +56,10 @@
   <input type="text" aria-label="Disabled" value="locked" disabled>
   <select aria-label="Kind"><option>One</option></select>
   <a href="#top" style="display:inline-block;min-width:44px;min-height:32px">Top</a>
+</div>
+<div class="card">
+  <p>Card text inside a rounded clip. Pages <a href="#p1">1</a> <a href="#p2">2</a> <a href="#p3">3</a></p>
+  <div class="row"><button type="button">Open</button><button type="button">Share</button></div>
 </div>
 <textarea aria-label="Comment" rows="2" cols="20">A comment that is longer than the two short rows it is shown in, so it scrolls and does not crop.</textarea>
 <p class="photo">Text over an image is not measured</p>

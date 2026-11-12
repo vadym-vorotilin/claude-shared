@@ -87,9 +87,6 @@ async page => page.evaluate(() => {
     for (let a = inclusive ? el : el.parentElement; a && rs.length; a = a.parentElement) {
       const cs = getComputedStyle(a);
       if (pos === 'fixed') break;
-      // An ancestor with clip-path or an absolute clip rectangle hides what
-      // it holds (the usual screen-reader-only text).
-      if (cs.clipPath !== 'none' || (cs.clip !== 'auto' && cs.position === 'absolute')) return [];
       const clips = a !== document.documentElement && a !== document.body && (cs.overflowX !== 'visible' || cs.overflowY !== 'visible');
       if (pos !== 'absolute' || cs.position !== 'static') {
         if (pos === 'absolute') pos = 'relative'; // its containing block reached
@@ -105,14 +102,35 @@ async page => page.evaluate(() => {
     }
     return rs;
   };
+  // Whether an element's clip-path or clip cuts it to nothing: inset() of 50%
+  // or more on every side, or an all-zero rect() on an absolute element. Other
+  // shapes (a polygon hero, a rounded card) leave what they hold drawn.
+  const ZERO_LEN = /^0(\.0*)?[a-z%]*$/i;
+  const zeroClip = cs => {
+    const ins = /\binset\(([^)]*)\)/.exec(cs.clipPath || '');
+    if (ins) {
+      const v = ins[1].split(/\s+round\s+/)[0].trim().split(/\s+/);
+      const sides = [v[0], v[1] ?? v[0], v[2] ?? v[0], v[3] ?? v[1] ?? v[0]];
+      if (v.length <= 4 && sides.every(x => /^[\d.]+%$/.test(x) && parseFloat(x) >= 50)) return true;
+    }
+    const rect = /^rect\(([^)]*)\)$/.exec(cs.clip || '');
+    if (rect && cs.position === 'absolute') {
+      const v = rect[1].trim().split(/[\s,]+/);
+      if (v.length === 4 && v.every(x => ZERO_LEN.test(x))) return true;
+    }
+    return false;
+  };
   // Whether a text node is drawn text: it holds a letter or digit, sits outside
-  // any <svg> (an svg <title> is a tooltip, not text on the page), and some
-  // part of it, over 1x1 px, survives the clipping of its ancestors. Text only
-  // a screen reader gets (sr-only spans) is not drawn.
+  // any <svg> (an svg <title> is a tooltip, not text on the page), no ancestor
+  // clips it to nothing (zeroClip), and some part of it, over 1x1 px, survives
+  // the overflow clipping of its ancestors. Text only a screen reader gets
+  // (sr-only spans: a 1x1 box with overflow hidden, often a zero clip too) is
+  // not drawn.
   const drawnTextNode = n => {
     if (!/[\p{L}\p{N}]/u.test(n.nodeValue)) return false;
     const p = n.parentElement;
     if (!p || p.closest('svg') || !shown(p)) return false;
+    for (let a = p; a; a = a.parentElement) if (zeroClip(getComputedStyle(a))) return false;
     const range = document.createRange();
     range.selectNodeContents(n);
     return visibleRects(p, Array.from(range.getClientRects()), true).length > 0;

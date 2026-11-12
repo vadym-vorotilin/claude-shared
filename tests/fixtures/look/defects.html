@@ -21,6 +21,11 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .stacked { line-height: 22px; margin: 0 20px 36px; }
   .paleval { position: absolute; left: 600px; top: 10px; color: #ccc; }
+  .hero { height: auto; padding: 8px 0 24px; background: #eef4ff; clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%); }
+  .hero .pair { position: relative; height: 40px; }
+  .ov-c, .ov-d { position: absolute; top: 4px; width: 160px; height: 30px; }
+  .ov-c { left: 20px; }
+  .ov-d { left: 120px; }
 </style>
 <section>
   <div class="wide" data-defect="overflow">A very long line of text that cannot fit its narrow box</div>
@@ -42,4 +47,8 @@
   <div class="icons"><a href="#d" data-defect="small-target"><span class="sr-only">One</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#e" data-defect="small-target"><span class="sr-only">Two</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#f" data-defect="small-target"><svg width="12" height="12"><title>Three</title><circle cx="6" cy="6" r="5"/></svg></a></div>
   <div class="icons"><a href="#g" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>&middot;<a href="#h" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>|<a href="#i" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
   <div class="stacked"><a href="#j" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><br><a href="#k" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+</section>
+<section class="hero">
+  <div class="pair"><button class="ov-c" data-defect="overlap">Start the tour</button><button class="ov-d">Skip the tour</button></div>
+  <div class="icons"><a href="#l" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><a href="#m" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
 </section>
