@@ -266,8 +266,17 @@ async page => page.evaluate(() => {
     if (parseFloat(cs.marginLeft) < 0 || parseFloat(cs.marginRight) < 0) return null;
     // Inside anything that scrolls or clips sideways (a carousel viewport), the
     // content is meant to run past its track; cropped text is the other rule's.
-    for (let a = p; a && a !== document.documentElement; a = a.parentElement)
-      if (/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(a).overflowX)) return null;
+    // A vertically scrolling panel computes overflow-x to auto too, so this only
+    // applies when the parent is a track: wider than its own box, with several
+    // children that together do not fit it. (One child poking out of a panel is
+    // the bug, and also makes the panel's scrollWidth grow.)
+    const kids = Array.from(p.children).filter(k => k.getBoundingClientRect().width > 0);
+    const kidsWide = kids.reduce((n, k) => n + k.getBoundingClientRect().width, 0);
+    const pr0 = p.getBoundingClientRect();
+    const pcw = pr0.width - parseFloat(pcs.borderLeftWidth) - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
+    if (p.scrollWidth > p.clientWidth + 1 && kids.length > 1 && kidsWide > pcw + 1)
+      for (let a = p; a && a !== document.documentElement; a = a.parentElement)
+        if (/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(a).overflowX)) return null;
     const pr = p.getBoundingClientRect();
     const left = pr.left + parseFloat(pcs.borderLeftWidth) + parseFloat(pcs.paddingLeft);
     const right = pr.right - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingRight);
