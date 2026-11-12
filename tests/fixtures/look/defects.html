@@ -16,6 +16,8 @@
   .gone { position: absolute; left: 700px; top: 40px; }
   .crop { position: absolute; left: 20px; top: 10px; width: 200px; height: 24px; overflow: hidden; }
   .clamp { position: absolute; left: 300px; top: 10px; width: 200px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .icons { position: absolute; left: 900px; top: 10px; }
+  .icons a { margin-right: 2px; }
   .paleval { position: absolute; left: 600px; top: 10px; color: #ccc; }
 </style>
 <section>
@@ -31,5 +33,6 @@
 <section>
   <div class="crop" data-defect="overflow">This sentence wraps onto several lines and the fixed height crops all but the first line of it.</div>
   <div class="clamp" data-defect="overflow">This sentence wraps onto several lines and line clamp cuts it to one line of it.</div>
+  <div class="icons"><a href="#a" data-defect="small-target"><svg width="12" height="12" aria-label="one"><circle cx="6" cy="6" r="5"/></svg></a><a href="#b" data-defect="small-target"><svg width="12" height="12" aria-label="two"><circle cx="6" cy="6" r="5"/></svg></a><a href="#c" data-defect="small-target"><svg width="12" height="12" aria-label="three"><circle cx="6" cy="6" r="5"/></svg></a></div>
   <input class="paleval" data-defect="contrast" type="text" value="pale value">
 </section>

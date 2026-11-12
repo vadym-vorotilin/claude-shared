@@ -103,6 +103,22 @@ async page => page.evaluate(() => {
     return rs;
   };
 
+  // Whether something drawn crosses the bottom edge of el's padding box: a text
+  // range's client rect or a child element's rect. scrollHeight alone also
+  // counts empty space (the strip under an inline image's baseline), which is
+  // not cropped content.
+  const drawnPastBottom = (el, r) => {
+    const edge = r.top + el.clientTop + el.clientHeight + 1;
+    const range = document.createRange();
+    for (const n of el.childNodes) {
+      let rects = [];
+      if (n.nodeType === 3 && n.nodeValue.trim()) { range.selectNodeContents(n); rects = Array.from(range.getClientRects()); }
+      else if (n.nodeType === 1) rects = [n.getBoundingClientRect()];
+      if (rects.some(q => (q.width > 0 || q.height > 0) && q.bottom > edge)) return true;
+    }
+    return false;
+  };
+
   const ownText = el => {
     let t = '';
     for (const n of el.childNodes) if (n.nodeType === 3) t += n.nodeValue;
@@ -208,7 +224,7 @@ async page => page.evaluate(() => {
       const clamped = cs.webkitLineClamp && cs.webkitLineClamp !== 'none';
       if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1 && (clipX || cs.textOverflow === 'ellipsis')) {
         add('overflow', el, docBox(r), 'content is ' + el.scrollWidth + ' px wide in a ' + el.clientWidth + ' px box, and is clipped');
-      } else if (el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 1 && (clipY || clamped)) {
+      } else if (el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 1 && (clipY || clamped) && drawnPastBottom(el, r)) {
         add('overflow', el, docBox(r), 'content is ' + el.scrollHeight + ' px tall in a ' + el.clientHeight + ' px box, and is ' + (clamped ? 'cut by line-clamp' : 'clipped'));
       }
     }
@@ -236,15 +252,18 @@ async page => page.evaluate(() => {
 
   // --- small-target (WCAG 2.5.8) ----------------------------------------------
   // A target under 24x24 passes when
-  //  - it is inline: its size is set by the line height of the text around it
-  //    (a link in a sentence, a nav link, a link alone in a paragraph), or
+  //  - it is inline and holds text, or has text of its parent's around it: its
+  //    size is set by the line height of text (a link in a sentence, a nav
+  //    link, a link alone in a paragraph); an icon-only inline link is not, or
   //  - spacing: a 24 px circle centred on its box touches no other target and
   //    no other undersized target's circle. Touching by under half a pixel is
   //    not counted, so layout rounding cannot make a 24 px grid fire.
   const small = targets.filter(t => t.r.width < 24 || t.r.height < 24);
   const centre = t => [t.r.left + t.r.width / 2, t.r.top + t.r.height / 2];
   for (const t of small) {
-    if (t.cs.display === 'inline') continue;
+    // Inline and holding text, or inline in text of its parent's own: sized by
+    // the line height of text. An inline icon-only link in a row is not.
+    if (t.cs.display === 'inline' && (t.el.textContent.trim() !== '' || (t.el.parentElement && ownText(t.el.parentElement) !== ''))) continue;
     const [cx, cy] = centre(t);
     let crowded = false;
     for (const o of targets) {
