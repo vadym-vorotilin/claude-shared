@@ -49,7 +49,7 @@ sandbox_path() { # tool...
 }
 
 @test "setup without node exits 3 and names node" {
-  bin="$(sandbox_path bash env dirname mkdir rm mv cat sed grep true)"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true)"
   PATH="$bin" LOOK_BROWSER="$bin/true" run "$LOOK" setup
   [ "$status" -eq 3 ]
   assert_contains "$output" node
@@ -57,14 +57,45 @@ sandbox_path() { # tool...
 
 @test "a failed npm install exits 3, names npm, and leaves no cache a later setup accepts" {
   type -P node >/dev/null || skip "no node here"
-  bin="$(sandbox_path bash env dirname mkdir rm mv cat sed grep true node)"
-  printf '#!/bin/sh\nmkdir -p "$3/node_modules/.bin"\nexit 1\n' > "$bin/npm"; chmod +x "$bin/npm"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  # The stub makes the hazard: a runnable-looking CLI under --prefix, then failure.
+  cat > "$bin/npm" <<'STUB'
+#!/bin/sh
+while [ $# -gt 0 ]; do
+  if [ "$1" = --prefix ]; then p="$2"; fi
+  shift
+done
+mkdir -p "$p/node_modules/.bin"
+printf '#!/bin/sh\nexit 0\n' > "$p/node_modules/.bin/playwright-cli"
+chmod +x "$p/node_modules/.bin/playwright-cli"
+exit 1
+STUB
+  chmod +x "$bin/npm"
   for i in 1 2; do
     PATH="$bin" LOOK_BROWSER="$bin/true" run env -u LOOK_CLI "$LOOK" setup
     [ "$status" -eq 3 ]
     assert_contains "$output" npm
   done
   [ ! -e "$XDG_CACHE_HOME/claude-look/cli-0.1.24" ]
+  [ -z "$(ls -A "$XDG_CACHE_HOME/claude-look" | grep -v '\.lock$')" ]
+}
+
+@test "a guard that fails stops open before navigation and closes the session" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  cat > "$bin/fakecli" <<'STUB'
+#!/bin/sh
+echo "$*" >> "$FAKE_LOG"
+STUB
+  chmod +x "$bin/fakecli"
+  export FAKE_LOG="$TEST_TMP/cli.log"
+  PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" LOOK_TEST_GUARD_FAIL=1 \
+    run "$LOOK" open "t$$-g" 'http://example.invalid/'
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "look: could not open http://example.invalid/ in session 't$$-g'"
+  grep -q 'open about:blank' "$FAKE_LOG"
+  grep -q 'close' "$FAKE_LOG"
+  ! grep -q 'goto' "$FAKE_LOG"
 }
 
 @test "two sessions keep separate pages and evidence directories" {
@@ -97,7 +128,7 @@ sandbox_path() { # tool...
   S="t$$-a"
   run "$LOOK" open "$S" 'http://127.0.0.1:9/'
   [ "$status" -ne 0 ]
-  refute_contains "$output" ' 2'
+  assert_contains "$output" "look: could not open http://127.0.0.1:9/ in session '$S'"
   run "$LOOK" cli "$S" eval "() => 1"
   [ "$status" -ne 0 ]
 }

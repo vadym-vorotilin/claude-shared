@@ -41,9 +41,20 @@ find_cli() {
   if [ ! -x "$bin" ]; then
     command -v npm >/dev/null 2>&1 || need "npm not found; install Node.js 18 or newer"
     mkdir -p "$(dirname "$cache")"
-    # One installer at a time when flock exists; a late arrival finds the finished cache.
+    # One installer at a time; a late arrival finds the finished cache. flock when
+    # present, else a mkdir lock; both wait at most 300 s. A stale mkdir lock from
+    # a crashed install is named in the error so it can be removed by hand.
+    local lockdir=""
     if command -v flock >/dev/null 2>&1; then
-      exec 9>"$cache.lock"; flock 9
+      exec 9>"$cache.lock"
+      flock -w 300 9 || need "timed out waiting for another install (lock $cache.lock)"
+    else
+      lockdir="$cache.lock.d"
+      local waited=0
+      until mkdir "$lockdir" 2>/dev/null; do
+        [ "$waited" -lt 300 ] || need "timed out waiting for another install; remove $lockdir if none is running"
+        sleep 1; waited=$((waited + 1))
+      done
     fi
     if [ ! -x "$bin" ]; then
       local tmp="$cache.tmp.$$"
@@ -52,11 +63,13 @@ find_cli() {
       if ! npm install --silent --no-audit --no-fund --prefix "$tmp" "@playwright/cli@$LOOK_CLI_VERSION" >&2 \
          || [ ! -x "$tmp/node_modules/.bin/playwright-cli" ]; then
         rm -rf "$tmp"
+        [ -z "$lockdir" ] || rmdir "$lockdir" 2>/dev/null || true
         need "npm install of @playwright/cli@$LOOK_CLI_VERSION failed"
       fi
       rm -rf "$cache"
       mv "$tmp" "$cache"
     fi
+    [ -z "$lockdir" ] || rmdir "$lockdir" 2>/dev/null || true
   fi
   echo "$bin"
 }
@@ -79,7 +92,23 @@ valid_session() { [[ "${1-}" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || die "bad session
 session_dir()   { echo "${LOOK_HOME:-${TMPDIR:-/tmp}/look}/$1"; }
 
 # Task 2 fills this in: the network guard, installed before the first navigation.
-install_guard() { :; }
+# CONTRACT: return non-zero on ANY failure (check every step; do not rely on set -e,
+# which is off in a function called from a tested context). A failure aborts the
+# open before navigation and closes the session.
+install_guard() {
+  [ -z "${LOOK_TEST_GUARD_FAIL-}" ] || return 1  # test hook
+  return 0
+}
+
+# The steps after the session dir exists. Every step is checked explicitly.
+open_steps() { # dir session cli url disposable preset [allow-post...]
+  local dir="$1" session="$2" cli="$3" url="$4" disposable="$5" preset="$6"
+  shift 6
+  cd "$dir" || return 1
+  "$cli" -s="$session" open about:blank >/dev/null || return 1
+  install_guard "$session" "$cli" "$disposable" "$preset" "$@" || return 1
+  "$cli" -s="$session" goto "$url" >/dev/null || return 1
+}
 
 cmd_open() {
   local session="${1-}" url="${2-}"
@@ -120,13 +149,8 @@ cmd_open() {
   ' "$browser" "$width" "$height" "$scheme" > "$dir/.playwright/cli.config.json"
 
   # After the browser is up, any failure closes this session (only this one).
-  if ! ( cd "$dir"
-         "$cli" -s="$session" open about:blank >/dev/null
-         if ! { install_guard "$session" "$cli" "$disposable" "$preset" "${allow_post[@]+"${allow_post[@]}"}" \
-                && "$cli" -s="$session" goto "$url" >/dev/null; }; then
-           "$cli" -s="$session" close >/dev/null 2>&1 || true
-           exit 1
-         fi ); then
+  if ! ( open_steps "$dir" "$session" "$cli" "$url" "$disposable" "$preset" "${allow_post[@]+"${allow_post[@]}"}" ); then
+    ( cd "$dir" && "$cli" -s="$session" close >/dev/null 2>&1 ) || true
     die "could not open $url in session '$session'"
   fi
   echo "$dir"
