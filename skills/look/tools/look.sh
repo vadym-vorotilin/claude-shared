@@ -12,7 +12,8 @@
 #   look.sh close <session>
 #
 # Env: LOOK_HOME (session dirs, default ${TMPDIR:-/tmp}/look), LOOK_BROWSER
-# (browser binary), LOOK_CLI (an existing playwright-cli; skips the install).
+# (browser binary), LOOK_CLI (an existing playwright-cli; skips the install;
+# its version is NOT checked, only LOOK_CLI_VERSION's own install is pinned).
 # Exit: 0 ok, 2 usage, 3 a prerequisite is missing (the message says what).
 # A session only ever closes itself; nothing here closes or kills others.
 # Every session is read-only on the network: open installs guard.js before the
@@ -336,16 +337,26 @@ cmd_checks() {
   cd "$dir"
   cp "$LOOK_DIR/checks.js" checks.gen.js || die "cannot write in $dir"
   run_script "$session" "$cli" checks.gen.js checks.page.json || die "the page checks did not run"
+  printf '%s\n' 'async page => page.url()' >url.gen.js || die "cannot write in $dir"
+  run_script "$session" "$cli" url.gen.js checks.url.json || die "cannot read the page URL"
   "$cli" -s="$session" console >checks.console.txt 2>&1 || die "cannot read the console: $(cat checks.console.txt)"
-  "$cli" -s="$session" requests --all --static >checks.requests.txt 2>&1 || die "cannot read the requests: $(cat checks.requests.txt)"
+  # Without --all: the requests since the current page's document load, so an
+  # earlier page's blocked or failed request is not reported on this one.
+  "$cli" -s="$session" requests --static >checks.requests.txt 2>&1 || die "cannot read the requests: $(cat checks.requests.txt)"
   # console-error: console lines the guard did not cause. A request the guard
   # blocked is a request-blocked hit (and its console error is dropped), so a
   # caller can tell a broken page from a write the guard stopped. A request
   # that failed otherwise is request-failed. A {check:"limit"} note from the
-  # page script is also said on stderr.
+  # page script is also said on stderr. The CLI prints an error as
+  # "[ERROR] text" or, for an uncaught exception or unhandled rejection, as an
+  # unindented "Error: text" followed by indented "    at ..." frames; both
+  # are errors. When its header counts more errors than were recognised (the
+  # CLI changed its format), one console-error hit says so: the gate must not
+  # pass silently. Every hit carries the page URL, which shot --hit checks.
   node -e '
     const fs = require("fs");
     const read = f => fs.readFileSync(f, "utf8");
+    const url = JSON.parse(read("checks.url.json"));
     const hits = JSON.parse(read("checks.page.json"));
     const extra = (check, detail) => ({check, selector: "", text: "", box: null, detail});
     const BLOCKED = /ERR_BLOCKED_BY_CLIENT/;
@@ -353,10 +364,19 @@ cmd_checks() {
     // defective for it. Only that exact path is dropped.
     const isFavicon = u => { try { return new URL(u.replace(/:\d+$/, "")).pathname === "/favicon.ico"; } catch (e) { return false; } };
     const faviconLine = l => (l.match(/https?:\/\/[^\s)]+/g) || []).some(isFavicon);
-    for (const line of read("checks.console.txt").split("\n")) {
+    const consoleText = read("checks.console.txt");
+    let seen = 0;
+    for (const line of consoleText.split("\n")) {
+      if (!line.trim() || /^### /.test(line) || /^Total messages:/.test(line) || /^\s/.test(line)) continue;
       const m = /^\[ERROR\] (.*)$/.exec(line);
-      if (m && !BLOCKED.test(m[1]) && !faviconLine(m[1])) hits.push(extra("console-error", m[1]));
+      if (!m && line[0] === "[") continue; // another level: warning, log, info
+      const text = m ? m[1] : line;
+      seen++;
+      if (!BLOCKED.test(text) && !faviconLine(text)) hits.push(extra("console-error", text));
     }
+    const header = /Errors: (\d+)/.exec(consoleText);
+    if (header && +header[1] > seen)
+      hits.push(extra("console-error", header[1] + " console errors, " + seen + " recognised; read checks.console.txt"));
     for (const line of read("checks.requests.txt").split("\n")) {
       const m = /^\d+\. \[([A-Z]+)\] (\S+) => \[FAILED\] (.*)$/.exec(line);
       if (!m || isFavicon(m[2])) continue;
@@ -365,6 +385,7 @@ cmd_checks() {
         : extra("request-failed", m[1] + " " + m[2] + " " + m[3]));
     }
     for (const h of hits) if (h.check === "limit") console.error("look: " + h.detail + "; the rest was not compared");
+    for (const h of hits) h.url = url;
     fs.writeFileSync("checks.json", JSON.stringify(hits, null, 2) + "\n");
     process.stdout.write(JSON.stringify(hits) + "\n");
   ' || die "could not read the check results"
@@ -395,7 +416,7 @@ cmd_shot() {
       const h = hits[n];
       if (!h.box) { console.error("hit " + n + " (" + h.check + ") has no box to mark: it came from the console or the network log"); process.exit(2); }
       if (!h.selector) { console.error("hit " + n + " (" + h.check + ") has a box but no selector that matched exactly one element when checks ran, so it cannot be scrolled to; run checks again"); process.exit(2); }
-      console.log(JSON.stringify({selector: h.selector, box: h.box, rel: h.rel || {x: 0, y: 0, w: h.box.w, h: h.box.h}}));
+      console.log(JSON.stringify({url: h.url || "", selector: h.selector, box: h.box, rel: h.rel || {x: 0, y: 0, w: h.box.w, h: h.box.h}}));
     ' "$dir/checks.json" "$hit" 2>&1)" || die "$picked" 2
     target="$picked"
   fi
@@ -414,6 +435,7 @@ cmd_shot() {
     const src = `async page => {
       const out = ${JSON.stringify(out)}, full = ${full}, t = ${JSON.stringify(t)};
       if (!t) { await page.screenshot({path: out, fullPage: full}); return "look-shot-ok"; }
+      if (t.url && page.url() !== t.url) return "look-shot-error: the hit was found on " + t.url + " but the page is now " + page.url() + "; run checks again";
       const placed = await page.evaluate(({sel, rel}) => {
         const els = document.querySelectorAll(sel);
         if (els.length !== 1) return {error: sel + " matches " + els.length + " elements now; run checks again"};

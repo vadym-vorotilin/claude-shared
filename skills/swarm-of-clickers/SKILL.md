@@ -22,10 +22,10 @@ bash "$L/tools/look.sh" setup
 
 Input: the URL, what changed, and any FRs or spec. Size: 3, 5 or 10, from the user; 5 if they do not say.
 
-- `<project>` is `git rev-parse --show-toplevel`. The run directory is `<project>/.qa-runs/<YYYY-MM-DD-HHMM>/`. In a git repo, first run `f=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$f")"; grep -qxF '.qa-runs/' "$f" 2>/dev/null || echo '.qa-runs/' >> "$f"`. Never touch `.gitignore`. Outside git, name a directory and tell the user where.
+- `<project>` is `git rev-parse --show-toplevel`. The run directory is `<project>/.qa-runs/<YYYY-MM-DD-HHMM>/`. In a git repo, first run `f=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$f")"; grep -qxF '.qa-runs/' "$f" 2>/dev/null || { [ -z "$(tail -c1 "$f" 2>/dev/null)" ] || echo >> "$f"; echo '.qa-runs/' >> "$f"; }`. Never touch `.gitignore`. Outside git, name a directory and tell the user where.
 - Session names carry a run stamp so they are unique: `q1942-c1`…`q1942-cN` (any short stamp), and your own re-run session is `q1942-review`, under the same `LOOK_HOME`.
-- Write `<run>/charters/<name>.md` per clicker (`c1`…`cN`): start URL, the host to stay on, an angle, widths and schemes. Most charters cover the changed area, one or two its neighbours (regressions), one is a free explorer. Angles: keyboard only, narrow width, bad input, first-time user, empty and error states.
-- Guard flags for every clicker: `--preset NAME` or `--allow-post GLOB` when the app needs them, for read-only paths only. `--disposable HOST` only after the user said yes for that host.
+- Write `<run>/charters/<session name>.md` per clicker (`q1942-c1`…): start URL, the host to stay on, an angle, widths and schemes. Most charters cover the changed area, one or two its neighbours (regressions), one is a free explorer. Angles: keyboard only, narrow width, bad input, first-time user, empty and error states.
+- Guard flags for every clicker: `--preset NAME` or `--allow-post GLOB` when the app needs them, for read-only paths only. `--disposable HOST` and `--allow-websocket` only after the user said yes (the second lifts WebSockets on every host).
 
 ## 2. Dispatch
 
@@ -40,7 +40,7 @@ Read the "UI clicker" row of `../agency/matrix.md`. Send all clickers in ONE mes
 
 ## 3. Collect
 
-Wait for the notifications. A clicker that returns without `notes.json` gets one fresh dispatch or is reported as missing. Never wait by polling in a loop.
+Wait for the notifications. A clicker that returns without `notes.json` gets one fresh dispatch or is reported as missing. Never wait by polling in a loop. Then close every clicker session by name (`close` is safe on a closed one).
 
 ## 4. Review
 
@@ -48,7 +48,7 @@ Read every `notes.json`, then:
 
 1. merge duplicates, counting `seen_by`;
 2. read every screenshot; drop misreads;
-3. **re-run every functional finding's steps yourself**, in your own look session (`<stamp>-review`, same `LOOK_HOME`); you may add a viewport-pixel `box` only to your own re-run shots (clickers' shots carry `box: null`), before keeping it;
+3. **re-run every functional finding's steps yourself**, in your own look session (`<stamp>-review`, same `LOOK_HOME`); you may add a `box` only to a plain viewport shot of your own re-run, in that shot's pixels, never copied from a `checks.json` (clickers' shots carry `box: null`), before keeping it;
 4. classify functional, visual or UX; write `fix`; give each finding an `id`;
 5. a `request-blocked` the page visibly broke on: add a read-only `--allow-post` path and re-run that clicker, never ask the user to lift the guard.
 

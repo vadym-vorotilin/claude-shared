@@ -14,18 +14,19 @@ Shell variables do not survive between Bash calls. Resolve once, print, and use 
 ```bash
 L=$(dirname "$(readlink -f <path to this SKILL.md>)")
 S=look-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n')   # unique per caller
-echo "L=$L S=$S"
+LOOK_HOME=$(mktemp -d)   # a session with a scratchpad: mktemp -d "<scratchpad dir>/look.XXXX"
+echo "L=$L S=$S LOOK_HOME=$LOOK_HOME"
 bash "$L/tools/look.sh" setup
 ```
 
-Always go through `bash` (packagers strip exec bits). Flags and exit codes: the header of `tools/look.sh`.
+Put `LOOK_HOME=<that value>` in front of every `look.sh` call: sessions and shots land there, and `close` deletes nothing. Always go through `bash` (packagers strip exec bits). Flags and exit codes: the header of `tools/look.sh`.
 
 ## The quick look
 
 For each configuration — desktop width and `--width 390`, each in light and, if the page has a dark mode, `--scheme dark`:
 
-1. `open $S <url|path> --width W --scheme X`. A local file opens directly; never start a server for it.
-2. `checks $S`; then `shot $S <name>-W-X --hit N` for each hit with a box (N is its 0-based index in the printed JSON) and one `--full`.
+1. `open $S <url|path> --width W --scheme X`. A local file opens directly; do not start a server for it unless it fetches other files, then serve it on 127.0.0.1 and stop the server by its pid.
+2. `checks $S`; then `shot $S <name>-W-X-h<N> --hit N` for each hit with a box (N is its 0-based index in the printed JSON; run `checks` again after any navigation) and `shot $S <name>-W-X-full --full`.
 3. **Read every PNG.** A shot you did not read is not a look.
 4. `close $S` (only your own session; never `close-all` or `kill-all`).
 
@@ -35,7 +36,7 @@ For each configuration — desktop width and `--width 390`, each in light and, i
 
 Sessions are read-only on the network. `request-blocked` hits are the guard working, not defects. A page that loads empty with blocked reads: rerun with `--allow-post GLOB` for those read-only paths, or `--preset grafana`. Never ask the user to lift the guard.
 
-Writes: ask once per server whether it is disposable. Only the user's yes allows `--disposable HOST`, for that host. Other hosts stay blocked.
+Writes: ask once per server whether it is disposable. Only the user's yes allows `--disposable HOST`, for that host. Other hosts stay blocked. `--allow-websocket` also needs the user's yes, and it lifts WebSockets on every host.
 
 Limits: the deny-word list for state-changing GETs is a heuristic (it misses `sign_out`, `logoff`, `:delete`), so never click logout or delete links. WebSockets are blocked; `--allow-websocket` lifts that and their messages may write; a worker's WebSocket is not routed.
 

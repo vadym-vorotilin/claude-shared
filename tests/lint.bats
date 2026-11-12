@@ -309,6 +309,7 @@ PY
   refute_contains "$output" "No such file"
   # The checkout may be reached through a symlink; the block resolves it.
   assert_contains "$output" "L=$(readlink -f "$REPO")/skills/look S=look-"
+  assert_contains "$output" " LOOK_HOME=/"
 }
 
 @test "swarm-of-clickers names the UI clicker matrix row, and the row exists" {

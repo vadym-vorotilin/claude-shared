@@ -42,7 +42,8 @@ teardown() {
 
 need_browser() {
   [ -x "$LOOK" ] || fail "look.sh missing"
-  "$LOOK" setup >/dev/null 2>&1 || skip "no browser or Playwright CLI here"
+  local why
+  why="$("$LOOK" setup 2>&1)" || skip "no browser or Playwright CLI here: $(printf '%s' "$why" | tail -n 3 | tr '\n' ' ')"
 }
 
 @test "setup with no browser names what to install and exits 3" {
@@ -1049,4 +1050,74 @@ JSON
   run "$LOOK" checks "$S"
   [ "$status" -eq 0 ] || fail "$output"
   [ "$output" = "[]" ] || fail "$output"
+}
+
+@test "checks count an uncaught exception, an unhandled rejection and a logged error" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/errors.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  sleep 0.5
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  run node -e '
+    const h = JSON.parse(process.argv[1]).filter(k => k.check === "console-error");
+    const want = ["boom-logged", "boom-rejected", "boom-uncaught"];
+    const bad = want.filter(w => !h.some(k => k.detail.includes(w)));
+    if (h.length !== 3 || bad.length) { console.error(h.length + " hits; missing " + bad); process.exit(1); }
+  ' "$output"
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "checks say so when the CLI's error count is higher than the lines they recognise" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat cp sed grep ls true node)"
+  cat > "$bin/fakecli" <<'STUB'
+#!/bin/sh
+case "$*" in
+  *run-code*url.gen.js*) printf '### Result\n"http://example.invalid/"\n' ;;
+  *run-code*) printf '### Result\n[]\n' ;;
+  *console*) printf '### Result\nTotal messages: 2 (Errors: 2, Warnings: 0)\n\n  ERR some future format\n  ERR another\n' ;;
+  *requests*) printf '### Result\n' ;;
+esac
+exit 0
+STUB
+  chmod +x "$bin/fakecli"
+  mkdir -p "$LOOK_HOME/t$$-n"
+  PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" run "$LOOK" checks "t$$-n"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" '"console-error"'
+  assert_contains "$output" "2 console errors, 0 recognised"
+  assert_contains "$output" "checks.console.txt"
+}
+
+@test "checks list only the requests since the current page's load" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/onload-post.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  assert_contains "$output" '"request-blocked"'
+  run "$LOOK" cli "$S" goto "$BASE/clean.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  [ "$output" = "[]" ] || fail "$output"
+}
+
+@test "every hit carries its page URL, and shot --hit refuses on another page" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/below-fold.html" --width 800 --height 600
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  node -e 'const h = JSON.parse(process.argv[1]); process.exit(h.length && h.every(k => k.url === process.argv[2]) ? 0 : 1)' "$output" "$BASE/below-fold.html" \
+    || fail "hits lack the page URL: $output"
+  run "$LOOK" cli "$S" goto "$BASE/clean.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" shot "$S" wrong --hit 0
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "found on $BASE/below-fold.html"
+  [ ! -e "$LOOK_HOME/$S/shots/wrong.png" ]
 }

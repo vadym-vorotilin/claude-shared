@@ -11,7 +11,7 @@ Widths: 1280 unless the description gives another. Schemes: light unless said.
 | K03 | measurable | reports | The "Updated 4 min ago" stamp on the "Revenue by client, this period" card | The stamp is drawn over the end of the card's heading, so the two texts collide. At 1280 only; at 390 the stamp sits below the heading. |
 | K04 | measurable | settings | The pencil (Edit) and cross (Remove) icon buttons in each Team members row | Each is 18x18 px and they sit 2 px apart, under the 24 px target size with no spacing. Same at 390. |
 | K05 | measurable | index | The leaf logo image at the left of the header | The `<img>` has no alt attribute. Only on this page; the other two pages mark it decorative. |
-| K06 | measurable | reports | The page itself, on load | Loading the page logs a console error: a request for `api/usage-summary.json` fails with 404 and the script that reads it throws. Nothing on screen changes. Only when the fixture is served over http; the page still works. |
+| K06 | measurable | reports | The page itself, on load | Loading the page logs two console errors: a request for `api/usage-summary.json` fails with 404 and the script that reads it throws (an unhandled rejection). Nothing on screen changes. Only when the fixture is served over http; the page still works. |
 | K07 | visual | index | The icon in the "Overdue" summary tile | The icon circle sits about 8 px lower than the icons in the other three tiles. |
 | K08 | visual | reports | The three cards under the period buttons (Invoiced, Collected, Average days to pay) | The gap before the third card ("Average days to pay") is about 30 px, the gap between the first two is 16 px. At 390, the third card is also indented 14 px. |
 | K09 | visual | index, reports | The "Export CSV" button on Invoices and the "Download CSV" button on Reports | One action, two labels: both produce the same invoices.csv, and each shows the same "invoices.csv is ready" message beside the button. |
@@ -37,6 +37,6 @@ The hit kinds `look.sh checks` returns for each page's first screen, served over
 |---|---|---|---|
 | index | img-alt 1, overflow 1 | img-alt 1, overflow 1 | img-alt 1, overflow 1 |
 | settings | contrast 1, small-target 4 | contrast 1, small-target 4 | small-target 4 |
-| reports | console-error 1, overlap 1 | console-error 1 | console-error 1, overlap 1 |
+| reports | console-error 2, overlap 1 | console-error 2 | console-error 2, overlap 1 |
 
 The six kinds are covered by the 1280 light column: overflow, img-alt (index), contrast, small-target (settings), overlap, console-error (reports).

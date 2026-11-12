@@ -16,7 +16,11 @@
 // An element is ignored everywhere when it has no size (a side of 1 px or
 // less in both directions), or is display:none, visibility:hidden or fully
 // transparent (its own opacity or the product over its ancestors), or sits in
-// an ancestor that is 0 px along an axis it clips (a collapsed container).
+// an ancestor that is 0 px along an axis it clips (a collapsed container) or
+// that a clip-path or clip cuts to nothing (sr-only text).
+// Known limit: a child that shows only a CSS background-image (a carousel of
+// background-image slides) counts as drawn paint, so a strip of them that
+// clips is reported as cropped; media elements (img, svg, ...) do not.
 // A hit may also carry `rel`: its box relative to its element's box, so a
 // marked shot can find the box again after the page has scrolled.
 // {check:"limit"} is a note, not a defect: a cap was reached (see overlap).
@@ -48,16 +52,17 @@ async page => page.evaluate(() => {
 
   // --- what is visible -------------------------------------------------------
   // Per element, cached: the product of opacity over it and its ancestors, and
-  // whether it or an ancestor is 0 px along an axis it clips.
+  // whether it or an ancestor is 0 px along an axis it clips, or is cut to
+  // nothing by a clip-path or clip (zeroClip).
   const states = new Map();
   const stateOf = el => {
-    if (!el) return {op: 1, clip: false};
+    if (!el) return {op: 1, clip: false, cut: false};
     let st = states.get(el);
     if (st) return st;
     const p = stateOf(el.parentElement), cs = getComputedStyle(el);
     const zero = cs.display !== 'inline' && cs.display !== 'contents' &&
       ((cs.overflowY !== 'visible' && el.clientHeight === 0) || (cs.overflowX !== 'visible' && el.clientWidth === 0));
-    st = {op: p.op * (+cs.opacity), clip: p.clip || zero};
+    st = {op: p.op * (+cs.opacity), clip: p.clip || zero, cut: p.cut || zeroClip(cs)};
     states.set(el, st);
     return st;
   };
@@ -67,7 +72,7 @@ async page => page.evaluate(() => {
         !el.checkVisibility({checkOpacity: true, checkVisibilityCSS: true, opacityProperty: true, visibilityProperty: true})) return false;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return false;
-    return stateOf(el).op > 0 && !stateOf(el.parentElement).clip;
+    return stateOf(el).op > 0 && !stateOf(el).cut && !stateOf(el.parentElement).clip;
   };
   const visible = el => {
     if (!shown(el)) return false;
