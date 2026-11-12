@@ -27,4 +27,11 @@ the desktop session and every other Claude session on the machine.
   the jail. Example: `~/.claude/bin/pidjail bats tests/`. If it prints
   `pidjail: refused:` (no namespaces here), stop and ask; don't run the
   command unjailed.
+## Visual work: look before you call it done
+
+Before calling visual work done (a page, component, style, layout, chart or
+Artifact), look at it with `/look`: it opens the UI in a real browser at desktop
+and phone width, in dark mode too where the page has one, runs measured checks
+and reads the screenshots. Never ask the user for a screenshot you could take
+yourself.
 <!-- <<< claude-shared <<< -->

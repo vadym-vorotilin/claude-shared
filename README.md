@@ -402,7 +402,9 @@ The managed block `sync.sh` writes to `~/.claude/CLAUDE.md` tells agents:
 
 - signal only pids and groups they started and checked;
 - run code that signals pids or groups it reads or computes under `pidjail`;
-- stop and ask on a `pidjail: refused:`.
+- stop and ask on a `pidjail: refused:`;
+- before calling visual work done, look at it with `/look`, and never ask you
+  for a screenshot they could take themselves.
 
 ## Shared skills
 
@@ -514,6 +516,17 @@ of these are available in every project on the machine.
   session's, keep a running log, and synthesise a recommendation with checked
   evidence.
 
+### Visual work
+
+- **`/look`** — before visual work is reported done (a page, component, style,
+  layout, chart or Artifact), open it in a real headless browser at desktop and
+  390 px width, in light and dark, run measured checks (overflow, overlap,
+  contrast, tap targets, alt text, console and network errors), and read the
+  screenshots. Sessions are read-only on the network by default; writes need a
+  disposable server you confirm. Needs Node 18+ and a Chromium; it asks before
+  downloading one. The rule is in the managed block of `~/.claude/CLAUDE.md`
+  (`claude/CLAUDE.snippet.md`).
+
 ### Machine upkeep
 
 - **`/disk-cleanup`** — find what fills a nearly full disk and free space
@@ -586,7 +599,7 @@ eligible issue). Commit the written file in the target repo.
 | `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace and session, so no signal it sends (not even `kill -- -1` or `kill 0`) reaches anything outside it. Refuses, rather than run it unjailed, where namespaces are unavailable. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
-| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer, and the rule that agents signal only what they started and run signalling code under `pidjail` (see "What `sync.sh` writes") |
+| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer, the rule that agents signal only what they started and run signalling code under `pidjail`, and the rule to `/look` at visual work before calling it done (see "What `sync.sh` writes") |
 | — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
 
 ### What `sync.sh` writes

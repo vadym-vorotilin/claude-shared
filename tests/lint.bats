@@ -278,3 +278,15 @@ PY
   ! grep -rniE "(scratch(pad)? (file|directory)[^.]*(ledger|report)|(ledger|report)[^.]*scratch(pad)? (file|directory))" \
       "$REPO/skills" --include=*.md --exclude-dir=full || fail "run state still placed in a scratch file or directory"
 }
+
+@test "the playwright-cli version is pinned in one place" {
+  # No skill file may spell out a version of the CLI; look.sh names it once
+  # (LOOK_CLI_VERSION) and uses the variable everywhere else.
+  run grep -rnE '@playwright/cli@[0-9]' "$REPO/skills"
+  [ "$status" -eq 1 ] || fail "a file names a literal playwright-cli version: $output"
+  [ "$(grep -cE '^LOOK_CLI_VERSION=[0-9]' "$REPO/skills/look/tools/look.sh")" -eq 1 ] \
+    || fail "look.sh does not define LOOK_CLI_VERSION exactly once"
+  run grep -rnE '@playwright/cli@' "$REPO/skills"
+  ! grep -qv 'look.sh:.*@playwright/cli@\$LOOK_CLI_VERSION' <<< "$output" \
+    || fail "another use of @playwright/cli@ than look.sh's LOOK_CLI_VERSION: $output"
+}
