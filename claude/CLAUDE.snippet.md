@@ -27,6 +27,7 @@ the desktop session and every other Claude session on the machine.
   the jail. Example: `~/.claude/bin/pidjail bats tests/`. If it prints
   `pidjail: refused:` (no namespaces here), stop and ask; don't run the
   command unjailed.
+
 ## Visual work: look before you call it done
 
 Before calling visual work done (a page, component, style, layout, chart or

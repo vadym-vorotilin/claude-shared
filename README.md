@@ -520,7 +520,7 @@ of these are available in every project on the machine.
 
 - **`/look`** — before visual work is reported done (a page, component, style,
   layout, chart or Artifact), open it in a real headless browser at desktop and
-  390 px width, in light and dark, run measured checks (overflow, overlap,
+  390 px width, in dark too where the page supports it, run measured checks (overflow, overlap,
   contrast, tap targets, alt text, console and network errors), and read the
   screenshots. Sessions are read-only on the network by default; writes need a
   disposable server you confirm. Needs Node 18+ and a Chromium; it asks before

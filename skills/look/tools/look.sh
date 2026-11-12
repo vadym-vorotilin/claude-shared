@@ -3,7 +3,7 @@
 # per named session, evidence kept in that session's own directory.
 #
 #   look.sh setup
-#   look.sh open <session> <url> [--width N] [--height N] [--scheme light|dark]
+#   look.sh open <session> <url|path> [--width N] [--height N] [--scheme light|dark]
 #                [--disposable HOST] [--allow-post GLOB]... [--preset NAME]
 #                [--allow-websocket]
 #   look.sh cli <session> <command> [args...]   (allowlisted commands only)
@@ -219,6 +219,15 @@ cmd_open() {
     shift 2
   done
   [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || die "--width and --height must be numbers" 2
+  # A bare path to an existing file becomes an absolute file:// URL. The CLI
+  # blocks file: unless its config lifts that, which is done below for file:
+  # URLs only.
+  if [[ ! "$url" =~ ^[A-Za-z][A-Za-z0-9+.-]*: ]] && [ -e "$url" ]; then
+    url="$(node -e 'console.log(require("url").pathToFileURL(require("path").resolve(process.argv[1])).href)' "$url")" \
+      || die "cannot make a file URL of '$url'" 2
+  fi
+  local fileaccess=false
+  [[ "$url" =~ ^[Ff][Ii][Ll][Ee]: ]] && fileaccess=true
   case "$scheme" in light|dark) ;; *) die "--scheme must be light or dark" 2 ;; esac
   # A bare host name or IP, compared with URL.hostname on any port: no scheme,
   # port, path or wildcard, so what is lifted is exactly one host.
@@ -244,13 +253,16 @@ cmd_open() {
   dir="$(session_dir "$session")"
   mkdir -p "$dir/.playwright"
   node -e '
-    const [exe, w, h, scheme] = process.argv.slice(1);
-    console.log(JSON.stringify({browser: {
+    const [exe, w, h, scheme, fileAccess] = process.argv.slice(1);
+    const cfg = {browser: {
       launchOptions: {executablePath: exe},
       // A service worker could answer for the network, so none may register.
       contextOptions: {viewport: {width: +w, height: +h}, colorScheme: scheme,
-                       serviceWorkers: "block"}}}, null, 2));
-  ' "$browser" "$width" "$height" "$scheme" > "$dir/.playwright/cli.config.json"
+                       serviceWorkers: "block"}}};
+    // Only a session opened on a file: URL may read local files.
+    if (fileAccess === "true") cfg.allowUnrestrictedFileAccess = true;
+    console.log(JSON.stringify(cfg, null, 2));
+  ' "$browser" "$width" "$height" "$scheme" "$fileaccess" > "$dir/.playwright/cli.config.json"
 
   # After the browser is up, any failure closes this session (only this one).
   if ! ( open_steps "$dir" "$session" "$cli" "$url" "$disposable" "$preset" "$allow_websocket" "${allow_post[@]+"${allow_post[@]}"}" ); then
@@ -337,13 +349,17 @@ cmd_checks() {
     const hits = JSON.parse(read("checks.page.json"));
     const extra = (check, detail) => ({check, selector: "", text: "", box: null, detail});
     const BLOCKED = /ERR_BLOCKED_BY_CLIENT/;
+    // The browser asks for /favicon.ico on its own; a page that has none is not
+    // defective for it. Only that exact path is dropped.
+    const isFavicon = u => { try { return new URL(u.replace(/:\d+$/, "")).pathname === "/favicon.ico"; } catch (e) { return false; } };
+    const faviconLine = l => (l.match(/https?:\/\/[^\s)]+/g) || []).some(isFavicon);
     for (const line of read("checks.console.txt").split("\n")) {
       const m = /^\[ERROR\] (.*)$/.exec(line);
-      if (m && !BLOCKED.test(m[1])) hits.push(extra("console-error", m[1]));
+      if (m && !BLOCKED.test(m[1]) && !faviconLine(m[1])) hits.push(extra("console-error", m[1]));
     }
     for (const line of read("checks.requests.txt").split("\n")) {
       const m = /^\d+\. \[([A-Z]+)\] (\S+) => \[FAILED\] (.*)$/.exec(line);
-      if (!m) continue;
+      if (!m || isFavicon(m[2])) continue;
       hits.push(BLOCKED.test(m[3])
         ? extra("request-blocked", m[1] + " " + m[2] + " (blocked by the look guard)")
         : extra("request-failed", m[1] + " " + m[2] + " " + m[3]));

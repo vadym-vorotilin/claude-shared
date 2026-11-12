@@ -26,6 +26,8 @@
   .ov-c, .ov-d { position: absolute; top: 4px; width: 160px; height: 30px; }
   .ov-c { left: 20px; }
   .ov-d { left: 120px; }
+  .box { width: 240px; padding: 16px; background: #f4f4f4; margin: 0 20px 24px; }
+  .box input { width: 100%; padding: 12px; }
 </style>
 <section>
   <div class="wide" data-defect="overflow">A very long line of text that cannot fit its narrow box</div>
@@ -47,6 +49,9 @@
   <div class="icons"><a href="#d" data-defect="small-target"><span class="sr-only">One</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#e" data-defect="small-target"><span class="sr-only">Two</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#f" data-defect="small-target"><svg width="12" height="12"><title>Three</title><circle cx="6" cy="6" r="5"/></svg></a></div>
   <div class="icons"><a href="#g" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>&middot;<a href="#h" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>|<a href="#i" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
   <div class="stacked"><a href="#j" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><br><a href="#k" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+</section>
+<section style="height:auto">
+  <div class="box"><input data-defect="overflow" type="text" aria-label="Name" value="Ada"></div>
 </section>
 <section class="hero">
   <div class="pair"><button class="ov-c" data-defect="overlap">Start the tour</button><button class="ov-d">Skip the tour</button></div>

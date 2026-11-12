@@ -237,11 +237,31 @@ async page => page.evaluate(() => {
 
   // --- per-element checks ---------------------------------------------------
   const textEls = new Set();
+  // overflow, form controls and replaced elements: one whose border box pokes
+  // more than 1 px out of its parent's content box sideways, where the parent
+  // does not scroll or clip. (The usual cause is width:100% plus padding without
+  // border-box.) Out-of-flow elements are not placed by the parent's box.
+  const CONTROL = /^(INPUT|SELECT|TEXTAREA|IMG|VIDEO|CANVAS|IFRAME)$/;
+  const controlOverflow = (el, r) => {
+    const p = el.parentElement;
+    if (!p || !CONTROL.test(el.tagName)) return null;
+    const cs = getComputedStyle(el), pcs = getComputedStyle(p);
+    if (/^(absolute|fixed)$/.test(cs.position) || pcs.display === 'contents' || pcs.display === 'none') return null;
+    if (/^(auto|scroll|hidden|clip)$/.test(pcs.overflowX)) return null;
+    const pr = p.getBoundingClientRect();
+    const left = pr.left + parseFloat(pcs.borderLeftWidth) + parseFloat(pcs.paddingLeft);
+    const right = pr.right - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingRight);
+    const past = Math.max(left - r.left, r.right - right);
+    return past > 1 ? 'the ' + el.tagName.toLowerCase() + ' sticks out ' + Math.round(past) + ' px past its parent\'s content box' : null;
+  };
+
   const targets = []; // visible, enabled targets: {el, r, cs}
   for (const el of all) {
     if (el.tagName === 'IMG') {
       if (!shown(el)) continue;
       const r = el.getBoundingClientRect();
+      const co = controlOverflow(el, r);
+      if (co) add('overflow', el, docBox(r), co);
       const hidden = el.getAttribute('aria-hidden') === 'true' || el.getAttribute('role') === 'presentation' || el.getAttribute('role') === 'none';
       if (!el.hasAttribute('alt') && !hidden && !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby') && !el.title) {
         add('img-alt', el, docBox(r), 'image has no alt attribute (alt="" marks a decorative one)');
@@ -255,6 +275,8 @@ async page => page.evaluate(() => {
     if (!visible(el)) continue;
     const cs = getComputedStyle(el);
     const r = el.getBoundingClientRect();
+    const co = controlOverflow(el, r);
+    if (co) add('overflow', el, docBox(r), co);
 
     // overflow: content cropped by its box, sideways or down. Text fields scroll
     // their value instead of cropping it, so they are not measured.

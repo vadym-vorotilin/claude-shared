@@ -993,3 +993,41 @@ JSON
   [ "$status" -ne 0 ]
   assert_contains "$output" "no box"
 }
+
+@test "a file:// URL and a bare path both open, check and shoot a local file" {
+  need_browser
+  F="$REPO/tests/fixtures/look/clean.html"
+  for target in "file://$F" "$F"; do
+    S="t$$-a"
+    run "$LOOK" open "$S" "$target"
+    [ "$status" -eq 0 ] || fail "open $target: $output"
+    grep -qF '"allowUnrestrictedFileAccess": true' "$LOOK_HOME/$S/.playwright/cli.config.json" \
+      || fail "a file session lacks allowUnrestrictedFileAccess"
+    run "$LOOK" checks "$S"
+    [ "$status" -eq 0 ] || fail "$output"
+    [ "$output" = "[]" ] || fail "$output"
+    run "$LOOK" shot "$S" local
+    [ "$status" -eq 0 ] || fail "$output"
+    [ -s "$LOOK_HOME/$S/shots/local.png" ]
+    "$LOOK" close "$S"
+  done
+}
+
+@test "an http session's config does not carry the file-access key" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/clean.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  ! grep -q allowUnrestrictedFileAccess "$LOOK_HOME/$S/.playwright/cli.config.json" \
+    || fail "an http session may read local files"
+}
+
+@test "a missing /favicon.ico is not a console-error or request-failed hit" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/favicon.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  [ "$output" = "[]" ] || fail "$output"
+}

@@ -287,6 +287,6 @@ PY
   [ "$(grep -cE '^LOOK_CLI_VERSION=[0-9]' "$REPO/skills/look/tools/look.sh")" -eq 1 ] \
     || fail "look.sh does not define LOOK_CLI_VERSION exactly once"
   run grep -rnE '@playwright/cli@' "$REPO/skills"
-  ! grep -qv 'look.sh:.*@playwright/cli@\$LOOK_CLI_VERSION' <<< "$output" \
+  ! grep -qv 'skills/look/tools/look.sh:.*@playwright/cli@\$LOOK_CLI_VERSION' <<< "$output" \
     || fail "another use of @playwright/cli@ than look.sh's LOOK_CLI_VERSION: $output"
 }
