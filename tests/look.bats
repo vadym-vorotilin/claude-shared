@@ -12,7 +12,7 @@ setup() {
   export LOOK_HOME="$TEST_TMP/look"
 }
 teardown() {
-  for s in a b; do "$LOOK" close "$s" >/dev/null 2>&1 || true; done
+  for s in "t$$-a" "t$$-b"; do "$LOOK" close "$s" >/dev/null 2>&1 || true; done
   common_teardown
 }
 
@@ -40,23 +40,64 @@ need_browser() {
   [ ! -e "$LOOK_HOME/../x" ]
 }
 
+# A PATH holding only the named tools, so nothing else (browser, node, npm) resolves.
+sandbox_path() { # tool...
+  bin="$TEST_TMP/bin"; mkdir -p "$bin"
+  local t p
+  for t in "$@"; do p="$(type -P "$t" 2>/dev/null)" && ln -sf "$p" "$bin/$t"; done
+  echo "$bin"
+}
+
+@test "setup without node exits 3 and names node" {
+  bin="$(sandbox_path bash env dirname mkdir rm mv cat sed grep true)"
+  PATH="$bin" LOOK_BROWSER="$bin/true" run "$LOOK" setup
+  [ "$status" -eq 3 ]
+  assert_contains "$output" node
+}
+
+@test "a failed npm install exits 3, names npm, and leaves no cache a later setup accepts" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rm mv cat sed grep true node)"
+  printf '#!/bin/sh\nmkdir -p "$3/node_modules/.bin"\nexit 1\n' > "$bin/npm"; chmod +x "$bin/npm"
+  for i in 1 2; do
+    PATH="$bin" LOOK_BROWSER="$bin/true" run env -u LOOK_CLI "$LOOK" setup
+    [ "$status" -eq 3 ]
+    assert_contains "$output" npm
+  done
+  [ ! -e "$XDG_CACHE_HOME/claude-look/cli-0.1.24" ]
+}
+
 @test "two sessions keep separate pages and evidence directories" {
   need_browser
-  run "$LOOK" open a 'data:text/html,<title>A</title>'
+  A="t$$-a"; B="t$$-b"
+  run "$LOOK" open "$A" 'data:text/html,<title>Alpha</title>'
   [ "$status" -eq 0 ]
   dir_a="$output"
-  run "$LOOK" open b 'data:text/html,<title>B</title>'
+  run "$LOOK" open "$B" 'data:text/html,<title>Bravo</title>'
   [ "$status" -eq 0 ]
   dir_b="$output"
   [ "$dir_a" != "$dir_b" ]
-  [ -d "$LOOK_HOME/a" ] && [ -d "$LOOK_HOME/b" ]
-  run "$LOOK" cli a eval "() => document.title"
-  assert_contains "$output" A
-  refute_contains "$output" '"B"'
-  run "$LOOK" cli b eval "() => document.title"
-  assert_contains "$output" B
-  run "$LOOK" close a
+  [ -d "$LOOK_HOME/$A" ] && [ -d "$LOOK_HOME/$B" ]
+  run "$LOOK" cli "$A" eval "() => document.title"
   [ "$status" -eq 0 ]
-  run "$LOOK" close b
+  assert_contains "$output" '"Alpha"'
+  refute_contains "$output" Bravo
+  run "$LOOK" cli "$B" eval "() => document.title"
   [ "$status" -eq 0 ]
+  assert_contains "$output" '"Bravo"'
+  refute_contains "$output" Alpha
+  run "$LOOK" close "$A"
+  [ "$status" -eq 0 ]
+  run "$LOOK" close "$B"
+  [ "$status" -eq 0 ]
+}
+
+@test "a failed navigation closes its own session and exits non-zero" {
+  need_browser
+  S="t$$-a"
+  run "$LOOK" open "$S" 'http://127.0.0.1:9/'
+  [ "$status" -ne 0 ]
+  refute_contains "$output" ' 2'
+  run "$LOOK" cli "$S" eval "() => 1"
+  [ "$status" -ne 0 ]
 }

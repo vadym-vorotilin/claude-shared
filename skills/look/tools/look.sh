@@ -16,7 +16,7 @@ set -euo pipefail
 
 LOOK_CLI_VERSION=0.1.24
 
-die()  { echo "look: $*" >&2; exit "${2:-1}"; }
+die()  { echo "look: $1" >&2; exit "${2:-1}"; }
 need() { echo "look: $*" >&2; exit 3; }
 
 find_browser() {
@@ -40,11 +40,23 @@ find_cli() {
   local bin="$cache/node_modules/.bin/playwright-cli"
   if [ ! -x "$bin" ]; then
     command -v npm >/dev/null 2>&1 || need "npm not found; install Node.js 18 or newer"
-    echo "look: installing @playwright/cli@$LOOK_CLI_VERSION into $cache (once; not global)" >&2
-    mkdir -p "$cache"
-    npm install --silent --no-audit --no-fund --prefix "$cache" "@playwright/cli@$LOOK_CLI_VERSION" >&2 \
-      || need "npm install of @playwright/cli@$LOOK_CLI_VERSION failed"
-    [ -x "$bin" ] || need "playwright-cli missing after install"
+    mkdir -p "$(dirname "$cache")"
+    # One installer at a time when flock exists; a late arrival finds the finished cache.
+    if command -v flock >/dev/null 2>&1; then
+      exec 9>"$cache.lock"; flock 9
+    fi
+    if [ ! -x "$bin" ]; then
+      local tmp="$cache.tmp.$$"
+      echo "look: installing @playwright/cli@$LOOK_CLI_VERSION into $cache (once; not global)" >&2
+      rm -rf "$tmp"
+      if ! npm install --silent --no-audit --no-fund --prefix "$tmp" "@playwright/cli@$LOOK_CLI_VERSION" >&2 \
+         || [ ! -x "$tmp/node_modules/.bin/playwright-cli" ]; then
+        rm -rf "$tmp"
+        need "npm install of @playwright/cli@$LOOK_CLI_VERSION failed"
+      fi
+      rm -rf "$cache"
+      mv "$tmp" "$cache"
+    fi
   fi
   echo "$bin"
 }
@@ -107,10 +119,16 @@ cmd_open() {
       contextOptions: {viewport: {width: +w, height: +h}, colorScheme: scheme}}}, null, 2));
   ' "$browser" "$width" "$height" "$scheme" > "$dir/.playwright/cli.config.json"
 
-  ( cd "$dir"
-    "$cli" -s="$session" open about:blank >/dev/null
-    install_guard "$session" "$cli" "$disposable" "$preset" "${allow_post[@]+"${allow_post[@]}"}"
-    "$cli" -s="$session" goto "$url" >/dev/null )
+  # After the browser is up, any failure closes this session (only this one).
+  if ! ( cd "$dir"
+         "$cli" -s="$session" open about:blank >/dev/null
+         if ! { install_guard "$session" "$cli" "$disposable" "$preset" "${allow_post[@]+"${allow_post[@]}"}" \
+                && "$cli" -s="$session" goto "$url" >/dev/null; }; then
+           "$cli" -s="$session" close >/dev/null 2>&1 || true
+           exit 1
+         fi ); then
+    die "could not open $url in session '$session'"
+  fi
   echo "$dir"
 }
 
