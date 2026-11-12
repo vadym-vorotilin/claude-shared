@@ -310,3 +310,9 @@ PY
   # The checkout may be reached through a symlink; the block resolves it.
   assert_contains "$output" "L=$(readlink -f "$REPO")/skills/look S=look-"
 }
+
+@test "swarm-of-clickers names the UI clicker matrix row, and the row exists" {
+  grep -q '^| UI clicker' "$REPO/skills/agency/matrix.md" || fail "agency/matrix.md has no UI clicker row"
+  grep -q 'UI clicker' "$REPO/skills/swarm-of-clickers/SKILL.md" || fail "swarm-of-clickers does not name the UI clicker row"
+  [ -r "$REPO/skills/swarm-of-clickers/clicker-brief.md" ] || fail "clicker-brief.md missing"
+}

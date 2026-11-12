@@ -526,6 +526,15 @@ of these are available in every project on the machine.
   disposable server you confirm. Needs Node 18+ and a Chromium; it asks before
   downloading one. The rule is in the managed block of `~/.claude/CLAUDE.md`
   (`claude/CLAUDE.snippet.md`).
+- **`/swarm-of-clickers`** — a manual QA pass in parallel: you write 3, 5 or 10
+  charters (changed area, neighbours, a free explorer, each with an angle such
+  as keyboard only or narrow width), dispatch one clicker per charter on
+  `/agency`'s "UI clicker" row, each in its own `/look` browser, and review what
+  they return: duplicates merged, every screenshot read, every functional
+  finding re-run. The result is a local, offline report page (screenshot cards,
+  filters, tick boxes) in `.qa-runs/`, which is excluded from git without
+  touching `.gitignore`. Depends on `/look` and `/agency`; read-only on the app
+  unless you name a server disposable. Needs Python 3 and the Agent tool.
 
 ### Machine upkeep
 

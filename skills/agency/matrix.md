@@ -30,6 +30,7 @@ unmeasured default.
 | Mechanical change from exact instructions; a repeat of a merged pattern | mid | low *U* |
 | Benchmark, prototype, throwaway script | mid | medium |
 | Implementation from an approved approach | mid | medium *U* |
+| UI clicker: drive a page through a charter and record observations | mid | medium *U* |
 | An approach later work builds on, from a spec | mid | high |
 | A design with no spec yet, that later work builds on | top | high |
 | Load-bearing implementation: core types, schemas, cache/graph logic, anything unattended with write access | top | high *U* |
