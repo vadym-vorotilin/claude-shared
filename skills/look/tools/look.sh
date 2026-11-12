@@ -5,6 +5,7 @@
 #   look.sh setup
 #   look.sh open <session> <url> [--width N] [--height N] [--scheme light|dark]
 #                [--disposable HOST] [--allow-post GLOB]... [--preset NAME]
+#                [--allow-websocket]
 #   look.sh cli <session> <command> [args...]   (allowlisted commands only)
 #   look.sh close <session>
 #
@@ -26,11 +27,13 @@ LOOK_DENY_GET_WORDS="logout delete remove destroy approve reject revoke unsubscr
 # The playwright-cli commands `look.sh cli` passes on (checked against the
 # 0.1.24 --help). An ALLOWLIST, not a denylist: the CLI is young and grows
 # commands, and a denylist would let each new one through. Several known ones
-# get around the guard: run-code is full Playwright (page.request bypasses
-# routes; it can unroute), a second open relaunches the browser unguarded, and
-# tab-new --isolated-context makes a context the route is not on. eval is
-# allowed: it runs as page JavaScript, so its fetches go through the guard's
-# route like the page's own. `cli <s> close` is look.sh close. look.sh's own
+# get around the guard: run-code is full Playwright (page.request never goes
+# through the browser; it can detach the guard), a second open relaunches the
+# browser unguarded, a CLI route would add a page-level route that lets
+# leave-time beacons out, and tab-new --isolated-context makes a context the
+# WebSocket route is not on. eval is allowed: it runs as page JavaScript, so
+# its requests pass the guard like the page's own. `cli <s> close` is
+# look.sh close. look.sh's own
 # steps (the guard install, later checks and shots) call the CLI directly.
 LOOK_CLI_ALLOWED=(
   goto go-back go-forward reload                                    # navigation
@@ -41,10 +44,12 @@ LOOK_CLI_ALLOWED=(
   requests request request-headers request-body response-headers response-body
   tab-list tab-new tab-select tab-close resize                      # tabs, window
 )
-# Arguments that would pick another session, config, browser, profile or
-# context; refused anywhere in a cli call, alone or as --flag=value.
-LOOK_CLI_REFUSED_FLAGS=(--session --config --browser --device --mobile --headed
-  --persistent --profile --idle-timeout --isolated-context)
+# Options that would pick another session, config, browser, profile or
+# context. The CLI parses its arguments like minimist, so each is refused
+# anywhere in a cli call with one dash or two, alone, as name=value or as
+# --no-name (--s=other makes a second session value). Other words starting
+# with "-" are left alone; the CLI rejects the ones it does not know.
+LOOK_CLI_REFUSED_OPTIONS="s|session|config|browser|device|mobile|headed|persistent|profile|idle-timeout|isolated-context"
 
 die()  { echo "look: $1" >&2; exit "${2:-1}"; }
 need() { echo "look: $*" >&2; exit 3; }
@@ -128,16 +133,16 @@ session_dir()   { echo "${LOOK_HOME:-${TMPDIR:-/tmp}/look}/$1"; }
 # CONTRACT: return non-zero on ANY failure (check every step; do not rely on set -e,
 # which is off in a function called from a tested context). A failure aborts the
 # open before navigation and closes the session.
-install_guard() { # session cli disposable preset [allow-post...]
+install_guard() { # session cli disposable preset allow-websocket [allow-post...]
   [ -z "${LOOK_TEST_GUARD_FAIL-}" ] || return 1  # test hook
-  local session="$1" cli="$2" disposable="$3" preset="$4" preset_file="" out
-  shift 4
+  local session="$1" cli="$2" disposable="$3" preset="$4" allow_websocket="$5" preset_file="" out
+  shift 5
   if [ -n "$preset" ]; then
     preset_file="$(preset_path "$preset")" || return 1
   fi
   node -e '
     const fs = require("fs");
-    const [tmpl, out, disposable, presetFile, words, ...allow] = process.argv.slice(1);
+    const [tmpl, out, disposable, allowWebsocket, presetFile, words, ...allow] = process.argv.slice(1);
     let allowPost = allow;
     if (presetFile) {
       const p = JSON.parse(fs.readFileSync(presetFile, "utf8"));
@@ -147,15 +152,18 @@ install_guard() { # session cli disposable preset [allow-post...]
         throw new Error(presetFile + ": a preset is {\"allowPost\": [glob, ...]} and nothing else");
       allowPost = p.allowPost.concat(allow);
     }
-    const config = {allowPost, denyGetWords: words.split(" "), disposableHost: disposable || null};
+    const config = {allowPost, denyGetWords: words.split(" "), disposableHost: disposable || null,
+                    allowWebsocket: allowWebsocket === "true"};
     const parts = fs.readFileSync(tmpl, "utf8").split("/*GUARD_CONFIG*/");
     if (parts.length !== 2) throw new Error(tmpl + ": expected exactly one config placeholder");
     fs.writeFileSync(out, parts.join(JSON.stringify(config)));
-  ' "$LOOK_DIR/guard.js" guard.gen.js "$disposable" "$preset_file" "$LOOK_DENY_GET_WORDS" "$@" || return 1
+  ' "$LOOK_DIR/guard.js" guard.gen.js "$disposable" "$allow_websocket" "$preset_file" "$LOOK_DENY_GET_WORDS" "$@" || return 1
   out="$("$cli" -s="$session" run-code --filename=guard.gen.js 2>&1)" || { printf '%s\n' "$out" >&2; return 1; }
-  # The guard returns this only after its route is installed.
-  printf '%s\n' "$out" | grep -qxF '"look-guard-on"' \
-    || { echo "look: the network guard did not confirm it is on" >&2; return 1; }
+  # The guard returns this only after its interception is on. A here-string,
+  # not a pipe: grep -q stops at the match, and under pipefail the writer's
+  # SIGPIPE on the long echoed source would read as "not confirmed".
+  grep -qxF '"look-guard-on"' <<<"$out" \
+    || { printf 'look: the network guard did not confirm it is on; the CLI said:\n%s\n' "$out" >&2; return 1; }
 }
 
 # presets/<name>.json beside this script; an unknown name is an error, never "no preset".
@@ -174,12 +182,12 @@ preset_path() { # name
 }
 
 # The steps after the session dir exists. Every step is checked explicitly.
-open_steps() { # dir session cli url disposable preset [allow-post...]
-  local dir="$1" session="$2" cli="$3" url="$4" disposable="$5" preset="$6"
-  shift 6
+open_steps() { # dir session cli url disposable preset allow-websocket [allow-post...]
+  local dir="$1" session="$2" cli="$3" url="$4" disposable="$5" preset="$6" allow_websocket="$7"
+  shift 7
   cd "$dir" || return 1
   "$cli" -s="$session" open about:blank >/dev/null || return 1
-  install_guard "$session" "$cli" "$disposable" "$preset" "$@" || return 1
+  install_guard "$session" "$cli" "$disposable" "$preset" "$allow_websocket" "$@" || return 1
   "$cli" -s="$session" goto "$url" >/dev/null || return 1
 }
 
@@ -188,8 +196,11 @@ cmd_open() {
   [ $# -ge 2 ] || die "usage: look.sh open <session> <url> [options]" 2
   shift 2
   valid_session "$session"
-  local width=1280 height=800 scheme=light disposable="" preset="" allow_post=()
+  local width=1280 height=800 scheme=light disposable="" preset="" allow_post=() allow_websocket=false
   while [ $# -gt 0 ]; do
+    # The one option without a value: WebSocket messages may write, and
+    # nothing inspects them, so connections are off unless asked for.
+    if [ "$1" = --allow-websocket ]; then allow_websocket=true; shift; continue; fi
     case "$1" in
       --width|--height|--scheme|--disposable|--allow-post|--preset)
         [ $# -ge 2 ] || die "$1 needs a value" 2 ;;
@@ -219,6 +230,14 @@ cmd_open() {
   local cli browser dir
   browser="$(find_browser)" || exit $?
   check_node || exit $?
+  if [ -n "$disposable" ]; then
+    # The form URL.hostname gives, the one the guard compares (127.1 is 127.0.0.1).
+    local canonical
+    canonical="$(node -e 'console.log(new URL("http://" + process.argv[1]).hostname)' "$disposable" 2>/dev/null)" \
+      || die "--disposable '$disposable' is not a host name" 2
+    [ "$canonical" = "$disposable" ] || echo "look: --disposable $disposable is $canonical" >&2
+    disposable="$canonical"
+  fi
   cli="$(find_cli)" || exit $?
   dir="$(session_dir "$session")"
   mkdir -p "$dir/.playwright"
@@ -226,13 +245,13 @@ cmd_open() {
     const [exe, w, h, scheme] = process.argv.slice(1);
     console.log(JSON.stringify({browser: {
       launchOptions: {executablePath: exe},
-      // Routes do not see requests a service worker makes, so none may register.
+      // A service worker could answer for the network, so none may register.
       contextOptions: {viewport: {width: +w, height: +h}, colorScheme: scheme,
                        serviceWorkers: "block"}}}, null, 2));
   ' "$browser" "$width" "$height" "$scheme" > "$dir/.playwright/cli.config.json"
 
   # After the browser is up, any failure closes this session (only this one).
-  if ! ( open_steps "$dir" "$session" "$cli" "$url" "$disposable" "$preset" "${allow_post[@]+"${allow_post[@]}"}" ); then
+  if ! ( open_steps "$dir" "$session" "$cli" "$url" "$disposable" "$preset" "$allow_websocket" "${allow_post[@]+"${allow_post[@]}"}" ); then
     ( cd "$dir" && "$cli" -s="$session" close >/dev/null 2>&1 ) || true
     die "could not open $url in session '$session'"
   fi
@@ -246,7 +265,7 @@ cmd_cli() {
   valid_session "$session"
   # The command must come first: a flag before it could take the next word as
   # its value and leave the CLI running a different command than checked here.
-  local command="$1" a f
+  local command="$1" a
   if [ "$command" = close ]; then
     [ $# -eq 1 ] || die "usage: look.sh cli <session> close (no arguments)" 2
     cmd_close "$session"; return
@@ -255,10 +274,8 @@ cmd_cli() {
   [[ "$command" != *" "* && "$allowed" == *" $command "* ]] \
     || die "cli does not pass on '$command': it is not on look.sh's allowlist (LOOK_CLI_ALLOWED), which keeps the network guard in force" 2
   for a in "$@"; do
-    [[ "$a" != -s* ]] || die "cli refuses '$a': a cli call acts on its own session only" 2
-    for f in "${LOOK_CLI_REFUSED_FLAGS[@]}"; do
-      [[ "$a" != "$f" && "$a" != "$f="* ]] || die "cli refuses '$a': it would change the session, browser or context the guard is on" 2
-    done
+    [[ ! "$a" =~ ^--?(no-)?($LOOK_CLI_REFUSED_OPTIONS)(=|$) ]] \
+      || die "cli refuses '$a': it would change the session, browser or context the guard is on" 2
   done
   local dir; dir="$(session_dir "$session")"
   [ -d "$dir" ] || die "no session '$session'; run look.sh open first" 2

@@ -5,25 +5,47 @@
 // and before the first real navigation. It is one expression, a function of
 // the page, so nothing may follow it but comments.
 //
-// Config: {allowPost: [glob], denyGetWords: [word], disposableHost: host|null}
+// Config: {allowPost: [glob], denyGetWords: [word], disposableHost: host|null,
+//          allowWebsocket: boolean}
 //
-// One route on the browser context sees every request of every page and
-// popup in the session, including dedicated workers, and decides it:
+// Where it sits. HTTP requests are intercepted in the browser process, through
+// a browser-level CDP session with Fetch interception on every URL. That
+// sees the requests of every page, popup, frame and tab, of dedicated and
+// shared workers, and the ones a page sends as it goes away (sendBeacon and
+// keepalive fetches in pagehide/unload, <a ping>). A page cannot reach this
+// layer from its own JavaScript. There is deliberately NO Playwright page or
+// context route: one sees a request first and, when its document goes away,
+// releases the leave-time beacons without this layer seeing them (checked
+// against 0.1.24 with Chromium: the beacons reached the server).
+// WebSockets are not HTTP requests to Fetch, so a context routeWebSocket
+// decides each connection.
+//
+// The rules, for each HTTP request:
 //
 //   1. GET, HEAD and OPTIONS pass, unless a deny word is in the URL.
 //   2. Any other method on the disposable host passes. The host is compared
-//      as URL.hostname, exactly and case-insensitively, on any port:
-//      127.0.0.1 is not 127.0.0.10 and not localhost. Writes are lifted only
-//      there; every other host keeps the write block. Deny words still block
-//      reads on the disposable host (a logout ends the run there too), but
-//      not its writes: naming a host disposable says deleting there is fine.
+//      as URL.hostname, canonical (127.1 is 127.0.0.1) and case-insensitive,
+//      on any port: 127.0.0.1 is not 127.0.0.10 and not localhost. Writes
+//      are lifted only there; every other host keeps the write block. Deny
+//      words still block reads on the disposable host (a logout ends the run
+//      there too), but not its writes: naming a host disposable says
+//      deleting there is fine.
 //   3. A POST that matches an allowPost glob passes, unless a deny word is in
-//      the URL: an allowlisted path with "delete" in it stays blocked, since
-//      the allowlist says "this POST only reads" and the word says otherwise.
-//   4. Everything else is aborted with 'blockedbyclient', so it shows in
-//      `look.sh cli <s> requests --all` as [FAILED] net::ERR_BLOCKED_BY_CLIENT.
-//      That list is the guard's log; nothing else is kept. Anything the guard
-//      cannot parse, and any error while deciding, is blocked too.
+//      the URL, or its path has an encoded slash or backslash (%2F, %5C),
+//      which a glob's `*` would cross. An allowlisted path with "delete" in it
+//      stays blocked: the allowlist says "this POST only reads" and the word
+//      says otherwise.
+//   4. Everything else fails with BlockedByClient. A blocked request a page
+//      made shows in `look.sh cli <s> requests --all` as
+//      [FAILED] net::ERR_BLOCKED_BY_CLIENT; one sent as its page went away,
+//      or by a worker, may not be listed at all, but is not sent either.
+//      Anything the guard cannot parse, and any error while deciding, is
+//      blocked too.
+//
+// WebSockets: a connection opens only to the disposable host, or to any host
+// when look.sh open was given --allow-websocket (WebSocket messages may
+// write: nothing inspects them). Any other is closed by the guard before it
+// reaches the server, with code 4000 and reason "blocked by the look guard".
 //
 // A deny word is in the URL when it equals, ignoring case, a whole path
 // segment or a whole query parameter name or value. Segments are
@@ -39,27 +61,28 @@
 // fragment removed, so `**/api/ds/query*` matches /api/ds/query?x=1 and a
 // URL cannot match by carrying the path in its query string.
 //
+// Threat model: a careless agent and the app's own code, not a hostile page.
 // Known limits:
-//   - WebSocket messages do not pass through routes; a page with an open
-//     socket can still write over it. The handshake GET is decided like any
-//     other GET.
-//   - Service workers' own requests bypass context routes, so look.sh starts
-//     every session with serviceWorkers: "block" (no registration succeeds).
-//   - Redirects are not decided again: an allowed request that the server
-//     redirects (307/308 keep the method) is followed by the network stack.
-//     Like the deny words, this is a heuristic, not a proof of read-only.
-//   - The route covers this browser context only. look.sh cli refuses what
-//     would leave it: run-code (page.request bypasses routes), a second open,
-//     and tab-new --isolated-context.
+//   - The WebSocket route works by replacing the page's WebSocket object, so
+//     a hostile page could get a pristine one back, and a worker's own
+//     WebSocket is not routed at all. HTTP interception has no such gap.
+//   - Deny words and the allowlist are heuristics about what a URL does, not
+//     a proof that it only reads; so is trusting a redirect chain.
+//   - Service workers are blocked from registering (serviceWorkers: "block"
+//     in the session's config), so none can answer for the network.
+//   - Code that does not go through the browser (Playwright's page.request,
+//     run-code) bypasses all of this: look.sh cli does not pass run-code on.
 async page => {
   const config = /*GUARD_CONFIG*/;
   if (!Array.isArray(config.allowPost) || !Array.isArray(config.denyGetWords) ||
-      !(config.disposableHost === null || typeof config.disposableHost === 'string'))
+      !(config.disposableHost === null || typeof config.disposableHost === 'string') ||
+      typeof config.allowWebsocket !== 'boolean')
     throw new Error('look guard: bad config');
 
   const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
   const words = new Set(config.denyGetWords.map(w => String(w).toLowerCase()));
-  const disposable = config.disposableHost ? config.disposableHost.toLowerCase() : null;
+  const disposable = config.disposableHost === null ? null
+    : new URL('http://' + config.disposableHost).hostname;
 
   const globToRegExp = glob => {
     let re = '';
@@ -85,27 +108,48 @@ async page => {
     for (const [name, value] of url.searchParams) if (isWord(name) || isWord(value)) return true;
     return false;
   };
+  const onDisposable = url => disposable !== null && url.hostname === disposable;
 
   const passes = (method, href) => {
     const url = new URL(href);
     const m = method.toUpperCase();
     if (READS.has(m)) return !hasDenyWord(url);
-    if (disposable !== null && url.hostname.toLowerCase() === disposable) return true;
+    if (onDisposable(url)) return true;
+    if (m !== 'POST' || /%2f|%5c/i.test(url.pathname)) return false;
     const bare = url.protocol + '//' + url.host + url.pathname;
-    if (m === 'POST' && allowPost.some(re => re.test(bare))) return !hasDenyWord(url);
-    return false;
+    return allowPost.some(re => re.test(bare)) && !hasDenyWord(url);
   };
+  const websocketPasses = href => config.allowWebsocket || onDisposable(new URL(href));
 
-  await page.context().route('**/*', route => {
+  const context = page.context();
+  const browser = context.browser();
+  if (!browser) throw new Error('look guard: no browser to attach to');
+  const cdp = await browser.newBrowserCDPSession();
+  cdp.on('Fetch.requestPaused', event => {
     let ok = false;
     try {
-      const request = route.request();
-      ok = passes(request.method(), request.url());
+      ok = passes(event.request.method, event.request.url);
     } catch {
       ok = false;
     }
-    return (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => {});
+    const reply = ok
+      ? cdp.send('Fetch.continueRequest', {requestId: event.requestId})
+      : cdp.send('Fetch.failRequest', {requestId: event.requestId, errorReason: 'BlockedByClient'});
+    reply.catch(() => {});
   });
+  await cdp.send('Fetch.enable', {patterns: [{urlPattern: '*'}]});
+
+  await context.routeWebSocket(/.*/, ws => {
+    let ok = false;
+    try {
+      ok = websocketPasses(ws.url());
+    } catch {
+      ok = false;
+    }
+    if (ok) ws.connectToServer();
+    else ws.close({code: 4000, reason: 'blocked by the look guard'});
+  });
+
   // Assembled, so the code the CLI echoes back never contains the sentinel.
   return ['look', 'guard', 'on'].join('-');
 }

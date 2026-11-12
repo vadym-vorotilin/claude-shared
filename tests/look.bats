@@ -12,9 +12,9 @@ load 'helpers/setup'
 # tell "blocked" (the fetch rejects, ERR_BLOCKED_BY_CLIENT) from "sent" (any
 # status), not 2xx from 4xx.
 setup_file() {
-  LOOK_PORT="" LOOK_SRV_PID=""
+  LOOK_PORT="" LOOK_SRV_PID="" LOOK_SRV_LOG="$BATS_FILE_TMPDIR/http.log"
   if command -v python3 >/dev/null 2>&1; then
-    local log="$BATS_FILE_TMPDIR/http.log" i
+    local log="$LOOK_SRV_LOG" i
     python3 -u -m http.server 0 --bind 127.0.0.1 \
       --directory "$REPO_ROOT/tests/fixtures/look" >"$log" 2>&1 3>&- &
     LOOK_SRV_PID=$!
@@ -24,7 +24,7 @@ setup_file() {
       sleep 0.1
     done
   fi
-  export LOOK_PORT LOOK_SRV_PID
+  export LOOK_PORT LOOK_SRV_PID LOOK_SRV_LOG
 }
 teardown_file() {
   [ -z "${LOOK_SRV_PID-}" ] || kill "$LOOK_SRV_PID" 2>/dev/null || true
@@ -200,35 +200,56 @@ STUB
 
 # ---- the network guard ---------------------------------------------------
 
-# guard_rules <config-json>: loads guard.js with that config into a fake page,
-# then feeds it the "want METHOD URL" lines on stdin (want: pass | block) and
-# prints each one it decided differently. Needs node, not a browser.
+# guard_rules <config-json>: loads guard.js with that config against a fake
+# page, browser CDP session and WebSocket route, then feeds it the
+# "want METHOD URL" lines on stdin (want: pass | block; METHOD WS is a
+# WebSocket connection) and prints each one it decided differently.
+# GUARD_NO_BROWSER=1 gives it a context with no browser. Needs node only.
 guard_rules() {
   node -e '
     const fs = require("fs");
     const [file, cfgJson] = process.argv.slice(1);
     const words = ["logout","delete","remove","destroy","approve","reject","revoke","unsubscribe"];
-    const cfg = Object.assign({allowPost: [], denyGetWords: words, disposableHost: null}, JSON.parse(cfgJson));
+    const cfg = Object.assign({allowPost: [], denyGetWords: words, disposableHost: null, allowWebsocket: false},
+                              JSON.parse(cfgJson));
     const parts = fs.readFileSync(file, "utf8").split("/*GUARD_CONFIG*/");
     if (parts.length !== 2) { console.log("placeholders: " + (parts.length - 1)); process.exit(1); }
     const guard = eval("(" + parts.join(JSON.stringify(cfg)) + "\n)");
-    let handler = null;
-    const page = {context: () => ({route: async (pattern, h) => { if (pattern === "**/*") handler = h; }})};
+    let paused = null, ws = null, enabled = null, replies = [];
+    const cdp = {
+      on: (event, h) => { if (event === "Fetch.requestPaused") paused = h; },
+      send: async (method, params) => {
+        if (method === "Fetch.enable") enabled = params; else replies.push({method, params});
+      },
+    };
+    const browser = process.env.GUARD_NO_BROWSER ? null : {newBrowserCDPSession: async () => cdp};
+    const page = {context: () => ({browser: () => browser, routeWebSocket: async (p, h) => { ws = h; }})};
     (async () => {
       const said = await guard(page);
-      if (said !== "look-guard-on" || !handler) { console.log("guard said " + said); process.exit(1); }
+      if (said !== "look-guard-on" || !paused || !ws) { console.log("guard said " + said); process.exit(1); }
+      if (!enabled || enabled.patterns.length !== 1 || enabled.patterns[0].urlPattern !== "*") {
+        console.log("Fetch.enable: " + JSON.stringify(enabled)); process.exit(1);
+      }
       let bad = 0, n = 0;
       for (const line of fs.readFileSync(0, "utf8").split("\n")) {
         const t = line.trim();
         if (!t || t.startsWith("#")) continue;
         const [want, method, url] = t.split(/\s+/);
         let got = "nothing";
-        await handler({
-          request: () => ({method: () => method, url: () => url}),
-          continue: async () => { got = "pass"; },
-          fallback: async () => { got = "fallback"; },
-          abort: async code => { got = code === "blockedbyclient" ? "block" : "abort " + code; },
-        });
+        if (method === "WS") {
+          ws({url: () => url, connectToServer: () => { got = "pass"; },
+              close: o => { got = o && o.code === 4000 ? "block" : "close " + JSON.stringify(o); }});
+        } else {
+          replies = [];
+          paused({requestId: "r" + n, request: {method, url}});
+          await new Promise(r => setImmediate(r));
+          const r = replies[0] || {};
+          if (replies.length === 1 && r.params.requestId === "r" + n) {
+            if (r.method === "Fetch.continueRequest") got = "pass";
+            else if (r.method === "Fetch.failRequest" && r.params.errorReason === "BlockedByClient") got = "block";
+            else got = r.method + " " + JSON.stringify(r.params);
+          } else got = replies.length + " replies";
+        }
         n++;
         if (got !== want) { bad++; console.log("WRONG " + method + " " + url + ": want " + want + ", got " + got); }
       }
@@ -281,13 +302,15 @@ block DELETE http://h.test/q
 pass  POST   http://grafana.test:3000/api/ds/query?ds_type=prometheus&requestId=Q1
 block POST   http://grafana.test/api/dashboards/db
 block POST   http://grafana.test/api/dashboards/db?next=/api/ds/query
+block POST   http://grafana.test/api/ds/query%2F..%2Fdashboards
+block POST   http://grafana.test/api/ds/query%5c..%5Cdashboards
 pass  POST   http://h.test/items/7
 block POST   http://h.test/items/7/delete
 block POST   http://h.test/items/7?op=destroy
 block GET    http://h.test/items/7/approve
 EOF
   [ "$status" -eq 0 ] || fail "$output"
-  assert_contains "$output" "checked 12"
+  assert_contains "$output" "checked 14"
 }
 
 @test "guard rules: the disposable host takes writes, matched exactly by host name" {
@@ -310,6 +333,36 @@ pass  POST   http://DEV.example.test:8443/x
 block POST   http://example.test/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
+  run guard_rules '{"disposableHost":"127.1"}' <<'EOF'
+pass  POST   http://127.0.0.1/x
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "guard rules: a WebSocket opens only to the disposable host, or anywhere when allowed" {
+  type -P node >/dev/null || skip "no node here"
+  run guard_rules '{"disposableHost":"127.0.0.1"}' <<'EOF'
+pass  WS ws://127.0.0.1:8080/live
+block WS ws://localhost:8080/live
+block WS wss://chat.example.test/socket
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+  run guard_rules '{}' <<'EOF'
+block WS ws://127.0.0.1:8080/live
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+  run guard_rules '{"allowWebsocket":true}' <<'EOF'
+pass  WS wss://chat.example.test/socket
+block POST http://chat.example.test/send
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "the guard refuses to start without a browser to attach to" {
+  type -P node >/dev/null || skip "no node here"
+  GUARD_NO_BROWSER=1 run guard_rules '{}' </dev/null
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "no browser to attach to"
 }
 
 GUARD_ON='### Result
@@ -331,10 +384,22 @@ GUARD_ON='### Result
   grep -qF '"allowPost":["**/api/ds/query*","**/q*"]' "$gen"
   grep -qF '"denyGetWords":["logout","delete","remove","destroy","approve","reject","revoke","unsubscribe"]' "$gen"
   grep -qF '"disposableHost":"dev.example.test"' "$gen"
+  grep -qF '"allowWebsocket":false' "$gen"
   # The order that matters: blank page, guard, then the first real navigation.
   run grep -nE '^-s=t[0-9]+-n (open about:blank|run-code --filename=guard.gen.js|goto)' "$FAKE_LOG"
   assert_equal "$(printf '%s\n' "$output" | sed 's/^[0-9]*:-s=t[0-9]*-n //; s/ .*//')" \
     "$(printf 'open\nrun-code\ngoto')"
+}
+
+@test "the guard's confirmation is found ahead of a long echo of its source" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  fake_cli "$bin"
+  long="$(printf '// echoed guard source line, long enough to fill a pipe buffer\n%.0s' $(seq 1500))"
+  FAKE_RUNCODE_OUT="$GUARD_ON
+$long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
+    run "$LOOK" open "t$$-n" 'http://127.0.0.1:5173/'
+  [ "$status" -eq 0 ] || fail "$(printf '%s\n' "$output" | head -3)"
 }
 
 @test "with no options the guard has no allowlist and no disposable host" {
@@ -346,6 +411,20 @@ GUARD_ON='### Result
   [ "$status" -eq 0 ] || fail "$output"
   grep -qF '"allowPost":[]' "$LOOK_HOME/t$$-n/guard.gen.js"
   grep -qF '"disposableHost":null' "$LOOK_HOME/t$$-n/guard.gen.js"
+  grep -qF '"allowWebsocket":false' "$LOOK_HOME/t$$-n/guard.gen.js"
+}
+
+@test "open --allow-websocket and a non-canonical --disposable reach the guard's config" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  fake_cli "$bin"
+  for h in 127.1 0x7f.1 127.0.0.1; do
+    FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
+      run "$LOOK" open "t$$-n" 'http://127.0.0.1:5173/' --disposable "$h" --allow-websocket
+    [ "$status" -eq 0 ] || fail "--disposable $h: $output"
+    grep -qF '"disposableHost":"127.0.0.1"' "$LOOK_HOME/t$$-n/guard.gen.js"
+    grep -qF '"allowWebsocket":true' "$LOOK_HOME/t$$-n/guard.gen.js"
+  done
 }
 
 @test "a guard that does not confirm it is on stops open before navigation" {
@@ -398,19 +477,31 @@ need_server() {
 fetch_from() { # session method url [mode]
   "$LOOK" cli "$1" eval "async () => { try { const r = await fetch('$3', {method: '$2', mode: '${4:-cors}'}); return 'status ' + r.status; } catch (e) { return 'rejected'; } }"
 }
-# Blocked by the guard, not by anything else: the fetch rejected and the
-# session's request log says ERR_BLOCKED_BY_CLIENT for exactly that request.
+# The test server's own log is the ground truth: "not sent" means no line for
+# the request reached it since srv_mark, not only that the CLI did not list it.
+srv_mark()  { SRV_MARK="$(wc -l < "$LOOK_SRV_LOG")"; }
+srv_since() { tail -n "+$((SRV_MARK + 1))" "$LOOK_SRV_LOG"; }
+refute_sent()   { refute_contains "$(srv_since)" "\"$1 $2 HTTP/"; } # method path
+assert_reached() { assert_contains "$(srv_since)" "\"$1 $2 HTTP/"; } # method path
+url_path() { local p="${1#*://}"; echo "/${p#*/}"; }
+
+# Blocked by the guard, not by anything else: the fetch rejected, the server
+# never saw it, and the session's request log says ERR_BLOCKED_BY_CLIENT.
 assert_blocked() { # session method url [mode]
+  srv_mark
   run fetch_from "$@"
   [ "$status" -eq 0 ] || fail "eval failed: $output"
   assert_contains "$output" '"rejected"'
+  refute_sent "$2" "$(url_path "$3")"
   run "$LOOK" cli "$1" requests --all
   assert_contains "$output" "[$2] $3 => [FAILED] net::ERR_BLOCKED_BY_CLIENT"
 }
 assert_sent() { # session method url [mode]
+  srv_mark
   run fetch_from "$@"
   [ "$status" -eq 0 ] || fail "eval failed: $output"
   assert_contains "$output" '"status '
+  assert_reached "$2" "$(url_path "$3")"
 }
 
 @test "the guard blocks POST and DELETE and lets GET through" {
@@ -437,15 +528,18 @@ assert_sent() { # session method url [mode]
 @test "a POST fired on page load is blocked" {
   need_browser; need_server
   S="t$$-a"
+  srv_mark
   run "$LOOK" open "$S" "$BASE/onload-post.html"
   [ "$status" -eq 0 ] || fail "$output"
   for i in $(seq 20); do
     run "$LOOK" cli "$S" requests --all
-    case "$output" in *"/save => "*"/beacon => "*|*"/beacon => "*"/save => "*) break ;; esac
+    case "$output" in *"/save => "*) break ;; esac
     sleep 0.25
   done
   assert_contains "$output" "[POST] $BASE/save => [FAILED] net::ERR_BLOCKED_BY_CLIENT"
-  assert_contains "$output" "[POST] $BASE/beacon => [FAILED] net::ERR_BLOCKED_BY_CLIENT"
+  assert_reached GET /onload-post.html
+  refute_sent POST /save
+  refute_sent POST /beacon
 }
 
 @test "an allowlisted POST passes and a preset allows Grafana's query path" {
@@ -514,6 +608,9 @@ assert_sent() { # session method url [mode]
     [ "$status" -eq 2 ] || fail "$a $b $c: status $status: $output"
   done <<'EOF'
 eval|-s=other|() => 1
+eval|() => 1|--s=other
+eval|() => 1|--no-session
+eval|-session=x|() => 1
 eval|() => 1|-s
 eval|--session=other|() => 1
 goto|--config=x.json|http://h.test/
@@ -535,9 +632,11 @@ EOF
   [ "$status" -eq 0 ] || fail "$output"
   PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" requests --all
   [ "$status" -eq 0 ] || fail "$output"
+  PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" fill e5 -sale
+  [ "$status" -eq 0 ] || fail "$output"
   PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" close
   [ "$status" -eq 0 ] || fail "$output"
-  assert_equal "$(cat "$FAKE_LOG")" "$(printf -- '-s=t%s-n eval () => 1 --raw\n-s=t%s-n requests --all\n-s=t%s-n close' $$ $$ $$)"
+  assert_equal "$(cat "$FAKE_LOG")" "$(printf -- '-s=t%s-n eval () => 1 --raw\n-s=t%s-n requests --all\n-s=t%s-n fill e5 -sale\n-s=t%s-n close' $$ $$ $$ $$)"
   PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" close extra
   [ "$status" -eq 2 ]
 }
@@ -558,4 +657,90 @@ EOF
   [ "$status" -eq 0 ] || fail "eval: $output"
   assert_contains "$output" '"Fixture"'
   assert_blocked "$S" POST "$BASE/catalog"
+}
+
+# ---- what escapes a page-level route -------------------------------------
+
+# leave <session>: go away from leave.html four ways: goto, reload, a link
+# click (with <a ping>) and go-back then goto. Each fires its pagehide writes.
+leave_four_ways() {
+  "$LOOK" cli "$1" goto "$BASE/index.html" >/dev/null
+  "$LOOK" cli "$1" goto "$BASE/leave.html" >/dev/null
+  "$LOOK" cli "$1" reload >/dev/null
+  "$LOOK" cli "$1" click '#away' >/dev/null
+  "$LOOK" cli "$1" go-back >/dev/null
+  "$LOOK" cli "$1" goto "$BASE/index.html" >/dev/null
+  sleep 1
+}
+
+@test "writes sent as a page goes away do not reach the server; on the disposable host they do" {
+  need_browser; need_server
+  A="t$$-a"; B="t$$-b"
+  run "$LOOK" open "$A" "$BASE/leave.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  srv_mark
+  leave_four_ways "$A"
+  assert_reached GET /index.html
+  refute_sent POST /beacon-on-leave
+  refute_sent POST /keepalive-on-leave
+  refute_sent POST /ping-on-click
+  # The control: with writes lifted, the same steps do reach the server.
+  run "$LOOK" open "$B" "$BASE/leave.html" --disposable 127.0.0.1
+  [ "$status" -eq 0 ] || fail "$output"
+  srv_mark
+  leave_four_ways "$B"
+  assert_reached POST /beacon-on-leave
+  assert_reached POST /keepalive-on-leave
+}
+
+@test "a shared worker's and a dedicated worker's writes do not reach the server" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/index.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  srv_mark
+  run "$LOOK" cli "$S" eval "async () => new Promise(r => { const w = new SharedWorker('/shared-worker.js'); w.port.onmessage = e => r(e.data); w.port.start(); setTimeout(() => r('no answer'), 5000); })"
+  assert_contains "$output" '"rejected"'
+  run "$LOOK" cli "$S" eval "async () => new Promise(r => { const w = new Worker('/worker.js'); w.onmessage = e => r(e.data); setTimeout(() => r('no answer'), 5000); })"
+  assert_contains "$output" '"rejected"'
+  assert_reached GET /shared-worker.js
+  refute_sent POST /from-shared-worker
+  refute_sent POST /from-worker
+}
+
+@test "a submitted POST form does not reach the server" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/index.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  srv_mark
+  "$LOOK" cli "$S" eval "() => { const f = document.createElement('form'); f.method = 'post'; f.action = '/form-post'; document.body.append(f); setTimeout(() => f.submit(), 0); return 'submitting'; }" >/dev/null
+  sleep 1
+  run "$LOOK" cli "$S" requests --all
+  assert_contains "$output" "[POST] $BASE/form-post => [FAILED] net::ERR_BLOCKED_BY_CLIENT"
+  refute_sent POST /form-post
+}
+
+@test "a WebSocket is closed by the guard unless allowed or to the disposable host" {
+  need_browser; need_server
+  A="t$$-a"; B="t$$-b"
+  srv_mark
+  run "$LOOK" open "$A" "$BASE/websocket.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" cli "$A" eval "async () => window.wsResult"
+  assert_contains "$output" '"closed 4000 blocked by the look guard"'
+  refute_sent GET /ws
+  "$LOOK" close "$A"
+  run "$LOOK" open "$B" "$BASE/websocket.html" --allow-websocket
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" cli "$B" eval "async () => window.wsResult"
+  refute_contains "$output" 'blocked by the look guard'
+  assert_reached GET /ws
+  "$LOOK" close "$B"
+  srv_mark
+  run "$LOOK" open "$A" "$BASE/websocket.html" --disposable 127.0.0.1
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" cli "$A" eval "async () => window.wsResult"
+  refute_contains "$output" 'blocked by the look guard'
+  assert_reached GET /ws
 }
