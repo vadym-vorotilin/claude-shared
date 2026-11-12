@@ -316,3 +316,10 @@ PY
   grep -q 'UI clicker' "$REPO/skills/swarm-of-clickers/SKILL.md" || fail "swarm-of-clickers does not name the UI clicker row"
   [ -r "$REPO/skills/swarm-of-clickers/clicker-brief.md" ] || fail "clicker-brief.md missing"
 }
+
+@test "swarm-of-clickers states no tier word or effort value as a setting" {
+  # The matrix row is the only place; a literal pairing here is a second table.
+  run grep -nEi '\b(cheap|mid|top|strongest) *(/|,|tier) *(low|medium|high|xhigh)\b|\beffort[: ]+(low|medium|high|xhigh)\b|\b(model|tier)[: ]+(cheap|mid|top|strongest)\b' \
+      "$REPO/skills/swarm-of-clickers/SKILL.md" "$REPO/skills/swarm-of-clickers/clicker-brief.md"
+  [ "$status" -ne 0 ] || fail "a tier or effort value outside /agency: $output"
+}
