@@ -30,11 +30,22 @@
   .pp-pill[data-state="cut"] { color: var(--color-fg-muted); text-decoration: line-through; }
   .pp-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--cds-gap-lg); min-height: 120px; }
   .pp-fig { margin: 0; display: grid; gap: var(--cds-gap-xs); align-content: start; }
+  .pp-fig img:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
   .pp-fig img { width: 100%; height: auto; border-radius: var(--cds-radius); border: 1px solid var(--color-border-line); background: var(--color-bg); cursor: zoom-in; }
   .pp-fig figcaption { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.4; }
   .pp-fig figcaption strong { display: block; color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
-  .pp-fig.pp-big { grid-column: 1 / -1; }
-  .pp-fig.pp-big img { cursor: zoom-out; }
+  .pp-lb { font-family: var(--font-anthropic-sans); color: var(--color-fg); position: fixed; inset: 0; z-index: 50; display: none; grid-template-rows: minmax(0, 1fr) auto; gap: var(--cds-gap-md); padding: var(--cds-pad-lg); background: color-mix(in srgb, var(--color-bg) 92%, transparent); backdrop-filter: blur(4px); }
+  .pp-lb.pp-open { display: grid; }
+  .pp-lb-stage { min-height: 0; overflow: hidden; display: grid; place-items: center; padding: 0 3.5rem; }
+  .pp-lb-stage img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; cursor: zoom-out; }
+  .pp-lb-cap { text-align: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); line-height: 1.4; max-width: 90ch; width: 100%; margin: 0 auto; padding: var(--cds-pad-sm) var(--cds-pad-md); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); max-height: 30vh; overflow-y: auto; box-sizing: border-box; }
+  .pp-lb-cap strong { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+  .pp-lb button { position: absolute; border: 1px solid var(--color-border-line); background: var(--color-panel); color: var(--color-fg); border-radius: 999px; width: 2.5rem; height: 2.5rem; font-size: 1.25rem; line-height: 1; cursor: pointer; }
+  .pp-lb button:hover { border-color: var(--color-fg-muted); }
+  .pp-lb-prev { left: var(--cds-pad-md); top: 50%; transform: translateY(-50%); }
+  .pp-lb-next { right: var(--cds-pad-md); top: 50%; transform: translateY(-50%); }
+  .pp-lb-close { right: var(--cds-pad-md); top: var(--cds-pad-md); }
+  .pp-lb-count { font-variant-numeric: tabular-nums; margin-right: .5em; }
   .pp-tablewrap { overflow-x: auto; }
   .pp-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); }
   .pp-table th { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
@@ -302,15 +313,86 @@
     }
   });
 
+  // Full-page viewer: click a thumbnail (or Enter/Space on it) to open, ←/→ to step, Esc or a click outside to close.
+  const lb = (() => {
+    const box = document.createElement('div'); box.className = 'pp-lb'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'Image viewer');
+    const stage = document.createElement('div'); stage.className = 'pp-lb-stage';
+    const img = document.createElement('img'); stage.append(img);
+    const cap = document.createElement('p'); cap.className = 'pp-lb-cap';
+    const mk = (cls, txt, label) => { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = txt; b.setAttribute('aria-label', label); return b; };
+    const prev = mk('pp-lb-prev', '‹', 'Previous'), next = mk('pp-lb-next', '›', 'Next'), close = mk('pp-lb-close', '×', 'Close');
+    box.append(stage, cap, prev, next, close);
+    document.body.append(box);
+    const html = document.documentElement;
+    const key = (r) => [r.id, r.img, r.title, r.at].map((x) => x ?? '').join('\u0000');
+    let rows = [], i = 0, opener = null, overflow = '';
+    const isOpen = () => box.classList.contains('pp-open');
+    const show = () => {
+      const r = rows[i]; if (!r) return;
+      img.src = r.img; img.alt = r.title || '';
+      cap.replaceChildren();
+      const n = document.createElement('span'); n.className = 'pp-lb-count'; n.textContent = `${i + 1} / ${rows.length}`;
+      const st = document.createElement('strong'); st.textContent = r.title || '';
+      const rest = `${r.caption ? ` — ${r.caption}` : ''}${r.date ? ` (${r.date})` : ''}`;
+      cap.append(n, st, rest);
+      prev.hidden = next.hidden = rows.length < 2;
+    };
+    const step = (d) => { if (rows.length) { i = (i + d + rows.length) % rows.length; show(); } };
+    const hide = () => {
+      if (!isOpen()) return;
+      box.classList.remove('pp-open');
+      html.style.overflow = overflow;
+      // After a redraw the opener is gone; fall back to the thumbnail of the picture last shown.
+      const back = opener && opener.isConnected ? opener : document.querySelector(`img[data-pp-lb="${i}"]`);
+      opener = null;
+      if (back) back.focus();
+    };
+    prev.onclick = (e) => { e.stopPropagation(); step(-1); };
+    next.onclick = (e) => { e.stopPropagation(); step(1); };
+    close.onclick = hide;
+    box.onclick = (e) => { if (e.target === box || e.target === stage || e.target === img) hide(); };
+    document.addEventListener('keydown', (e) => {
+      if (!isOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
+      else if (e.key === 'Escape') { hide(); e.preventDefault(); }
+      else if (e.key === 'Tab') {
+        // Keep Tab among the viewer's own buttons while it is open.
+        const f = [prev, next, close].filter((b) => !b.hidden);
+        const at = f.indexOf(document.activeElement);
+        f[(at < 0 ? 0 : at + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+        e.preventDefault();
+      }
+    });
+    return {
+      set(list) {
+        const cur = isOpen() && rows[i] ? key(rows[i]) : null;
+        rows = list;
+        // New visuals are prepended, so keep showing the same picture by identity, not by index.
+        const k = cur === null ? -1 : rows.findIndex((r) => key(r) === cur);
+        i = k >= 0 ? k : Math.max(0, Math.min(i, rows.length - 1));
+        if (isOpen()) { if (rows.length) show(); else hide(); }
+      },
+      open(k, from) {
+        i = k; show();
+        if (!isOpen()) { opener = from || document.activeElement; overflow = html.style.overflow; html.style.overflow = 'hidden'; box.classList.add('pp-open'); }
+        close.focus();
+      },
+    };
+  })();
+
   dash.draw('gallery', (el) => {
     const v = dash.data('visuals');
     el.replaceChildren();
     if (v.status !== 'ok') { el.textContent = v.status === 'error' ? 'Failed to load' : '—'; return; }
-    v.data.forEach((r, i) => {
-      if (typeof r.img !== 'string' || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(r.img)) return;
+    const shown = v.data.filter((r) => typeof r.img === 'string' && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(r.img));
+    lb.set(shown.map((r) => ({...r, date: r.at ? fmtDay(new Date(r.at)) : ''})));
+    shown.forEach((r, i) => {
       const fig = document.createElement('figure'); fig.className = 'pp-fig'; fig.id = `vis-${i}`;
       const img = document.createElement('img'); img.src = r.img; img.alt = r.title || ''; img.loading = 'lazy';
-      img.onclick = () => fig.classList.toggle('pp-big');
+      img.tabIndex = 0; img.setAttribute('role', 'button'); img.dataset.ppLb = i;
+      img.onclick = () => lb.open(i, img);
+      img.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); lb.open(i, img); } };
       const cap = document.createElement('figcaption');
       const st = document.createElement('strong'); st.textContent = r.title || '';
       const day = r.at ? ` (${fmtDay(new Date(r.at))})` : '';

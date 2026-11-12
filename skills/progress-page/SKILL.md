@@ -64,7 +64,7 @@ permission prompt or refusal.
    | Summary | track, items, phases, log, visuals | title; goal, done / total, active, next phase, days to `deadline` in one sentence; last change (the newest log, item or visual stamp) |
    | Roadmap | phases | a bar per phase, start → target, filled by its share of items done; today's line |
    | In progress now · Recent activity | items · log | side by side: `blocked`, `review` and `building` items with a pill and stage; the newest 12 events |
-   | Results | visuals | thumbnails with captions; click to enlarge |
+   | Results | visuals | thumbnails with captions; a click opens a full-page viewer: ←/→ step through them, Esc or a click closes it |
    | All work, by phase | items | every item with its state pill, stage and linked ref, `cut` included |
 
    If the track truly needs something else (a section of its own), change a
