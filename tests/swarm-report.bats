@@ -98,8 +98,13 @@ teardown() { common_teardown; }
   refute_contains "$card" "class=\"box\""
 }
 
+# The filter, tick and overlay behaviour (chips, hide-done, N / M open, arrow
+# keys, focus return) is JavaScript in the page; bats cannot run it. It is
+# checked by /look in a browser and by review. This test only checks the
+# page carries the pieces.
 @test "ticks, filters and the counter are in the page, with storage guarded" {
   run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 0 ]
   html="$(cat "$RUN/report.html")"
   assert_contains "$html" "prefers-color-scheme"
   assert_contains "$html" "swarm:"
@@ -107,4 +112,81 @@ teardown() { common_teardown; }
   refute_contains "$html" "innerHTML"
   refute_contains "$html" "http://fonts"
   refute_contains "$html" "<script src"
+}
+
+@test "a placeholder-looking string in a field stays literal and injects nothing" {
+  jq '.run.changed = "@@CARDS@@" | .findings[0].page = "@@DATA@@"
+      | .findings[0].title = "@@KIND_CHIPS@@"
+      | .findings[0].fix = "\" onfocus=window.PWNED=1 autofocus x=\""
+      | .findings[0].evidence = "@@DATA@@"' \
+    "$RUN/findings.json" > "$RUN/f2.json" && mv "$RUN/f2.json" "$RUN/findings.json"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 0 ]
+  html="$(cat "$RUN/report.html")"
+  assert_contains "$html" 'data-page="@@DATA@@"'
+  assert_contains "$html" '<p>@@CARDS@@</p>'
+  assert_contains "$html" '@@KIND_CHIPS@@</span>'
+  assert_equal "$(grep -o 'class="card"' "$RUN/report.html" | wc -l | tr -d ' ')" 5
+  run python3 -I - "$RUN/report.html" <<'PY'
+import sys
+from html.parser import HTMLParser
+class P(HTMLParser):
+    n = 0
+    def handle_starttag(self, tag, attrs):
+        P.n += sum(1 for k, _ in attrs if k.startswith("on"))
+p = P(); p.feed(open(sys.argv[1], encoding="utf-8").read())
+print(P.n)
+PY
+  assert_equal "$output" 0
+}
+
+@test "an empty findings list is valid and says so" {
+  jq '.findings = []' "$RUN/findings.json" > "$RUN/f2.json" && mv "$RUN/f2.json" "$RUN/findings.json"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 0 ]
+  html="$(cat "$RUN/report.html")"
+  assert_contains "$html" "0 / 0 open"
+  assert_contains "$html" "No findings"
+  assert_equal "$(grep -o 'class="card"' "$RUN/report.html" | wc -l | tr -d ' ')" 0
+}
+
+@test "a shot already in shots/ is accepted and no other shot is overwritten" {
+  mkdir -p "$RUN/shots"
+  cp "$RUN/raw/notes-saved.png" "$RUN/shots/F2-1.png"
+  # F1's first shot lives at shots/F2-1.png, F2's own shot is elsewhere: F2's
+  # copy lands on the file F1 reads from.
+  jq '.findings[0].shots[0].path = "shots/F2-1.png"' "$RUN/findings.json" > "$RUN/f2.json" \
+    && mv "$RUN/f2.json" "$RUN/findings.json"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 0 ]
+  cmp "$RUN/shots/F1-1.png" "$REPO/tests/fixtures/swarm/raw/notes-saved.png"
+  cmp "$RUN/shots/F2-1.png" "$REPO/tests/fixtures/swarm/raw/notes-list.png"
+  # a shot already at its own destination does not raise SameFileError
+  cp "$REPO/tests/fixtures/swarm/raw/settings.png" "$RUN/shots/F4-1.png"
+  jq '.findings[3].shots[0].path = "shots/F4-1.png"' "$RUN/findings.json" > "$RUN/f2.json" \
+    && mv "$RUN/f2.json" "$RUN/findings.json"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 0 ]
+  refute_contains "$output" "Traceback"
+}
+
+@test "a shot that is not a PNG stops the build, naming it, with no traceback" {
+  echo "not a png" > "$RUN/raw/settings.png"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 2 ]
+  assert_contains "$output" "raw/settings.png"
+  refute_contains "$output" "Traceback"
+  : > "$RUN/raw/settings.png"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 2 ]
+  assert_contains "$output" "raw/settings.png"
+  refute_contains "$output" "Traceback"
+  [ ! -e "$RUN/report.html" ]
+}
+
+@test "a finding id with a newline or a quote still builds" {
+  jq '.findings[0].id = "a\"b\nc"' "$RUN/findings.json" > "$RUN/f2.json" && mv "$RUN/f2.json" "$RUN/findings.json"
+  run python3 "$REPORT" "$RUN"
+  [ "$status" -eq 0 ]
+  assert_file_exists "$RUN/shots/a_b_c-1.png"
 }

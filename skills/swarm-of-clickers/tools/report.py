@@ -26,7 +26,6 @@ import html
 import json
 import os
 import re
-import shutil
 import struct
 import sys
 
@@ -47,10 +46,9 @@ def num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def png_size(path):
-    """(width, height) from the IHDR chunk."""
-    with open(path, "rb") as f:
-        head = f.read(24)
+def png_size(path, data):
+    """(width, height) from the IHDR chunk of the file's bytes."""
+    head = data[:24]
     if len(head) < 24 or head[:8] != PNG_SIG or head[12:16] != b"IHDR":
         raise Bad(f"{path}: not a PNG file")
     w, h = struct.unpack(">II", head[16:24])
@@ -81,8 +79,8 @@ def load(run_dir):
     for k in RUN_KEYS:
         if not isinstance(run.get(k), str):
             raise Bad(f"{path}: run.{k} must be a string")
-    if not isinstance(findings, list) or not findings:
-        raise Bad(f"{path}: 'findings' must be a non-empty list")
+    if not isinstance(findings, list):
+        raise Bad(f"{path}: 'findings' must be a list (empty is fine)")
     plan, names = [], set()
     ids = set()
     for i, fi in enumerate(findings):
@@ -118,7 +116,12 @@ def load(run_dir):
             src = sh["path"] if os.path.isabs(sh["path"]) else os.path.join(run_dir, sh["path"])
             if not os.path.isfile(src):
                 raise Bad(f"missing screenshot: {sh['path']} (finding '{fi['id']}', looked at {src})")
-            w, h = png_size(src)
+            try:
+                with open(src, "rb") as f:
+                    data = f.read()
+            except OSError as err:
+                raise Bad(f"{sh['path']}: cannot read screenshot ({err.strerror})")
+            w, h = png_size(sh["path"], data)
             box = sh["box"]
             css = None
             if box is not None:
@@ -133,7 +136,8 @@ def load(run_dir):
             if name in names:
                 raise Bad(f"{where}: shot name '{name}' collides with another finding's")
             names.add(name)
-            out.append({"src": src, "name": name, "css": css, "w": w, "h": h})
+            out.append({"src": src, "name": name, "css": css, "w": w, "h": h,
+                        "data": data})
         plan.append((fi, out))
     return run, plan
 
@@ -179,17 +183,19 @@ def build(run, plan):
     payload = json.dumps({"date": run["date"], "findings": data}, ensure_ascii=True)
     payload = payload.replace("</", "<\\/").replace("<", "\\u003c")
     total = len(plan)
-    return (TEMPLATE
-            .replace("@@TITLE@@", e(f"{run['app']} - findings"))
-            .replace("@@APP@@", e(run["app"]))
-            .replace("@@URL@@", e(run["url"]))
-            .replace("@@DATE@@", e(run["date"]))
-            .replace("@@CHANGED@@", e(run["changed"]))
-            .replace("@@PAGE_CHIPS@@", page_chips)
-            .replace("@@KIND_CHIPS@@", kind_chips)
-            .replace("@@TOTAL@@", str(total))
-            .replace("@@CARDS@@", "\n".join(cards))
-            .replace("@@DATA@@", payload))
+    parts = {
+        "TITLE": e(f"{run['app']} - findings"), "APP": e(run["app"]),
+        "URL": e(run["url"]), "DATE": e(run["date"]), "CHANGED": e(run["changed"]),
+        "PAGE_CHIPS": page_chips, "KIND_CHIPS": kind_chips, "TOTAL": str(total),
+        "CARDS": "\n".join(cards), "DATA": payload,
+        "EMPTY_HIDDEN": "" if not total else " hidden", "EMPTY": "No findings." if not total else "No findings match these filters.",
+    }
+
+    def fill(m):  # one pass: text inserted here is never scanned for placeholders
+        if m.group(1) not in parts:
+            raise Bad(f"template has an unknown placeholder @@{m.group(1)}@@")
+        return parts[m.group(1)]
+    return re.sub(r"@@([A-Z_]+)@@", fill, TEMPLATE)
 
 
 def main(argv):
@@ -205,9 +211,15 @@ def main(argv):
         return 2
     shots = os.path.join(run_dir, "shots")
     os.makedirs(shots, exist_ok=True)
+    # every source is already read into memory, so a shot that sits in shots/
+    # and is overwritten by another finding's copy is still written under its own name
     for _, ss in plan:
         for s in ss:
-            shutil.copyfile(s["src"], os.path.join(shots, s["name"]))
+            dest = os.path.join(shots, s["name"])
+            if os.path.exists(dest) and os.path.samefile(s["src"], dest):
+                continue
+            with open(dest, "wb") as f:
+                f.write(s["data"])
     out = os.path.join(run_dir, "report.html")
     with open(out, "w", encoding="utf-8") as f:
         f.write(page)
@@ -268,6 +280,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .thumb { display: block; position: relative; background: var(--line); }
 .frame { display: block; position: relative; line-height: 0; }
 .frame img { display: block; width: 100%; height: auto; }
+.shots .frame { display: inline-block; max-width: 100%; vertical-align: top; }
+.shots .frame img { width: auto; max-width: 100%; height: auto; }
 .box { position: absolute; border: 2px solid var(--box); box-shadow: 0 0 0 1px rgba(255,255,255,.7);
   pointer-events: none; }
 .more { position: absolute; right: 8px; bottom: 8px; font-size: .75rem; line-height: 1.4;
@@ -325,7 +339,7 @@ dl.fields ol { margin: 0; padding-left: 20px; }
 <div class="grid" id="grid">
 @@CARDS@@
 </div>
-<p class="empty" id="empty" hidden>No findings match these filters.</p>
+<p class="empty" id="empty"@@EMPTY_HIDDEN@@>@@EMPTY@@</p>
 </main>
 </div>
 <div id="ov" hidden>
@@ -472,7 +486,8 @@ dl.fields ol { margin: 0; padding-left: 20px; }
     sheet.scrollTop = 0;
   }
   function openOverlay(id) {
-    opener = document.querySelector('.card[data-id="' + id.replace(/["\\]/g, "\\$&") + '"] .open');
+    opener = null;
+    cards.forEach(function (c) { if (c.dataset.id === id) opener = c.querySelector(".open"); });
     render(id);
     ovEl.hidden = false;
     document.body.style.overflow = "hidden";
