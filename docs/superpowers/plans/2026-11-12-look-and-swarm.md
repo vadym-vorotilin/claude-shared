@@ -4,7 +4,7 @@
 
 **Goal:** Sessions look at the UI they ship (`/look`), and a calling session can run a swarm of cheap clicker agents that QA a web app and return a reviewed screenshot-gallery report (`/swarm-of-clickers`).
 
-**Architecture:** `skills/look/` owns all browser machinery — one bash entry point (`tools/look.sh`) over a pinned `playwright-cli`, a method-aware network guard installed through `run-code`, and a check script that returns measurable defects with element boxes. `skills/swarm-of-clickers/` adds the process (charters → clickers → review → report), a clicker brief, and a Python report builder; it calls `look.sh` and owns no browser code. A fictional fixture app plus answer key drives a Haiku-vs-Sonnet clicker test whose winner becomes an `/agency` matrix row.
+**Architecture:** `skills/look/` owns all browser machinery — one bash entry point (`tools/look.sh`) over a pinned `playwright-cli`, a method-aware network guard installed through `run-code`, and a check script that returns measurable defects with element boxes. `skills/swarm-of-clickers/` adds the process (charters → clickers → review → report), a clicker brief, and a Python report builder; it calls `look.sh` and owns no browser code. A fictional fixture app plus answer key drives a cheap-vs-mid clicker test whose winner becomes an `/agency` matrix row.
 
 **Tech Stack:** bash, `@playwright/cli` 0.1.24 (Node 18+), system Chromium, Python 3 stdlib (report), bats.
 
@@ -208,8 +208,8 @@ tests/lint.bats            + pinned-version test
 - Create (private, outside the repo): `~/.claude/evals/swarm-clickers/RESULTS.md`
 
 - [ ] **Step 1:** Fixed charters (5) for the fixture, written once to `~/.claude/evals/swarm-clickers/charters/`.
-- [ ] **Step 2:** 3 runs with clickers on `haiku / medium`, 3 with `sonnet / medium`; same charters; the review step is skipped — score the **raw** clicker notes, so the tier is what is measured.
+- [ ] **Step 2:** 3 runs with clickers on `cheap / medium`, 3 with `mid / medium`; same charters; the review step is skipped — score the **raw** clicker notes, so the tier is what is measured.
 - [ ] **Step 3:** Score each run with a fresh top / medium scorer (`score-brief.md`): per category recall, false findings, and tokens per matched defect (from `/token-report` or the agent usage lines).
-- [ ] **Step 4:** Blind pairwise: 3 judge calls (top / high), each on one haiku run vs one sonnet run, labels shuffled.
+- [ ] **Step 4:** Blind pairwise: 3 judge calls (top / high), each on one cheap run vs one mid run, labels shuffled.
 - [ ] **Step 5:** Write `RESULTS.md` (numbers, judge verdicts, decision). Decision rule: cheap wins if its recall is within 10 points of mid in every category and the judges do not prefer mid 2 of 3; otherwise mid. Set the matrix row accordingly (drop the *U* mark).
 - [ ] **Step 6:** Run lint; commit `agency: UI clicker row from the clicker tier test` (the commit names no numbers).

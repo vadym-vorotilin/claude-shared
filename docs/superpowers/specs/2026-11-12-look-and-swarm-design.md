@@ -9,8 +9,8 @@ Two pains, one root: **a session cannot see the UI it builds.**
    defects that could have been measured (text cropped by its box, light text
    on a light background).
 2. **Manual QA passes.** After a change, the user walks the app by hand and
-   writes up to ~50 small UI/UX fixes with ~100 screenshots, across several web
-   apps (internal tools, a monitoring dashboard).
+   writes up a long list of small UI/UX fixes, each with screenshots, across
+   several web apps.
 
 So, two skills:
 
@@ -187,10 +187,10 @@ done.
    through `git rev-parse --git-path info/exclude` (never a blanket add); with
    no git repo, a directory the session names.
 
-## The tier test (Haiku vs Sonnet clickers)
+## The tier test (cheap vs mid clickers)
 
 A **fictional fixture app** (a few pages, served locally) with an answer key of
-seeded defects, mostly the user's real mix:
+seeded defects, in the mix a manual pass usually turns up:
 
 - measurable (overflow, contrast, overlap, small targets) — the check script
   should catch these at any tier;
