@@ -9,7 +9,7 @@ Your dispatch prompt gave you: the answer key path, and two directories, one lab
 - The answer key: a table `id | category | page | element | description` of 20 seeded defects in a fictional app. Skip its "Expected check hits" section.
 - Every `notes.json` in both sets, and the screenshots the entries cite. Read enough screenshots to judge their quality in each set; you need not open every one.
 
-You do not open the app.
+You do not open the app. Read only the two directories and the key you were given.
 
 ## What the QA lead cares about
 

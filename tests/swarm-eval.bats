@@ -51,7 +51,7 @@ need_browser() {
 }
 
 # The key's "Expected check hits" row for a page, column 1..3 (1280 light,
-# 390 light, 1280 dark): sorted hit kinds, one per line.
+# 390 light, 1280 dark): one "kind count" line per kind, sorted.
 expected_kinds() { # page column
   awk -F'|' -v page="$1" -v col="$2" '
     /^## Expected check hits/ { on = 1; next }
@@ -60,7 +60,8 @@ expected_kinds() { # page column
   ' "$KEY" | tr ',' '\n' | sed 's/^ *//; s/ *$//' | sed '/^$/d' | sort -u
 }
 
-# The sorted distinct non-limit hit kinds `checks` finds on a fixture page.
+# The non-limit hit kinds `checks` finds on a fixture page, one "kind count"
+# line per kind, sorted.
 measured_kinds() { # page width scheme
   local S="t$$-e"
   run "$LOOK" open "$S" "http://127.0.0.1:$EVAL_PORT/$1.html" --width "$2" --scheme "$3"
@@ -70,8 +71,9 @@ measured_kinds() { # page width scheme
   local out="$output"
   "$LOOK" close "$S" >/dev/null 2>&1 || true
   node -e '
-    const kinds = new Set(JSON.parse(process.argv[1]).map(h => h.check).filter(k => k !== "limit"));
-    console.log([...kinds].sort().join("\n"));
+    const n = {};
+    for (const h of JSON.parse(process.argv[1])) if (h.check !== "limit") n[h.check] = (n[h.check] || 0) + 1;
+    console.log(Object.keys(n).sort().map(k => k + " " + n[k]).join("\n"));
   ' "$out"
 }
 
@@ -98,12 +100,12 @@ assert_page_kinds() { # page
 }
 
 @test "the key's expected hits cover all six measurable kinds at 1280 light" {
-  all="$( { for p in index settings reports; do expected_kinds "$p" 1; done; } | sort -u | tr '\n' ' ')"
+  all="$( { for p in index settings reports; do expected_kinds "$p" 1; done; } | sed 's/ [0-9]*$//' | sort -u | tr '\n' ' ')"
   [ "$all" = "console-error contrast img-alt overflow overlap small-target " ] || fail "kinds covered: [$all]"
 }
 
 @test "fixture pages carry no hint of the key" {
-  run grep -rniE 'defect|seeded|\bbug\b|broken|\bK[0-9]{2}\b|answer.?key' "$REPO/$EVAL_DIR_REL/fixture"
+  run grep -rniE 'defect|seeded|\bbug\b|broken|\bdead\b|\bK[0-9]{2}\b|answer.?key' "$REPO/$EVAL_DIR_REL/fixture"
   [ "$status" -ne 0 ] || fail "a hint in the fixture: $output"
 }
 

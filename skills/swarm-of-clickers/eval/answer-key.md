@@ -31,12 +31,12 @@ Totals: 6 measurable, 6 visual, 4 UX, 4 functional.
 
 ## Expected check hits
 
-The hit kinds `look.sh checks` returns for each page's first screen, served over http (`limit` notes are not counted). An empty cell means none. Nothing else on these pages may produce a hit; if one does, the fixture has a key error.
+The hit kinds `look.sh checks` returns for each page's first screen, served over http, each with its number of hits (`limit` notes are not counted). An empty cell means none. Nothing else on these pages may produce a hit; if one does, the fixture has a key error.
 
 | page | 1280 light | 390 light | 1280 dark |
 |---|---|---|---|
-| index | img-alt, overflow | img-alt, overflow | img-alt, overflow |
-| settings | contrast, small-target | contrast, small-target | small-target |
-| reports | console-error, overlap | console-error | console-error, overlap |
+| index | img-alt 1, overflow 1 | img-alt 1, overflow 1 | img-alt 1, overflow 1 |
+| settings | contrast 1, small-target 4 | contrast 1, small-target 4 | small-target 4 |
+| reports | console-error 1, overlap 1 | console-error 1 | console-error 1, overlap 1 |
 
 The six kinds are covered by the 1280 light column: overflow, img-alt (index), contrast, small-target (settings), overlap, console-error (reports).
