@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Many hits</title>
+<link rel="icon" href="data:,">
+<style>button { width: 10px; height: 10px; padding: 0; }</style>
+<script>
+  // 1,600 tiny controls: every one is a small-target hit, and the overlap cap is passed.
+  for (let i = 0; i < 1600; i++) {
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', 'item number ' + i + ' in a long grid of tiny controls');
+    document.write(b.outerHTML);
+  }
+</script>

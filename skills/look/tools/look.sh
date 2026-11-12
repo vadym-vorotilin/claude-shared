@@ -286,25 +286,27 @@ cmd_cli() {
   exec "$cli" -s="$session" "$@"
 }
 
-# The text between "### Result" and the next "### " heading of a run-code
-# call's output: what the page function returned, as JSON. Fails on none.
-run_result() { # output
+# What a run-code call returned, as JSON, from its saved output: the text
+# between "### Result" and the next "### " heading. Fails when there is none.
+# Files, never arguments: a page with many hits makes output far past the 128
+# KiB limit on one argument.
+run_result() { # output-file result-file
   node -e '
-    const t = process.argv[1], a = t.indexOf("### Result\n");
+    const fs = require("fs");
+    const t = fs.readFileSync(process.argv[1], "utf8"), a = t.indexOf("### Result\n");
     if (a < 0) process.exit(1);
     let b = t.indexOf("\n### ", a + 11);
     if (b < 0) b = t.length;
-    process.stdout.write(t.slice(a + 11, b).trim());
-  ' "$1"
+    fs.writeFileSync(process.argv[2], t.slice(a + 11, b).trim() + "\n");
+  ' "$1" "$2"
 }
 
-# Runs a generated script with run-code from the session directory, prints the
-# JSON it returned. Any failure of the CLI or of the script is non-zero.
-run_script() { # session cli script-file
-  local out
-  out="$("$2" -s="$1" run-code --filename="$3" 2>&1)" || { printf '%s\n' "$out" >&2; return 1; }
-  if grep -qF '### Error' <<<"$out"; then printf '%s\n' "$out" >&2; return 1; fi
-  run_result "$out" || { printf 'look: the CLI returned no result; it said:\n%s\n' "$out" >&2; return 1; }
+# Runs a script with run-code from the session directory and leaves the JSON it
+# returned in result-file. Any failure of the CLI or of the script is non-zero.
+run_script() { # session cli script-file result-file
+  "$2" -s="$1" run-code --filename="$3" >.run.out 2>&1 || { cat .run.out >&2; return 1; }
+  if grep -qF '### Error' .run.out; then cat .run.out >&2; return 1; fi
+  run_result .run.out "$4" || { { echo "look: the CLI returned no result; it said:"; cat .run.out; } >&2; return 1; }
 }
 
 # The session's dir and CLI, for the commands that look at a page.
@@ -317,37 +319,39 @@ session_env() { # session -> sets dir, cli
 
 cmd_checks() {
   [ $# -eq 1 ] || die "usage: look.sh checks <session>" 2
-  local dir cli session="$1" page console requests
+  local dir cli session="$1"
   session_env "$session"
   cd "$dir"
   cp "$LOOK_DIR/checks.js" checks.gen.js || die "cannot write in $dir"
-  page="$(run_script "$session" "$cli" checks.gen.js)" || die "the page checks did not run"
-  console="$("$cli" -s="$session" console 2>&1)" || die "cannot read the console: $console"
-  requests="$("$cli" -s="$session" requests --all --static 2>&1)" || die "cannot read the requests: $requests"
+  run_script "$session" "$cli" checks.gen.js checks.page.json || die "the page checks did not run"
+  "$cli" -s="$session" console >checks.console.txt 2>&1 || die "cannot read the console: $(cat checks.console.txt)"
+  "$cli" -s="$session" requests --all --static >checks.requests.txt 2>&1 || die "cannot read the requests: $(cat checks.requests.txt)"
   # console-error: console lines the guard did not cause. A request the guard
   # blocked is a request-blocked hit (and its console error is dropped), so a
   # caller can tell a broken page from a write the guard stopped. A request
-  # that failed otherwise is request-failed.
+  # that failed otherwise is request-failed. A {check:"limit"} note from the
+  # page script is also said on stderr.
   node -e '
     const fs = require("fs");
-    const [pageJson, consoleOut, requestsOut] = process.argv.slice(1);
-    const hits = JSON.parse(pageJson);
+    const read = f => fs.readFileSync(f, "utf8");
+    const hits = JSON.parse(read("checks.page.json"));
     const extra = (check, detail) => ({check, selector: "", text: "", box: null, detail});
     const BLOCKED = /ERR_BLOCKED_BY_CLIENT/;
-    for (const line of consoleOut.split("\n")) {
+    for (const line of read("checks.console.txt").split("\n")) {
       const m = /^\[ERROR\] (.*)$/.exec(line);
       if (m && !BLOCKED.test(m[1])) hits.push(extra("console-error", m[1]));
     }
-    for (const line of requestsOut.split("\n")) {
+    for (const line of read("checks.requests.txt").split("\n")) {
       const m = /^\d+\. \[([A-Z]+)\] (\S+) => \[FAILED\] (.*)$/.exec(line);
       if (!m) continue;
       hits.push(BLOCKED.test(m[3])
         ? extra("request-blocked", m[1] + " " + m[2] + " (blocked by the look guard)")
         : extra("request-failed", m[1] + " " + m[2] + " " + m[3]));
     }
+    for (const h of hits) if (h.check === "limit") console.error("look: " + h.detail + "; the rest was not compared");
     fs.writeFileSync("checks.json", JSON.stringify(hits, null, 2) + "\n");
     process.stdout.write(JSON.stringify(hits) + "\n");
-  ' "$page" "$console" "$requests"
+  ' || die "could not read the check results"
 }
 
 cmd_shot() {
@@ -365,7 +369,7 @@ cmd_shot() {
   [[ -z "$hit" || "$hit" =~ ^[0-9]+$ ]] || die "--hit takes a hit number from checks" 2
   [ -z "$hit" ] || ! $full || die "--full and --hit do not combine: a marked shot is of the viewport" 2
   session_env "$session"
-  local target="" box=""
+  local target=""
   if [ -n "$hit" ]; then
     [ -f "$dir/checks.json" ] || die "no $dir/checks.json; run look.sh checks $session first" 2
     local picked
@@ -373,40 +377,49 @@ cmd_shot() {
       const hits = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")), n = +process.argv[2];
       if (n >= hits.length) { console.error("hit " + n + " is out of range: the last checks run found " + hits.length); process.exit(2); }
       const h = hits[n];
-      if (!h.box || !h.selector) { console.error("hit " + n + " (" + h.check + ") has no box to mark: it came from the console or the network log"); process.exit(2); }
-      console.log(JSON.stringify({selector: h.selector, box: h.box}));
+      if (!h.box) { console.error("hit " + n + " (" + h.check + ") has no box to mark: it came from the console or the network log"); process.exit(2); }
+      if (!h.selector) { console.error("hit " + n + " (" + h.check + ") has a box but no selector that matched exactly one element when checks ran, so it cannot be scrolled to; run checks again"); process.exit(2); }
+      console.log(JSON.stringify({selector: h.selector, box: h.box, rel: h.rel || {x: 0, y: 0, w: h.box.w, h: h.box.h}}));
     ' "$dir/checks.json" "$hit" 2>&1)" || die "$picked" 2
     target="$picked"
   fi
   mkdir -p "$dir/shots"
   cd "$dir"
-  # The shot script runs in the page's browser: with a hit it checks the
-  # selector resolves to one element, scrolls it into view, draws the outline
-  # as a fixed overlay (not clipped by an ancestor), takes the viewport shot and
-  # removes the overlay again, whatever happens.
+  # The shot script runs in the page's browser. With a hit it checks the
+  # selector still resolves to one element, scrolls it into view instantly (a
+  # page's scroll-behavior:smooth must not leave the shot mid-scroll), measures
+  # the element again where it now is (it may sit in an inner scroller, or be
+  # sticky) and puts the hit box at its offset within it, draws that as a fixed
+  # overlay (not clipped by an ancestor), takes the viewport shot and removes
+  # the overlay again, whatever happens.
   node -e '
     const [file, out, full, target] = process.argv.slice(1);
     const t = target ? JSON.parse(target) : null;
     const src = `async page => {
       const out = ${JSON.stringify(out)}, full = ${full}, t = ${JSON.stringify(t)};
       if (!t) { await page.screenshot({path: out, fullPage: full}); return "look-shot-ok"; }
-      const found = await page.evaluate(sel => {
+      const placed = await page.evaluate(({sel, rel}) => {
         const els = document.querySelectorAll(sel);
-        if (els.length !== 1) return els.length;
-        els[0].scrollIntoView({block: "center", inline: "center"});
-        return 1;
-      }, t.selector);
-      if (found !== 1) return "look-shot-error: " + t.selector + " matches " + found + " elements now; run checks again";
-      const mark = await page.evaluate(box => {
+        if (els.length !== 1) return {error: sel + " matches " + els.length + " elements now; run checks again"};
+        const el = els[0];
+        el.scrollIntoView({block: "center", inline: "center", behavior: "instant"});
+        const where = () => { const r = el.getBoundingClientRect(); return {x: r.left + rel.x, y: r.top + rel.y, w: rel.w, h: rel.h}; };
+        let b = where();
+        const inside = b.x >= 0 && b.y >= 0 && b.x + b.w <= innerWidth && b.y + b.h <= innerHeight;
+        if (!inside) { // a box taller or wider than its element centred: bring the box itself to the middle
+          scrollBy({left: b.x + b.w / 2 - innerWidth / 2, top: b.y + b.h / 2 - innerHeight / 2, behavior: "instant"});
+          b = where();
+        }
+        if (b.x + b.w <= 0 || b.y + b.h <= 0 || b.x >= innerWidth || b.y >= innerHeight) return {error: "could not bring the hit into view"};
         const d = document.createElement("div");
         d.setAttribute("data-look-mark", "");
-        // The hit box is in document coordinates; the page is scrolled now.
         d.style.cssText = "position:fixed;z-index:2147483647;pointer-events:none;box-sizing:border-box;" +
-          "border:2px solid #e5484d;left:" + (box.x - scrollX - 2) + "px;top:" + (box.y - scrollY - 2) + "px;" +
-          "width:" + (box.w + 4) + "px;height:" + (box.h + 4) + "px";
+          "border:2px solid #e5484d;left:" + (b.x - 2) + "px;top:" + (b.y - 2) + "px;" +
+          "width:" + (b.w + 4) + "px;height:" + (b.h + 4) + "px";
         document.documentElement.appendChild(d);
-        return true;
-      }, t.box);
+        return {ok: true};
+      }, {sel: t.selector, rel: t.rel});
+      if (!placed.ok) return "look-shot-error: " + placed.error;
       try { await page.screenshot({path: out}); }
       finally { await page.evaluate(() => document.querySelectorAll("[data-look-mark]").forEach(n => n.remove())); }
       return "look-shot-ok";
@@ -414,7 +427,8 @@ cmd_shot() {
     require("fs").writeFileSync(file, src);
   ' shot.gen.js "$dir/shots/$name.png" "$full" "$target" || die "cannot write the shot script"
   local res
-  res="$(run_script "$session" "$cli" shot.gen.js)" || die "the screenshot failed"
+  run_script "$session" "$cli" shot.gen.js shot.result.json || die "the screenshot failed"
+  res="$(cat shot.result.json)"
   [ "$res" = '"look-shot-ok"' ] || die "${res//\"/}"
   [ -s "$dir/shots/$name.png" ] || die "no screenshot was written"
   echo "$dir/shots/$name.png"

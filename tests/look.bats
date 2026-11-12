@@ -750,7 +750,65 @@ leave_four_ways() {
 # Height of a PNG, read from its IHDR with the standard library only.
 png_height() { python3 -c 'import struct,sys; print(struct.unpack(">II", open(sys.argv[1],"rb").read(24)[16:24])[1])' "$1"; }
 
-@test "checks find every seeded defect" {
+# The pixels of the outline colour (#e5484d) in a PNG: "count x0 y0 x1 y1"
+# (count 0 and no box when there are none). Plain 8-bit RGB/RGBA, as Chromium
+# writes; the stdlib decodes it.
+png_marks() {
+  python3 - "$1" <<'PY'
+import sys, zlib, struct
+d = open(sys.argv[1], "rb").read()
+pos, idat, w, h, bpp = 8, b"", 0, 0, 0
+while pos < len(d):
+    n, t = struct.unpack(">I4s", d[pos:pos + 8])
+    body = d[pos + 8:pos + 8 + n]
+    if t == b"IHDR":
+        w, h, depth, ctype = struct.unpack(">IIBB", body[:10])
+        assert depth == 8 and ctype in (2, 6), "unexpected PNG format"
+        bpp = 3 if ctype == 2 else 4
+    elif t == b"IDAT":
+        idat += body
+    pos += 12 + n
+raw, stride, prev = zlib.decompress(idat), w * bpp, bytearray(w * bpp)
+count, x0, y0, x1, y1, o = 0, 10**9, 10**9, -1, -1, 0
+for y in range(h):
+    f = raw[o]; row = bytearray(raw[o + 1:o + 1 + stride]); o += 1 + stride
+    for i in range(stride):
+        a = row[i - bpp] if i >= bpp else 0
+        b = prev[i]
+        c = prev[i - bpp] if i >= bpp else 0
+        if f == 1: row[i] = (row[i] + a) & 255
+        elif f == 2: row[i] = (row[i] + b) & 255
+        elif f == 3: row[i] = (row[i] + (a + b) // 2) & 255
+        elif f == 4:
+            p = a + b - c; pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+            row[i] = (row[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+    for x in range(w):
+        if tuple(row[x * bpp:x * bpp + 3]) == (0xe5, 0x48, 0x4d):
+            count += 1; x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y)
+    prev = row
+print(count, x0, y0, x1, y1) if count else print(0)
+PY
+}
+
+# The JSON an eval returned, from the CLI's output.
+eval_json() { sed -n '/^### Result/,/^### Ran/p' <<<"$1" | sed '1d;$d'; }
+
+# Shoot hit N and assert the outline is in the PNG, around the element's box in
+# the viewport as the page is after the shot: its pixels sit within 4 px of it.
+assert_marked() { # session shot-name hit selector
+  run "$LOOK" shot "$1" "$2" --hit "$3"
+  [ "$status" -eq 0 ] || fail "$output"
+  marks="$(png_marks "$LOOK_HOME/$1/shots/$2.png")"
+  [ "$marks" != 0 ] || fail "no outline pixels in $2.png"
+  run "$LOOK" cli "$1" eval "() => { const r = document.querySelector('$4').getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; }"
+  node -e '
+    const m = process.argv[1].split(" ").map(Number).slice(1), r = JSON.parse(process.argv[2]);
+    const ok = m[0] >= r[0] - 4 && m[1] >= r[1] - 4 && m[2] <= r[2] + 4 && m[3] <= r[3] + 4 && m[2] - m[0] > 10;
+    if (!ok) { console.error("outline " + m + " is not around the element " + r); process.exit(1); }
+  ' "$marks" "$(eval_json "$output" | tr -d '[:space:]')" || fail "outline is not around $4"
+}
+
+@test "checks find every seeded defect, and nothing the page did not seed" {
   need_browser; need_server
   S="t$$-a"
   run "$LOOK" open "$S" "$BASE/defects.html"
@@ -759,18 +817,21 @@ png_height() { python3 -c 'import struct,sys; print(struct.unpack(">II", open(sy
   [ "$status" -eq 0 ] || fail "$output"
   hits="$output"
   [ -f "$LOOK_HOME/$S/checks.json" ]
-  for d in overflow overlap contrast small-target img-alt img-broken; do
-    # The box of the element carrying data-defect, in document coordinates.
-    want="$("$LOOK" cli "$S" eval "() => { const r = document.querySelector('[data-defect=\"$d\"]').getBoundingClientRect(); return [r.left + scrollX, r.top + scrollY, r.width, r.height]; }" \
-      | sed -n '/^### Result/,/^### Ran/p' | sed '1d;$d' | tr -d '[:space:]')"
-    run node -e '
-      const hits = JSON.parse(process.argv[1]), [x, y, w, h] = JSON.parse(process.argv[2]), d = process.argv[3];
-      const ok = hits.some(k => k.check === d && k.box && k.box.x >= x - 1 && k.box.y >= y - 1 &&
-        k.box.x + k.box.w <= x + w + 1 && k.box.y + k.box.h <= y + h + 1);
-      if (!ok) { console.error("no " + d + " hit inside [" + [x, y, w, h] + "]; hits: " + process.argv[1]); process.exit(1); }
-    ' "$hits" "$want" "$d"
-    [ "$status" -eq 0 ] || fail "$output"
-  done
+  # Every element carrying data-defect, with its box in document coordinates.
+  run "$LOOK" cli "$S" eval "() => [...document.querySelectorAll('[data-defect]')].map(e => { const r = e.getBoundingClientRect(); return {d: e.dataset.defect, x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height}; })"
+  seeded="$(eval_json "$output")"
+  run node -e '
+    const hits = JSON.parse(process.argv[1]), seeded = JSON.parse(process.argv[2]);
+    const inside = (b, s) => b.x >= s.x - 1 && b.y >= s.y - 1 && b.x + b.w <= s.x + s.w + 1 && b.y + b.h <= s.y + s.h + 1;
+    const bad = [];
+    if (seeded.length < 8) bad.push("only " + seeded.length + " seeded elements found");
+    for (const s of seeded)
+      if (!hits.some(k => k.check === s.d && k.box && inside(k.box, s))) bad.push("no " + s.d + " hit inside " + JSON.stringify(s));
+    for (const k of hits)
+      if (k.box && !seeded.some(s => s.d === k.check && inside(k.box, s))) bad.push("unexpected hit " + JSON.stringify(k));
+    if (bad.length) { console.error(bad.join("\n")); process.exit(1); }
+  ' "$hits" "$seeded"
+  [ "$status" -eq 0 ] || fail "$output"
 }
 
 @test "checks keep a guard-blocked write apart from a failed request and a console error" {
@@ -798,6 +859,34 @@ png_height() { python3 -c 'import struct,sys; print(struct.unpack(">II", open(sy
   [ "$output" = "[]" ] || fail "$output"
 }
 
+@test "clean dark-scheme pages with default colours have no hits" {
+  need_browser; need_server
+  S="t$$-a"
+  for page in clean-dark dark-root; do
+    run "$LOOK" open "$S" "$BASE/$page.html" --scheme dark
+    [ "$status" -eq 0 ] || fail "$output"
+    run "$LOOK" checks "$S"
+    [ "$status" -eq 0 ] || fail "$output"
+    [ "$output" = "[]" ] || fail "$page: $output"
+    "$LOOK" close "$S"
+  done
+}
+
+@test "a page with 1,600 hits is checked in full, and the overlap cap is said aloud" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/many.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  "$LOOK" checks "$S" >"$TEST_TMP/hits.json" 2>"$TEST_TMP/err.txt" || fail "$(cat "$TEST_TMP/err.txt")"
+  assert_contains "$(cat "$TEST_TMP/err.txt")" "overlap compared only the first 1500"
+  run node -e '
+    const h = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const n = h.filter(k => k.check === "small-target").length, lim = h.filter(k => k.check === "limit").length;
+    if (n < 1600 || lim !== 1) { console.error("small-target " + n + ", limit notes " + lim); process.exit(1); }
+  ' "$TEST_TMP/hits.json"
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
 @test "a hit below the fold gets a screenshot that shows it" {
   need_browser; need_server
   S="t$$-a"
@@ -813,11 +902,43 @@ png_height() { python3 -c 'import struct,sys; print(struct.unpack(">II", open(sy
   assert_contains "$output" "$png"
   [ "$(png_height "$png")" -eq 600 ]
   run "$LOOK" cli "$S" eval "() => document.querySelector('#low').getBoundingClientRect().top"
-  top="$(sed -n '/^### Result/,/^### Ran/p' <<<"$output" | grep -E '^-?[0-9.]+$')"
+  top="$(eval_json "$output")"
   awk -v t="$top" 'BEGIN { exit !(t >= 0 && t < 600) }' || fail "top=$top"
   # The outline is gone again: nothing was left on the page.
   run "$LOOK" cli "$S" eval "() => document.documentElement.outerHTML.includes('e5484d') ? 'marked' : 'clean:' + document.body.children.length"
   assert_contains "$output" '"clean:2"'
+  assert_marked "$S" low2 0 '#low'
+}
+
+@test "a smooth-scrolling page is shot where it landed, with the outline in the picture" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/smooth.html" --width 800 --height 600
+  [ "$status" -eq 0 ] || fail "$output"
+  "$LOOK" checks "$S" >/dev/null || fail "checks"
+  assert_marked "$S" smooth 0 '#low'
+}
+
+@test "a hit inside an inner scroller is outlined where it is on screen" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/inner.html" --width 800 --height 600
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" '"contrast"'
+  assert_marked "$S" inner 0 '#low'
+}
+
+@test "a hit under a sticky header is outlined where it is on screen" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/sticky.html" --width 800 --height 600
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" '"contrast"'
+  assert_marked "$S" sticky 0 '#low'
 }
 
 @test "a full-page shot is taller than the viewport" {
@@ -844,4 +965,16 @@ png_height() { python3 -c 'import struct,sys; print(struct.unpack(">II", open(sy
   assert_contains "$output" "out of range"
   run "$LOOK" shot "$S" "../x"
   [ "$status" -eq 2 ]
+  # A hit with a box but no selector, and one with neither, each say what they are.
+  cat > "$LOOK_HOME/$S/checks.json" <<'JSON'
+[{"check":"overlap","selector":"","text":"","box":{"x":1,"y":1,"w":5,"h":5},"detail":""},
+ {"check":"console-error","selector":"","text":"","box":null,"detail":"boom"}]
+JSON
+  run "$LOOK" shot "$S" x --hit 0
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "no selector"
+  refute_contains "$output" "console"
+  run "$LOOK" shot "$S" x --hit 1
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "no box"
 }
