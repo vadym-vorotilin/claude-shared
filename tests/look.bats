@@ -261,10 +261,13 @@ block GET      http://h.test/mail?id=3&do=Unsubscribe
 pass  GET      http://h.test/delete-guide
 pass  GET      http://h.test/removed/items
 pass  GET      http://h.test/catalog?q=deleted
+block GET      http://h.test/account?logout=1
+block GET      http://h.test/items?Delete
+pass  GET      http://h.test/items?deleted=1
 block GET      not-a-url
 EOF
   [ "$status" -eq 0 ] || fail "$output"
-  assert_contains "$output" "checked 21"
+  assert_contains "$output" "checked 24"
 }
 
 @test "guard rules: an allowlist glob lets a POST through unless a deny word is in it" {
@@ -470,6 +473,7 @@ assert_sent() { # session method url [mode]
   run fetch_from "$S" GET "$BASE/catalog"
   assert_contains "$output" '"status 200"'
   assert_blocked "$S" GET "$BASE/catalog?action=delete"
+  assert_blocked "$S" GET "$BASE/catalog?logout=1"
 }
 
 @test "a disposable host takes writes; another host still does not" {
@@ -482,4 +486,76 @@ assert_sent() { # session method url [mode]
   assert_blocked "$S" POST "http://localhost:$LOOK_PORT/catalog" no-cors
   assert_blocked "$S" POST "http://127.0.0.10:$LOOK_PORT/catalog" no-cors
   assert_blocked "$S" GET "$BASE/logout"
+}
+
+# ---- what look.sh cli passes on ------------------------------------------
+
+@test "cli refuses commands outside its allowlist and runs none of them" {
+  bin="$(sandbox_path bash env dirname mkdir cat sed grep ls true)"
+  fake_cli "$bin"
+  mkdir -p "$LOOK_HOME/t$$-n"
+  for c in run-code open attach detach close-all kill-all install install-browser \
+           route unroute route-list state-load state-save cookie-set cookie-clear \
+           localstorage-set sessionstorage-clear delete-data network-state-set \
+           webmcp-call list show config no-such-command; do
+    PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" "$c" x
+    [ "$status" -eq 2 ] || fail "$c: status $status: $output"
+    assert_contains "$output" "'$c'"
+  done
+  [ ! -e "$FAKE_LOG" ]
+}
+
+@test "cli refuses session, config, browser and context flags anywhere in its arguments" {
+  bin="$(sandbox_path bash env dirname mkdir cat sed grep ls true)"
+  fake_cli "$bin"
+  mkdir -p "$LOOK_HOME/t$$-n"
+  while IFS='|' read -r a b c; do
+    PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" "$a" "$b" "$c"
+    [ "$status" -eq 2 ] || fail "$a $b $c: status $status: $output"
+  done <<'EOF'
+eval|-s=other|() => 1
+eval|() => 1|-s
+eval|--session=other|() => 1
+goto|--config=x.json|http://h.test/
+goto|http://h.test/|--browser=firefox
+goto|http://h.test/|--headed
+goto|http://h.test/|--profile=/x
+goto|http://h.test/|--persistent
+tab-new|--isolated-context=x|http://h.test/
+--raw|eval|() => 1
+EOF
+  [ ! -e "$FAKE_LOG" ]
+}
+
+@test "cli passes an allowed command on with this session, and close closes only it" {
+  bin="$(sandbox_path bash env dirname mkdir cat sed grep ls true)"
+  fake_cli "$bin"
+  mkdir -p "$LOOK_HOME/t$$-n"
+  PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" eval '() => 1' --raw
+  [ "$status" -eq 0 ] || fail "$output"
+  PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" requests --all
+  [ "$status" -eq 0 ] || fail "$output"
+  PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" close
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_equal "$(cat "$FAKE_LOG")" "$(printf -- '-s=t%s-n eval () => 1 --raw\n-s=t%s-n requests --all\n-s=t%s-n close' $$ $$ $$)"
+  PATH="$bin" LOOK_CLI="$bin/fakecli" run "$LOOK" cli "t$$-n" close extra
+  [ "$status" -eq 2 ]
+}
+
+@test "the two verified bypasses are refused and the guard stays in force" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/index.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" cli "$S" run-code "async page => (await page.request.post('$BASE/catalog')).status()"
+  [ "$status" -eq 2 ] || fail "run-code: $output"
+  refute_contains "$output" 501
+  run "$LOOK" cli "$S" open "$BASE/index.html"
+  [ "$status" -eq 2 ] || fail "open: $output"
+  run "$LOOK" cli "$S" tab-new --isolated-context=x "$BASE/index.html"
+  [ "$status" -eq 2 ] || fail "tab-new: $output"
+  run "$LOOK" cli "$S" eval "() => document.title"
+  [ "$status" -eq 0 ] || fail "eval: $output"
+  assert_contains "$output" '"Fixture"'
+  assert_blocked "$S" POST "$BASE/catalog"
 }

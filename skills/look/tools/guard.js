@@ -26,11 +26,11 @@
 //      cannot parse, and any error while deciding, is blocked too.
 //
 // A deny word is in the URL when it equals, ignoring case, a whole path
-// segment or a whole query parameter value. Segments are percent-decoded,
-// and a ";..." suffix and one file extension are dropped first, so /logout,
-// /LogOut/, /logout.php, /logout;jsessionid=X and ?action=delete all match;
-// /delete-guide, /removed and ?q=deleted do not. Parameter names are not
-// checked (?logout=1 passes).
+// segment or a whole query parameter name or value. Segments are
+// percent-decoded, and a ";..." suffix and one file extension are dropped
+// first, so /logout, /LogOut/, /logout.php, /logout;jsessionid=X,
+// ?action=delete and ?logout=1 all match; /delete-guide, /removed,
+// ?q=deleted and ?deleted=1 do not.
 //
 // Globs: Playwright's URL glob dialect, implemented here (run-code exposes no
 // matcher). `**` matches any characters, `/` included; `*` matches any
@@ -45,8 +45,12 @@
 //     other GET.
 //   - Service workers' own requests bypass context routes, so look.sh starts
 //     every session with serviceWorkers: "block" (no registration succeeds).
-//   - A redirect is not decided again: an allowed request that the server
+//   - Redirects are not decided again: an allowed request that the server
 //     redirects (307/308 keep the method) is followed by the network stack.
+//     Like the deny words, this is a heuristic, not a proof of read-only.
+//   - The route covers this browser context only. look.sh cli refuses what
+//     would leave it: run-code (page.request bypasses routes), a second open,
+//     and tab-new --isolated-context.
 async page => {
   const config = /*GUARD_CONFIG*/;
   if (!Array.isArray(config.allowPost) || !Array.isArray(config.denyGetWords) ||
@@ -78,7 +82,7 @@ async page => {
         if (isWord(bare) || isWord(bare.replace(/\.[A-Za-z0-9]+$/, ''))) return true;
       }
     }
-    for (const value of url.searchParams.values()) if (isWord(value)) return true;
+    for (const [name, value] of url.searchParams) if (isWord(name) || isWord(value)) return true;
     return false;
   };
 

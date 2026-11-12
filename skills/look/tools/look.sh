@@ -5,7 +5,7 @@
 #   look.sh setup
 #   look.sh open <session> <url> [--width N] [--height N] [--scheme light|dark]
 #                [--disposable HOST] [--allow-post GLOB]... [--preset NAME]
-#   look.sh cli <session> <playwright-cli args...>
+#   look.sh cli <session> <command> [args...]   (allowlisted commands only)
 #   look.sh close <session>
 #
 # Env: LOOK_HOME (session dirs, default ${TMPDIR:-/tmp}/look), LOOK_BROWSER
@@ -22,6 +22,29 @@ LOOK_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # GET/HEAD/OPTIONS carrying one of these as a whole path segment or query value
 # are blocked: a link that logs out or deletes is a write, whatever its method.
 LOOK_DENY_GET_WORDS="logout delete remove destroy approve reject revoke unsubscribe"
+
+# The playwright-cli commands `look.sh cli` passes on (checked against the
+# 0.1.24 --help). An ALLOWLIST, not a denylist: the CLI is young and grows
+# commands, and a denylist would let each new one through. Several known ones
+# get around the guard: run-code is full Playwright (page.request bypasses
+# routes; it can unroute), a second open relaunches the browser unguarded, and
+# tab-new --isolated-context makes a context the route is not on. eval is
+# allowed: it runs as page JavaScript, so its fetches go through the guard's
+# route like the page's own. `cli <s> close` is look.sh close. look.sh's own
+# steps (the guard install, later checks and shots) call the CLI directly.
+LOOK_CLI_ALLOWED=(
+  goto go-back go-forward reload                                    # navigation
+  click dblclick fill type press keydown keyup select check uncheck  # interaction
+  hover drag drop upload mousemove mousedown mouseup mousewheel
+  dialog-accept dialog-dismiss
+  snapshot find eval console screenshot pdf                         # looking
+  requests request request-headers request-body response-headers response-body
+  tab-list tab-new tab-select tab-close resize                      # tabs, window
+)
+# Arguments that would pick another session, config, browser, profile or
+# context; refused anywhere in a cli call, alone or as --flag=value.
+LOOK_CLI_REFUSED_FLAGS=(--session --config --browser --device --mobile --headed
+  --persistent --profile --idle-timeout --isolated-context)
 
 die()  { echo "look: $1" >&2; exit "${2:-1}"; }
 need() { echo "look: $*" >&2; exit 3; }
@@ -221,6 +244,22 @@ cmd_cli() {
   [ $# -ge 2 ] || die "usage: look.sh cli <session> <playwright-cli args...>" 2
   shift
   valid_session "$session"
+  # The command must come first: a flag before it could take the next word as
+  # its value and leave the CLI running a different command than checked here.
+  local command="$1" a f
+  if [ "$command" = close ]; then
+    [ $# -eq 1 ] || die "usage: look.sh cli <session> close (no arguments)" 2
+    cmd_close "$session"; return
+  fi
+  local allowed=" ${LOOK_CLI_ALLOWED[*]} "
+  [[ "$command" != *" "* && "$allowed" == *" $command "* ]] \
+    || die "cli does not pass on '$command': it is not on look.sh's allowlist (LOOK_CLI_ALLOWED), which keeps the network guard in force" 2
+  for a in "$@"; do
+    [[ "$a" != -s* ]] || die "cli refuses '$a': a cli call acts on its own session only" 2
+    for f in "${LOOK_CLI_REFUSED_FLAGS[@]}"; do
+      [[ "$a" != "$f" && "$a" != "$f="* ]] || die "cli refuses '$a': it would change the session, browser or context the guard is on" 2
+    done
+  done
   local dir; dir="$(session_dir "$session")"
   [ -d "$dir" ] || die "no session '$session'; run look.sh open first" 2
   local cli; cli="$(find_cli)"
