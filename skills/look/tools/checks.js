@@ -158,24 +158,38 @@ async page => page.evaluate(() => {
     return false;
   };
 
-  // The sideways twin: is something drawn (a text node's range rects, or any
-  // child element but replaced media) past the right edge of the box? A cropped
-  // icon-only toolbar counts; an image-only strip that scrolls or clips does not.
+  // The sideways twin: is something drawn past the right edge of the box? A
+  // text node counts by its range rects; a child element by its own box when
+  // it shows something of its own (drawn text, paint, or an accessible name:
+  // a ghost icon button). Any other wrapper (an inline-flex or max-content
+  // track, an <li>, a link round a slide) is looked through. Replaced media
+  // never counts, so an image-only strip that clips is not cropped content. A
+  // control that has its own controlOverflow hit does not count either: the
+  // field is the defect, not the card that crops it.
   const MEDIA = /^(IMG|PICTURE|VIDEO|CANVAS|SVG)$/;
-  // An inline child (a link round a hero image) has no box of its own, so what
-  // it holds is measured instead.
+  const paints = cs => {
+    const bg = parseColor(cs.backgroundColor);
+    return (bg && bg[3] > 0) || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none' ||
+      ['Top', 'Right', 'Bottom', 'Left'].some(s => parseFloat(cs['border' + s + 'Width']) > 0 && !/^(none|hidden)$/.test(cs['border' + s + 'Style'])) ||
+      (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0);
+  };
+  const showsOwn = n => n.hasAttribute('aria-label') || n.hasAttribute('aria-labelledby') || n.hasAttribute('title') ||
+    paints(getComputedStyle(n)) || holdsDrawnText(n);
   const drawnPastRight = (el, r) => {
     const edge = r.left + el.clientLeft + el.clientWidth + 1;
+    const crosses = rects => rects.some(q => (q.width > 0 || q.height > 0) && q.right > edge);
     const range = document.createRange();
     const past = box => {
       for (const n of box.childNodes) {
-        let rects = [];
-        if (n.nodeType === 3 && n.nodeValue.trim()) { range.selectNodeContents(n); rects = Array.from(range.getClientRects()); }
-        else if (n.nodeType === 1 && !MEDIA.test(n.tagName.toUpperCase())) {
-          if (getComputedStyle(n).display === 'inline') { if (past(n)) return true; continue; }
-          rects = [n.getBoundingClientRect()];
+        if (n.nodeType === 3) {
+          if (!n.nodeValue.trim()) continue;
+          range.selectNodeContents(n);
+          if (crosses(Array.from(range.getClientRects()))) return true;
+        } else if (n.nodeType === 1 && !MEDIA.test(n.tagName.toUpperCase())) {
+          if (!showsOwn(n)) { if (past(n)) return true; continue; }
+          const q = n.getBoundingClientRect();
+          if (crosses([q]) && !controlOverflow(n, q)) return true;
         }
-        if (rects.some(q => (q.width > 0 || q.height > 0) && q.right > edge)) return true;
       }
       return false;
     };

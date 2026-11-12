@@ -849,6 +849,25 @@ assert_seeded() { # session
   assert_seeded "$S"
 }
 
+@test "a field cropped by its padded card is one overflow hit, not one for the card too" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/defects.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  hits="$output"
+  run "$LOOK" cli "$S" eval "() => { const r = document.querySelector('#pad-card').getBoundingClientRect(); return {x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height}; }"
+  card="$(eval_json "$output")"
+  run node -e '
+    const hits = JSON.parse(process.argv[1]), c = JSON.parse(process.argv[2]);
+    const meets = b => b.x < c.x + c.w && b.x + b.w > c.x && b.y < c.y + c.h && b.y + b.h > c.y;
+    const n = hits.filter(k => k.check === "overflow" && k.box && meets(k.box));
+    if (n.length !== 1) { console.error(n.length + " overflow hits on the card: " + JSON.stringify(n)); process.exit(1); }
+  ' "$hits" "$card"
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
 @test "checks keep a guard-blocked write apart from a failed request and a console error" {
   need_browser; need_server
   S="t$$-a"
