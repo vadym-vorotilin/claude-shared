@@ -18,8 +18,8 @@ presenting the scope, and save the answer to project memory (with no memory,
 the ledger and the INTRO) with how demos are published — repo, tag scheme,
 milestone link.
 
-**Scope** is one **dispatched** agent on the tier table's scope row (blocks: `common`,
-`scope`, plus the ceiling block). Give it the goal line, and each repo's branch
+**Scope** is one **dispatched** agent on the matrix's "Design adjudication" row (blocks: `common`,
+`scope`, `../agency/matrix.md`, plus the ceiling block). Give it the goal line, and each repo's branch
 protection and merge method — one `gh api` call per repo, the only source
 reading you do. Phase 0 for the orchestrator is dispatch, receive, check,
 post; its only other tool calls are **resolving citations by field**

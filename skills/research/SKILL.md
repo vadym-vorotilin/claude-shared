@@ -14,9 +14,10 @@ effort silently runs three read-only code surveys on the top tier at high
 effort. Stopping and relaunching them costs the minutes already spent, and the
 user should not have to point it out.
 
-**Core rule: every dispatch names its model and its effort, chosen from the
-leg's kind (table below), before it goes out.** This skill is the explicit
-instruction the Agent tool's `effort` setting asks for.
+**Core rule: every dispatch names its model and its effort, from the `/agency`
+row its leg kind maps to (table below), before it goes out.** Read
+`../agency/matrix.md` before the first dispatch; it holds the tiers, the rows
+and the escalation rule.
 
 ## What this assumes
 
@@ -62,28 +63,24 @@ reply before dispatching:
 
     leg — agent type — model / effort — why
 
-| Leg kind | Agent type | Model | Effort |
-|---|---|---|---|
-| Locate: where is X, what calls Y, map a directory | `Explore` | cheap (Haiku-class) or mid (Sonnet-class) | low |
-| Explain: how a subsystem works, its constraints and invariants | `Explore` | mid (Sonnet-class) | medium |
-| Web research: gather and summarise sources | `general-purpose` | mid (Sonnet-class) | medium |
-| Web research on niche, recent or version-specific facts | `general-purpose` | mid (Sonnet-class) | high |
-| Write and run a benchmark or throwaway prototype | `general-purpose` | mid (Sonnet-class) | medium |
-| Design a candidate approach later work builds on, where no spec exists yet | `general-purpose` | top (Opus-class) | high |
-| Adversarial check of the recommendation | fresh `general-purpose` | top (Opus-class) | high |
-| Framing, synthesis, the recommendation | **you** | — | — |
+| Leg kind | Agent type | `/agency` row |
+|---|---|---|
+| Locate: where is X, what calls Y, map a directory | `Explore` | Locate |
+| Explain: how a subsystem works, its constraints and invariants | `Explore` | Explain a subsystem |
+| Web research: gather and summarise sources | `general-purpose` | Web research |
+| Web research on niche, recent or version-specific facts | `general-purpose` | Web research on niche… facts |
+| Write and run a benchmark or throwaway prototype | `general-purpose` | Benchmark, prototype |
+| Design a candidate approach later work builds on, where no spec exists yet | `general-purpose` | A design with no spec yet |
+| Adversarial check of the recommendation | fresh `general-purpose` | Adversarial check |
+| Framing, synthesis, the recommendation | **you** | — |
 
 - **A spec already exists?** Then it is an implementation approach, not
-  research: `../orchestrating-issue-runs/SKILL.md` runs those on the mid tier.
+  research: its row is "An approach later work builds on".
 - **Locating and summarising are not judgment.** They go cheap even when the
   topic is hard; the hard part is yours, in step 5.
 - **The session's own effort is not a default for legs.** A session at xhigh
   for its synthesis still dispatches its surveys at low.
-- **Escalate one leg, not the set.** A leg that comes back thin, unsure or
-  contradictory reruns one tier and one effort level up, alone, with what the
-  first try found.
-- **The strongest tier** only for a ruling that came back unsure from the top
-  standard tier.
+- **Escalate one leg, not the set** (`../agency/matrix.md` → "Escalation").
 - Legs that would read the same files are one leg. Independent legs go out in
   one message, in the background.
 

@@ -35,7 +35,7 @@ read from the project's own directory.
 
 | Every run | Read |
 |---|---|
-| Run start, before the scope dispatch | [phase0-scope.md](phase0-scope.md) |
+| Run start, before the scope dispatch | [../agency/matrix.md](../agency/matrix.md), then [phase0-scope.md](phase0-scope.md) |
 | Scope approved, or a fresh orchestrator taking a run over | [phase1-loop.md](phase1-loop.md) |
 | Last card merged, quota called, or an unattended run stopping | [phase2-wrap.md](phase2-wrap.md) |
 
@@ -47,7 +47,7 @@ read from the project's own directory.
 | A card touches a persisted field, a version constant or an agent-facing record | [reference/schema-changes.md](reference/schema-changes.md) |
 | A fixer authored a convention, calls a requested design infeasible, or a capture is retried | [reference/conventions.md](reference/conventions.md) |
 | A wave boundary where the run changed shape | [reference/red-flags.md](reference/red-flags.md) |
-| A rule is unclear, or you are changing one | `reference/full/` (the reasoning), [reference/why-rules.md](reference/why-rules.md) |
+| A rule is unclear, or you are changing one | `reference/full/` (the reasoning; a tier it names is historical, `../agency/matrix.md` wins), [reference/why-rules.md](reference/why-rules.md) |
 
 **Never read `briefs/`** or the sibling skills' `brief.md` — they are assembled
 into briefs below.
@@ -109,7 +109,7 @@ leg() { # leg <fixer|reviewer|approach|adjudicator> <leg> [ceiling]
 | combined approach+fix | `briefs/issue.md`, `briefs/approach.md`, `../context-ceiling/brief.md`, `briefs/fixer.md` |
 | approach, adjudicator | `briefs/issue.md`, `briefs/approach.md` or `briefs/adjudicator.md` (+ ceiling block if the leg can run long) |
 | reviewer | `briefs/issue.md`, `briefs/reviewer.md` — never the ceiling block |
-| scope | `../context-ceiling/brief.md`, `briefs/scope.md` |
+| scope | `../context-ceiling/brief.md`, `../agency/matrix.md`, `briefs/scope.md` |
 | merge mechanics | `briefs/merge.md` |
 | demo, walkthrough, register, filing, board sweep | `briefs/wrap.md`, the spec part naming the role (+ ceiling block if the leg can run long) |
 
@@ -162,19 +162,18 @@ Phase 2  demo, walkthrough, milestone closed, register → operator ruling →
     scope derives the minimum card set that closes it; every brief carries it;
     the stamp leads with it; rulings are sized by it.
 
-## Model tiers and effort (defaults; the scope doc records each issue's)
+## Model tiers and effort: `../agency/matrix.md`
 
-Pass the effort with every dispatch (the Agent tool's `effort` setting). A
-fresh agent "one tier up" also goes one effort level up.
-
-| Work | Tier | Effort |
-|---|---|---|
-| Mechanical fixes, re-reviews | cheap/mid (Sonnet-class) | low |
-| Approaches — a wrong one costs every leg after it | cheap/mid (Sonnet-class) | high |
-| Standard reviews | cheap/mid (Sonnet-class) | medium |
-| Load-bearing implement/review: core types, schema, cache/graph logic, anything running unattended with write access | top standard (Opus-class) | high |
-| Design adjudication, contract/freeze drafts, Phase 0 scope | top standard (Opus-class); the strongest tier only for a ruling that comes back unsure | xhigh |
-| Repeat of an already-merged pattern | one combined approach+fix agent, cheap tier | low |
+Every dispatch names `model` and `effort` from its row there; the scope doc
+records each issue's. Roles → rows: scope and adjudicator → "Design
+adjudication"; approach → "An approach later work builds on"; fixer →
+"Implementation", or "Load-bearing" as the scope sized it; reviewer → "Review
+that gates a merge", and so is the walkthrough; reader leg → "Read and
+extract"; demo capture → "Benchmark, prototype"; merge mechanics, register,
+filing, board sweep → "Mechanical change"; a continuation → its original's
+row; a repeat of a merged pattern → one combined approach+fix agent on
+"Mechanical change". The fix-round
+schedule (phase1-loop.md → "Fix rounds") is this skill's own escalation.
 
 ## Red flags — stop
 

@@ -8,8 +8,8 @@ the reasoning is in `reference/full/phase2-wrap.md`.
 1. **Demo capture** (`wrap` block, demo role). Name in the brief which pages
    depend on any still-open card. Before a page goes to the operator, read its
    claims against this run's measurements and rewrite any you cannot trace.
-2. **Walkthrough** (`wrap` block, walkthrough role; top standard tier, not the
-   reviewer role): point it at the project's own rubric and name every
+2. **Walkthrough** (`wrap` block, walkthrough role; the matrix's gate-review row, not
+   the reviewer role): point it at the project's own rubric and name every
    variable the tool chain writes to, so its environment is fully isolated.
 3. **Demo document** from the capture log's captions, walkthrough findings named
    as known gaps, delivered, and released the way the run's memory says (Phase

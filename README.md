@@ -432,6 +432,15 @@ of these are available in every project on the machine.
 
 ### Long-running and multi-agent work
 
+- **`/agency`** — pick the model and effort for each piece of work instead of
+  letting every subagent inherit the session's. Run it at the start of a
+  subagent-driven session: from then on every dispatch names its model and
+  effort from one matrix (`skills/agency/matrix.md`) — cheap for locating, mid
+  for most building, top for load-bearing work and any review that gates a
+  merge, the strongest tier only as an advisor — and the session says once
+  when its own model looks wrong for the work ahead. `/orchestrating-issue-runs`,
+  `/research` and `/grill-review` read the same matrix, so it is the one place
+  to change a tier.
 - **`/orchestrating-issue-runs`** — run a backlog of GitHub issues through
   subagents end-to-end: scope for human approval, then approach → go-gate →
   fix → independent review → fix rounds → merge, per issue. Merges and closes
@@ -447,7 +456,7 @@ of these are available in every project on the machine.
   the main session never spends a turn waiting and keeps a 50-minute heartbeat
   (its cache lasts about an hour). Its `brief.md` is the block to paste into any
   subagent brief. `/orchestrating-issue-runs` depends on it, on
-  `/context-ceiling` and on `/unattended-run`.
+  `/context-ceiling`, on `/unattended-run` and on `/agency`.
 - **`/context-ceiling`** — bound how large a session's or a subagent's context
   grows. Dispatched agents stop at ~150k and return a checkpoint note a fresh
   agent continues from; the main session reads its own size with
@@ -501,8 +510,9 @@ of these are available in every project on the machine.
   the IDs needed to reach them afterwards. Stops nothing.
 - **`/research`** — run a research spike: frame the question, split it into
   legs (code surveys, web research, benchmarks, design), dispatch each on the
-  model and effort its kind needs instead of inheriting the session's, keep a
-  running log, and synthesise a recommendation with checked evidence.
+  model and effort its kind needs (from `/agency`) instead of inheriting the
+  session's, keep a running log, and synthesise a recommendation with checked
+  evidence.
 
 ### Machine upkeep
 

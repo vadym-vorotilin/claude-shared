@@ -212,6 +212,26 @@ exact patterns; the test must fail on today's two tables before the refactor
 - How the orchestrator's brief carries the matrix.
 - The lint test's patterns.
 
+## Changed during the build
+
+- **Layout:** the ladder, rows and escalation live in `skills/agency/matrix.md`;
+  `SKILL.md` is the session-wide guidance and points to it. The orchestrator
+  reads only `matrix.md` (every run, and as a block in the scope brief).
+- **The orchestrator's every-run budget** rose from 28 KB to 32 KB (the user's
+  call): it now includes the shared matrix, which replaced a smaller table.
+- **From the skill tests** (fictional dispatch scenario, without and with the
+  skill): without it, sessions named a model and effort but chose differently
+  from run to run, and rarely suggested a cheaper session model for a
+  mechanical stretch; with it, the rows and the one-line suggestion matched
+  across runs. Two loopholes the first draft opened were closed:
+  - a spec gap ("unsure how X should behave") is not escalated; it goes to
+    whoever owns the decision and the same agent continues;
+  - the strongest tier advises and never implements or reviews: a task
+    on top that needs escalating, the first time or later, gets an advisor
+    consult, then reruns on top one effort up.
+- **A design with no spec yet** got its own row (top / high), so `research`
+  keeps its old tier for that leg without carrying it inline.
+
 ## Later
 
 `/swarm-of-clickers` will add a "UI clicker" row once its cheap-vs-mid

@@ -16,7 +16,7 @@ no durable design record — it is ruled in the issue comment. One probe per car
 before the operator is asked anything. Track **rulings per merged card** in the
 ledger: above ~2, the spec is the defect — propose one batched spec change.
 
-**Adjudication.** The tier table's adjudication row, `adjudicator` block, one issue or one
+**Adjudication.** The matrix's "Design adjudication" row, `adjudicator` block, one issue or one
 pre-declared cluster per agent, never a batch. The specific part pins the exact
 questions, the conflicting positions quoted from the approach comments, the
 spec sections by path and anchor, and the file surfaces. The ruling is a
@@ -45,8 +45,9 @@ PR pinned by head and base SHA you resolved. **The merge gate is the literal
 
 **Fix rounds.** Findings go to the SAME fixer by message, rounds 1–3, while it is
 under its ceiling; each round ends with a scoped re-review by the SAME reviewer.
-Rounds 4–5: a fresh agent one tier up, from the checkpoint note — first remove
-the old worktree (only if the old agent finished and `git status --porcelain` is
+Rounds 4–5: a fresh agent one tier and one effort level up
+(`../agency/matrix.md` → "Escalation": on top already, an advisor first), from
+the checkpoint note — first remove the old worktree (only if the old agent finished and `git status --porcelain` is
 empty; then `git worktree remove -f -f`), or brief it to work on
 `checkout -B <local> origin/<branch>`. **Cap 5** — then adjudicate the open
 findings: park with a ruling or stop. **The real cap is the budget**:
