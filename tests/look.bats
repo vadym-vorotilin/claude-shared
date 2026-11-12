@@ -744,3 +744,104 @@ leave_four_ways() {
   refute_contains "$output" 'blocked by the look guard'
   assert_reached GET /ws
 }
+
+# --- checks and shots ---------------------------------------------------
+
+# Height of a PNG, read from its IHDR with the standard library only.
+png_height() { python3 -c 'import struct,sys; print(struct.unpack(">II", open(sys.argv[1],"rb").read(24)[16:24])[1])' "$1"; }
+
+@test "checks find every seeded defect" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/defects.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  hits="$output"
+  [ -f "$LOOK_HOME/$S/checks.json" ]
+  for d in overflow overlap contrast small-target img-alt img-broken; do
+    # The box of the element carrying data-defect, in document coordinates.
+    want="$("$LOOK" cli "$S" eval "() => { const r = document.querySelector('[data-defect=\"$d\"]').getBoundingClientRect(); return [r.left + scrollX, r.top + scrollY, r.width, r.height]; }" \
+      | sed -n '/^### Result/,/^### Ran/p' | sed '1d;$d' | tr -d '[:space:]')"
+    run node -e '
+      const hits = JSON.parse(process.argv[1]), [x, y, w, h] = JSON.parse(process.argv[2]), d = process.argv[3];
+      const ok = hits.some(k => k.check === d && k.box && k.box.x >= x - 1 && k.box.y >= y - 1 &&
+        k.box.x + k.box.w <= x + w + 1 && k.box.y + k.box.h <= y + h + 1);
+      if (!ok) { console.error("no " + d + " hit inside [" + [x, y, w, h] + "]; hits: " + process.argv[1]); process.exit(1); }
+    ' "$hits" "$want" "$d"
+    [ "$status" -eq 0 ] || fail "$output"
+  done
+}
+
+@test "checks keep a guard-blocked write apart from a failed request and a console error" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/onload-post.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" '"request-blocked"'
+  assert_contains "$output" "POST $BASE/save"
+  refute_contains "$output" '"request-failed"'
+  refute_contains "$output" 'ERR_BLOCKED_BY_CLIENT.Inspector'
+  # The blocked writes' own console errors are not console-error hits.
+  node -e 'const h = JSON.parse(process.argv[1]); process.exit(h.some(k => k.check === "console-error" && /BLOCKED/.test(k.detail)) ? 1 : 0)' "$output"
+}
+
+@test "a clean page has no hits" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/clean.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  [ "$output" = "[]" ] || fail "$output"
+}
+
+@test "a hit below the fold gets a screenshot that shows it" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/below-fold.html" --width 800 --height 600
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" '"contrast"'
+  run "$LOOK" shot "$S" low --hit 0
+  [ "$status" -eq 0 ] || fail "$output"
+  png="$LOOK_HOME/$S/shots/low.png"
+  [ -f "$png" ]
+  assert_contains "$output" "$png"
+  [ "$(png_height "$png")" -eq 600 ]
+  run "$LOOK" cli "$S" eval "() => document.querySelector('#low').getBoundingClientRect().top"
+  top="$(sed -n '/^### Result/,/^### Ran/p' <<<"$output" | grep -E '^-?[0-9.]+$')"
+  awk -v t="$top" 'BEGIN { exit !(t >= 0 && t < 600) }' || fail "top=$top"
+  # The outline is gone again: nothing was left on the page.
+  run "$LOOK" cli "$S" eval "() => document.documentElement.outerHTML.includes('e5484d') ? 'marked' : 'clean:' + document.body.children.length"
+  assert_contains "$output" '"clean:2"'
+}
+
+@test "a full-page shot is taller than the viewport" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/below-fold.html" --width 800 --height 600
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" shot "$S" full --full
+  [ "$status" -eq 0 ] || fail "$output"
+  [ "$(png_height "$LOOK_HOME/$S/shots/full.png")" -gt 600 ]
+}
+
+@test "shot --hit says why when there is nothing to mark" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/below-fold.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run "$LOOK" shot "$S" x --hit 0
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "checks"
+  "$LOOK" checks "$S" >/dev/null
+  run "$LOOK" shot "$S" x --hit 99
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "out of range"
+  run "$LOOK" shot "$S" "../x"
+  [ "$status" -eq 2 ]
+}

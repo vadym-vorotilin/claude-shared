@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Clean page</title>
+<link rel="icon" href="data:,">
+<style>
+  body { margin: 0; padding: 16px; font: 16px/1.5 sans-serif; color: #111; background: #fff; }
+  p { margin: 0 0 12px; }
+  .clip { width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .muted { color: #595959; }
+  .banner { background: #1d3557; color: #fff; padding: 8px; margin-bottom: 12px; }
+  .glass { background: rgba(0, 0, 0, 0.05); padding: 4px; }
+  .row { display: flex; gap: 8px; margin-bottom: 12px; }
+  button, input, select { min-width: 44px; min-height: 32px; font: inherit; }
+  .scroller { width: 200px; height: 40px; overflow: auto; margin-bottom: 12px; }
+  .photo { background: url("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"); color: #aaa; padding: 4px; }
+</style>
+<h1>Quarterly overview</h1>
+<p>Read the <a href="#notes">notes</a> and the <a href="#appendix">appendix</a> before continuing to the details below.</p>
+<p class="muted">Secondary text with enough contrast.</p>
+<div class="banner">White on navy</div>
+<div class="glass"><p>Text on a translucent layer over white.</p></div>
+<div class="clip">Fits the box</div>
+<div class="scroller"><div style="width:600px">Scrolls sideways instead of clipping</div></div>
+<div class="row">
+  <button type="button">Save</button>
+  <input type="text" aria-label="Name" value="Ada">
+  <select aria-label="Kind"><option>One</option></select>
+  <a href="#top" style="display:inline-block;min-width:44px;min-height:32px">Top</a>
+</div>
+<p class="photo">Text over an image is not measured</p>
+<img width="40" height="40" alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<img width="40" height="40" alt="A single pixel" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<h2 id="notes">Notes</h2>
+<ul><li>First point</li><li>Second point</li></ul>
+<h2 id="appendix">Appendix</h2>
+<p>Closing words.</p>

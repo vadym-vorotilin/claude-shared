@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Seeded defects</title>
+<link rel="icon" href="data:,">
+<style>
+  body { margin: 0; font: 16px/1.4 sans-serif; color: #111; background: #fff; }
+  section { position: relative; height: 90px; }
+  [data-defect="overflow"] { position: absolute; left: 20px; top: 10px; width: 120px; overflow: hidden; white-space: nowrap; }
+  .ov-a, .ov-b { position: absolute; left: 260px; width: 200px; height: 30px; background: #eef; }
+  .ov-a { top: 20px; }
+  .ov-b { top: 36px; background: #fee; }
+  [data-defect="contrast"] { position: absolute; left: 520px; top: 10px; color: #aaa; }
+  [data-defect="small-target"] { position: absolute; left: 20px; top: 50px; width: 14px; height: 14px; padding: 0; }
+  [data-defect="img-alt"] { position: absolute; left: 600px; top: 40px; }
+  [data-defect="img-broken"] { position: absolute; left: 700px; top: 40px; }
+</style>
+<section>
+  <div data-defect="overflow">A very long line of text that cannot fit its narrow box</div>
+  <div class="ov-a" data-defect="overlap">First overlapping label</div>
+  <div class="ov-b">Second overlapping label</div>
+  <p data-defect="contrast">Pale grey text on white</p>
+  <button data-defect="small-target" aria-label="close">x</button>
+  <img data-defect="img-alt" width="40" height="40" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+  <img data-defect="img-broken" width="40" height="40" alt="missing chart" src="missing-chart.png">
+</section>
