@@ -80,15 +80,53 @@ STUB
   [ -z "$(ls -A "$XDG_CACHE_HOME/claude-look" | grep -v '\.lock$')" ]
 }
 
+# A fake CLI that logs its arguments and fails when FAKE_FAIL appears in them.
+fake_cli() { # bin-dir
+  cat > "$1/fakecli" <<'STUB'
+#!/bin/sh
+echo "$*" >> "$FAKE_LOG"
+case "$*" in *"${FAKE_FAIL:-@@never@@}"*) exit 1 ;; esac
+STUB
+  chmod +x "$1/fakecli"
+  export FAKE_LOG="$TEST_TMP/cli.log"
+}
+
+@test "open with no browser exits 3, names chromium, runs nothing and writes no config" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls node)"
+  fake_cli "$bin"
+  PATH="$bin" LOOK_BROWSER= LOOK_CLI="$bin/fakecli" run "$LOOK" open "t$$-n" 'http://example.invalid/'
+  [ "$status" -eq 3 ]
+  assert_contains "$output" chromium
+  [ ! -e "$FAKE_LOG" ]
+  [ ! -e "$LOOK_HOME/t$$-n/.playwright/cli.config.json" ]
+}
+
+@test "open with a failing npm exits 3 with the npm message" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  printf '#!/bin/sh\nexit 1\n' > "$bin/npm"; chmod +x "$bin/npm"
+  PATH="$bin" LOOK_BROWSER="$bin/true" run env -u LOOK_CLI "$LOOK" open "t$$-n" 'http://example.invalid/'
+  [ "$status" -eq 3 ]
+  assert_contains "$output" "npm install"
+  refute_contains "$output" "could not open"
+}
+
+@test "a failed open about:blank stops open before any goto" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  fake_cli "$bin"
+  FAKE_FAIL="open about:blank" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
+    run "$LOOK" open "t$$-n" 'http://example.invalid/'
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "look: could not open"
+  ! grep -q 'goto' "$FAKE_LOG"
+}
+
 @test "a guard that fails stops open before navigation and closes the session" {
   type -P node >/dev/null || skip "no node here"
   bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
-  cat > "$bin/fakecli" <<'STUB'
-#!/bin/sh
-echo "$*" >> "$FAKE_LOG"
-STUB
-  chmod +x "$bin/fakecli"
-  export FAKE_LOG="$TEST_TMP/cli.log"
+  fake_cli "$bin"
   PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" LOOK_TEST_GUARD_FAIL=1 \
     run "$LOOK" open "t$$-g" 'http://example.invalid/'
   [ "$status" -ne 0 ]

@@ -40,7 +40,7 @@ find_cli() {
   local bin="$cache/node_modules/.bin/playwright-cli"
   if [ ! -x "$bin" ]; then
     command -v npm >/dev/null 2>&1 || need "npm not found; install Node.js 18 or newer"
-    mkdir -p "$(dirname "$cache")"
+    mkdir -p "$(dirname "$cache")" || need "cannot create $(dirname "$cache")"
     # One installer at a time; a late arrival finds the finished cache. flock when
     # present, else a mkdir lock; both wait at most 300 s. A stale mkdir lock from
     # a crashed install is named in the error so it can be removed by hand.
@@ -66,8 +66,8 @@ find_cli() {
         [ -z "$lockdir" ] || rmdir "$lockdir" 2>/dev/null || true
         need "npm install of @playwright/cli@$LOOK_CLI_VERSION failed"
       fi
-      rm -rf "$cache"
-      mv "$tmp" "$cache"
+      rm -rf "$cache" || need "cannot replace $cache"
+      mv "$tmp" "$cache" || need "cannot move the install into $cache"
     fi
     [ -z "$lockdir" ] || rmdir "$lockdir" 2>/dev/null || true
   fi
@@ -82,9 +82,10 @@ check_node() {
 
 cmd_setup() {
   local browser cli
-  browser="$(find_browser)"
-  check_node
-  cli="$(find_cli)"
+  # Explicit exits: errexit is off inside $(...) and the || lists below.
+  browser="$(find_browser)" || exit $?
+  check_node || exit $?
+  cli="$(find_cli)" || exit $?
   echo "cli=$cli browser=$browser"
 }
 
@@ -135,10 +136,10 @@ cmd_open() {
   [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || die "--width and --height must be numbers" 2
   case "$scheme" in light|dark) ;; *) die "--scheme must be light or dark" 2 ;; esac
 
-  local info cli browser dir
-  info="$(cmd_setup)" || exit $?
-  cli="${info#cli=}"; cli="${cli%% browser=*}"
-  browser="${info##* browser=}"
+  local cli browser dir
+  browser="$(find_browser)" || exit $?
+  check_node || exit $?
+  cli="$(find_cli)" || exit $?
   dir="$(session_dir "$session")"
   mkdir -p "$dir/.playwright"
   node -e '
