@@ -1077,7 +1077,7 @@ JSON
 case "$*" in
   *run-code*url.gen.js*) printf '### Result\n"http://example.invalid/"\n' ;;
   *run-code*) printf '### Result\n[]\n' ;;
-  *console*) printf '### Result\nTotal messages: 2 (Errors: 2, Warnings: 0)\n\n  ERR some future format\n  ERR another\n' ;;
+  *console\ error*) printf '### Result\nTotal messages: 2 (Errors: 2, Warnings: 0)\n\n  ERR some future format\n  ERR another\n' ;;
   *requests*) printf '### Result\n' ;;
 esac
 exit 0
@@ -1120,4 +1120,15 @@ STUB
   [ "$status" -ne 0 ]
   assert_contains "$output" "found on $BASE/below-fold.html"
   [ ! -e "$LOOK_HOME/$S/shots/wrong.png" ]
+}
+
+@test "a clean page's multi-line logs and warnings are not console-error hits" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/multiline-log.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  sleep 0.3
+  run "$LOOK" checks "$S"
+  [ "$status" -eq 0 ] || fail "$output"
+  [ "$output" = "[]" ] || fail "$output"
 }

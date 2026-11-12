@@ -339,7 +339,7 @@ cmd_checks() {
   run_script "$session" "$cli" checks.gen.js checks.page.json || die "the page checks did not run"
   printf '%s\n' 'async page => page.url()' >url.gen.js || die "cannot write in $dir"
   run_script "$session" "$cli" url.gen.js checks.url.json || die "cannot read the page URL"
-  "$cli" -s="$session" console >checks.console.txt 2>&1 || die "cannot read the console: $(cat checks.console.txt)"
+  "$cli" -s="$session" console error >checks.console.txt 2>&1 || die "cannot read the console: $(cat checks.console.txt)"
   # Without --all: the requests since the current page's document load, so an
   # earlier page's blocked or failed request is not reported on this one.
   "$cli" -s="$session" requests --static >checks.requests.txt 2>&1 || die "cannot read the requests: $(cat checks.requests.txt)"
@@ -347,7 +347,9 @@ cmd_checks() {
   # blocked is a request-blocked hit (and its console error is dropped), so a
   # caller can tell a broken page from a write the guard stopped. A request
   # that failed otherwise is request-failed. A {check:"limit"} note from the
-  # page script is also said on stderr. The CLI prints an error as
+  # page script is also said on stderr. Only the error level is read, so the
+  # continuation lines of a multi-line log or warning are never taken for
+  # errors. The CLI prints an error as
   # "[ERROR] text" or, for an uncaught exception or unhandled rejection, as an
   # unindented "Error: text" followed by indented "    at ..." frames; both
   # are errors. When its header counts more errors than were recognised (the
@@ -367,7 +369,7 @@ cmd_checks() {
     const consoleText = read("checks.console.txt");
     let seen = 0;
     for (const line of consoleText.split("\n")) {
-      if (!line.trim() || /^### /.test(line) || /^Total messages:/.test(line) || /^\s/.test(line)) continue;
+      if (!line.trim() || /^### /.test(line) || /^Total messages:/.test(line) || /^Returning \d+ messages for level/.test(line) || /^\s/.test(line)) continue;
       const m = /^\[ERROR\] (.*)$/.exec(line);
       if (!m && line[0] === "[") continue; // another level: warning, log, info
       const text = m ? m[1] : line;
