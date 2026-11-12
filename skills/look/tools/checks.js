@@ -158,19 +158,28 @@ async page => page.evaluate(() => {
     return false;
   };
 
-  // The sideways twin: is drawn text (a text node's range rects, or a child that
-  // holds text) past the right edge of the box? An image-only strip that
-  // scrolls or clips is not cropped text.
+  // The sideways twin: is something drawn (a text node's range rects, or any
+  // child element but replaced media) past the right edge of the box? A cropped
+  // icon-only toolbar counts; an image-only strip that scrolls or clips does not.
+  const MEDIA = /^(IMG|PICTURE|VIDEO|CANVAS|SVG)$/;
+  // An inline child (a link round a hero image) has no box of its own, so what
+  // it holds is measured instead.
   const drawnPastRight = (el, r) => {
     const edge = r.left + el.clientLeft + el.clientWidth + 1;
     const range = document.createRange();
-    for (const n of el.childNodes) {
-      let rects = [];
-      if (n.nodeType === 3 && n.nodeValue.trim()) { range.selectNodeContents(n); rects = Array.from(range.getClientRects()); }
-      else if (n.nodeType === 1 && n.textContent.trim()) rects = [n.getBoundingClientRect()];
-      if (rects.some(q => (q.width > 0 || q.height > 0) && q.right > edge)) return true;
-    }
-    return false;
+    const past = box => {
+      for (const n of box.childNodes) {
+        let rects = [];
+        if (n.nodeType === 3 && n.nodeValue.trim()) { range.selectNodeContents(n); rects = Array.from(range.getClientRects()); }
+        else if (n.nodeType === 1 && !MEDIA.test(n.tagName.toUpperCase())) {
+          if (getComputedStyle(n).display === 'inline') { if (past(n)) return true; continue; }
+          rects = [n.getBoundingClientRect()];
+        }
+        if (rects.some(q => (q.width > 0 || q.height > 0) && q.right > edge)) return true;
+      }
+      return false;
+    };
+    return past(el);
   };
 
   const ownText = el => {
@@ -253,10 +262,16 @@ async page => page.evaluate(() => {
   // --- per-element checks ---------------------------------------------------
   const textEls = new Set();
   // overflow, form controls and replaced elements: one whose border box pokes
-  // more than 1 px out of its parent's content box sideways, where the parent
-  // does not scroll or clip. (The usual cause is width:100% plus padding without
-  // border-box.) Out-of-flow elements are not placed by the parent's box.
+  // more than 1 px out of its parent's content box sideways. (The usual cause is
+  // width:100% plus padding without border-box.) Out-of-flow elements are not
+  // placed by the parent's box.
   const CONTROL = /^(INPUT|SELECT|TEXTAREA|IMG|VIDEO|CANVAS|IFRAME)$/;
+  const REPLACED = /^(IMG|VIDEO|CANVAS|IFRAME)$/;
+  const clipsAbove = p => { // p or an ancestor below the root scrolls or clips sideways
+    for (let a = p; a && a !== document.documentElement; a = a.parentElement)
+      if (/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(a).overflowX)) return true;
+    return false;
+  };
   const controlOverflow = (el, r) => {
     const p = el.parentElement;
     if (!p || !CONTROL.test(el.tagName)) return null;
@@ -264,19 +279,23 @@ async page => page.evaluate(() => {
     if (/^(absolute|fixed)$/.test(cs.position) || pcs.display === 'contents' || pcs.display === 'none') return null;
     // A bleed (negative side margin) is meant to leave the parent's content box.
     if (parseFloat(cs.marginLeft) < 0 || parseFloat(cs.marginRight) < 0) return null;
-    // Inside anything that scrolls or clips sideways (a carousel viewport), the
-    // content is meant to run past its track; cropped text is the other rule's.
-    // A vertically scrolling panel computes overflow-x to auto too, so this only
-    // applies when the parent is a track: wider than its own box, with several
-    // children that together do not fit it. (One child poking out of a panel is
-    // the bug, and also makes the panel's scrollWidth grow.)
-    const kids = Array.from(p.children).filter(k => k.getBoundingClientRect().width > 0);
-    const kidsWide = kids.reduce((n, k) => n + k.getBoundingClientRect().width, 0);
-    const pr0 = p.getBoundingClientRect();
-    const pcw = pr0.width - parseFloat(pcs.borderLeftWidth) - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
-    if (p.scrollWidth > p.clientWidth + 1 && kids.length > 1 && kidsWide > pcw + 1)
-      for (let a = p; a && a !== document.documentElement; a = a.parentElement)
-        if (/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(a).overflowX)) return null;
+    // Media under anything that scrolls or clips sideways (a cropped hero, a
+    // carousel) is meant to run past its box, whatever wraps it.
+    if (REPLACED.test(el.tagName)) { if (clipsAbove(p)) return null; }
+    else {
+      // A field skips only in a track: a parent wider than its own box whose
+      // children sit side by side (a nowrap flex row, or boxes sharing el's row)
+      // and together do not fit it, under something that scrolls or clips
+      // sideways. A vertically scrolling panel computes overflow-x to auto too,
+      // and stacked fields in it are not a track.
+      const row = /^(inline-)?flex$/.test(pcs.display) && /^row/.test(pcs.flexDirection) && pcs.flexWrap === 'nowrap';
+      const kids = Array.from(p.children).map(k => k.getBoundingClientRect())
+        .filter(k => k.width > 0 && (row || (Math.min(k.bottom, r.bottom) - Math.max(k.top, r.top) > 1)));
+      const kidsWide = kids.reduce((n, k) => n + k.width, 0);
+      const pr0 = p.getBoundingClientRect();
+      const pcw = pr0.width - parseFloat(pcs.borderLeftWidth) - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
+      if (p.scrollWidth > p.clientWidth + 1 && kids.length > 1 && kidsWide > pcw + 1 && clipsAbove(p)) return null;
+    }
     const pr = p.getBoundingClientRect();
     const left = pr.left + parseFloat(pcs.borderLeftWidth) + parseFloat(pcs.paddingLeft);
     const right = pr.right - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingRight);

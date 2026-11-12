@@ -296,9 +296,17 @@ PY
   block="$(awk '/^```bash$/{f=1;next} /^```$/{if(f)exit} f' "$skill")"
   [ -n "$block" ] || fail "no bash block in SKILL.md"
   script="${block//<path to this SKILL.md>/$skill}"
-  # offline and browserless: setup only has to find a browser and a CLI
-  LOOK_BROWSER="$(command -v true)" LOOK_CLI="$(command -v true)" run bash -c "$script"
-  [ "$status" -eq 0 ] || [ "$status" -eq 3 ] || fail "status $status: $output"
+  # Offline and browserless: stub scripts stand in for the browser, the CLI and
+  # node (which the Docker image lacks), so setup must succeed.
+  stubs="$TEST_TMP/stubs"
+  mkdir -p "$stubs"
+  printf '#!/bin/sh\nexit 0\n' > "$stubs/browser"
+  printf '#!/bin/sh\nexit 0\n' > "$stubs/cli"
+  printf '#!/bin/sh\necho 20\n' > "$stubs/node"
+  chmod +x "$stubs/browser" "$stubs/cli" "$stubs/node"
+  PATH="$stubs:$PATH" LOOK_BROWSER="$stubs/browser" LOOK_CLI="$stubs/cli" run bash -c "$script"
+  [ "$status" -eq 0 ] || fail "status $status: $output"
   refute_contains "$output" "No such file"
-  assert_contains "$output" "L=$REPO/skills/look S=look-"
+  # The checkout may be reached through a symlink; the block resolves it.
+  assert_contains "$output" "L=$(readlink -f "$REPO")/skills/look S=look-"
 }
