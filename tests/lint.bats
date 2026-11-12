@@ -290,3 +290,15 @@ PY
   ! grep -qv 'skills/look/tools/look.sh:.*@playwright/cli@\$LOOK_CLI_VERSION' <<< "$output" \
     || fail "another use of @playwright/cli@ than look.sh's LOOK_CLI_VERSION: $output"
 }
+
+@test "the look skill's first code block runs: it assigns L and S before using them" {
+  skill="$REPO/skills/look/SKILL.md"
+  block="$(awk '/^```bash$/{f=1;next} /^```$/{if(f)exit} f' "$skill")"
+  [ -n "$block" ] || fail "no bash block in SKILL.md"
+  script="${block//<path to this SKILL.md>/$skill}"
+  # offline and browserless: setup only has to find a browser and a CLI
+  LOOK_BROWSER="$(command -v true)" LOOK_CLI="$(command -v true)" run bash -c "$script"
+  [ "$status" -eq 0 ] || [ "$status" -eq 3 ] || fail "status $status: $output"
+  refute_contains "$output" "No such file"
+  assert_contains "$output" "L=$REPO/skills/look S=look-"
+}

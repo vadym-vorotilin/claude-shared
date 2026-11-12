@@ -12,8 +12,9 @@ Open the UI in a real browser, run measured checks, read the screenshots. Never 
 Shell variables do not survive between Bash calls. Resolve once, print, and use the literal values in every later call:
 
 ```bash
-echo "L=$(dirname "$(readlink -f <path to this SKILL.md>)")"
-echo "S=look-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n')"   # unique per caller
+L=$(dirname "$(readlink -f <path to this SKILL.md>)")
+S=look-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' \n')   # unique per caller
+echo "L=$L S=$S"
 bash "$L/tools/look.sh" setup
 ```
 
@@ -51,6 +52,7 @@ Any check hit except `request-blocked`, a console error, a failed request, or a 
 | "Desktop looks fine" | Also 390 px, and dark if supported. |
 | "Raw chromium or the Playwright MCP will do" | No guard, no checks. Use `look.sh`. |
 | "The screenshots are enough, skip checks" | Checks catch what eyes miss. Run both. |
+| "The checks found it; I needn't read these shots" | Read every PNG, every round. A field poking past the page edge was first seen by eye. |
 | "No screenshots, the code is simple" | Look. Then claim. |
 | "`close-all` tidies up" | It kills others' browsers. Close only `$S`. |
 | "That blocked request is a page bug" | It is the guard. |

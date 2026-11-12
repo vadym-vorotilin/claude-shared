@@ -158,6 +158,21 @@ async page => page.evaluate(() => {
     return false;
   };
 
+  // The sideways twin: is drawn text (a text node's range rects, or a child that
+  // holds text) past the right edge of the box? An image-only strip that
+  // scrolls or clips is not cropped text.
+  const drawnPastRight = (el, r) => {
+    const edge = r.left + el.clientLeft + el.clientWidth + 1;
+    const range = document.createRange();
+    for (const n of el.childNodes) {
+      let rects = [];
+      if (n.nodeType === 3 && n.nodeValue.trim()) { range.selectNodeContents(n); rects = Array.from(range.getClientRects()); }
+      else if (n.nodeType === 1 && n.textContent.trim()) rects = [n.getBoundingClientRect()];
+      if (rects.some(q => (q.width > 0 || q.height > 0) && q.right > edge)) return true;
+    }
+    return false;
+  };
+
   const ownText = el => {
     let t = '';
     for (const n of el.childNodes) if (n.nodeType === 3) t += n.nodeValue;
@@ -247,7 +262,12 @@ async page => page.evaluate(() => {
     if (!p || !CONTROL.test(el.tagName)) return null;
     const cs = getComputedStyle(el), pcs = getComputedStyle(p);
     if (/^(absolute|fixed)$/.test(cs.position) || pcs.display === 'contents' || pcs.display === 'none') return null;
-    if (/^(auto|scroll|hidden|clip)$/.test(pcs.overflowX)) return null;
+    // A bleed (negative side margin) is meant to leave the parent's content box.
+    if (parseFloat(cs.marginLeft) < 0 || parseFloat(cs.marginRight) < 0) return null;
+    // Inside anything that scrolls or clips sideways (a carousel viewport), the
+    // content is meant to run past its track; cropped text is the other rule's.
+    for (let a = p; a && a !== document.documentElement; a = a.parentElement)
+      if (/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(a).overflowX)) return null;
     const pr = p.getBoundingClientRect();
     const left = pr.left + parseFloat(pcs.borderLeftWidth) + parseFloat(pcs.paddingLeft);
     const right = pr.right - parseFloat(pcs.borderRightWidth) - parseFloat(pcs.paddingRight);
@@ -283,7 +303,7 @@ async page => page.evaluate(() => {
     if (el !== document.body && el !== document.documentElement && !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
       const clipX = /^(hidden|clip)$/.test(cs.overflowX), clipY = /^(hidden|clip)$/.test(cs.overflowY);
       const clamped = cs.webkitLineClamp && cs.webkitLineClamp !== 'none';
-      if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1 && (clipX || cs.textOverflow === 'ellipsis')) {
+      if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1 && (clipX || cs.textOverflow === 'ellipsis') && drawnPastRight(el, r)) {
         add('overflow', el, docBox(r), 'content is ' + el.scrollWidth + ' px wide in a ' + el.clientWidth + ' px box, and is clipped');
       } else if (el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 1 && (clipY || clamped) && drawnPastBottom(el, r)) {
         add('overflow', el, docBox(r), 'content is ' + el.scrollHeight + ' px tall in a ' + el.clientHeight + ' px box, and is ' + (clamped ? 'cut by line-clamp' : 'clipped'));
