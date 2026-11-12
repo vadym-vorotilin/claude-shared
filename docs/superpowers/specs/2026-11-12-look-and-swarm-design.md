@@ -109,8 +109,11 @@ So, two skills:
   and viewport.
 - It writes snapshots, console logs and screenshots to **`./.playwright-cli/`
   under the working directory** → one working directory per session.
-- `--full-page` on `screenshot` failed in this version; scrolling plus a
-  viewport screenshot worked.
+- `screenshot --full-page` exists; it captures the document's scroll height,
+  so a page that scrolls an inner container (an app shell with
+  `overflow: auto`) comes out viewport-sized — there, scroll the container and
+  take viewport screenshots. (An earlier note that it "failed" misread a
+  non-zero exit from a following `ls`.)
 - The Playwright MCP plugin did not start (configured for Google Chrome, not
   installed). Whether subagents would share its browser is untested; the CLI
   makes it moot.
