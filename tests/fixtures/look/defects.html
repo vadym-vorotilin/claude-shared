@@ -16,8 +16,10 @@
   .gone { position: absolute; left: 700px; top: 40px; }
   .crop { position: absolute; left: 20px; top: 10px; width: 200px; height: 24px; overflow: hidden; }
   .clamp { position: absolute; left: 300px; top: 10px; width: 200px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-  .icons { position: absolute; left: 900px; top: 10px; }
+  .icons { white-space: nowrap; margin: 0 20px 36px; }
   .icons a { margin-right: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .stacked { line-height: 22px; margin: 0 20px 36px; }
   .paleval { position: absolute; left: 600px; top: 10px; color: #ccc; }
 </style>
 <section>
@@ -33,6 +35,11 @@
 <section>
   <div class="crop" data-defect="overflow">This sentence wraps onto several lines and the fixed height crops all but the first line of it.</div>
   <div class="clamp" data-defect="overflow">This sentence wraps onto several lines and line clamp cuts it to one line of it.</div>
-  <div class="icons"><a href="#a" data-defect="small-target"><svg width="12" height="12" aria-label="one"><circle cx="6" cy="6" r="5"/></svg></a><a href="#b" data-defect="small-target"><svg width="12" height="12" aria-label="two"><circle cx="6" cy="6" r="5"/></svg></a><a href="#c" data-defect="small-target"><svg width="12" height="12" aria-label="three"><circle cx="6" cy="6" r="5"/></svg></a></div>
   <input class="paleval" data-defect="contrast" type="text" value="pale value">
+</section>
+<section style="height:auto">
+  <div class="icons"><a href="#a" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><a href="#b" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><a href="#c" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+  <div class="icons"><a href="#d" data-defect="small-target"><span class="sr-only">One</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#e" data-defect="small-target"><span class="sr-only">Two</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#f" data-defect="small-target"><svg width="12" height="12"><title>Three</title><circle cx="6" cy="6" r="5"/></svg></a></div>
+  <div class="icons"><a href="#g" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>&middot;<a href="#h" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>|<a href="#i" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+  <div class="stacked"><a href="#j" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><br><a href="#k" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
 </section>

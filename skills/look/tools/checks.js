@@ -81,12 +81,15 @@ async page => page.evaluate(() => {
   // anything. An absolutely positioned element is clipped only by ancestors
   // from its containing block up; a fixed one by none (approximate: transforms
   // and the like also make containing blocks).
-  const visibleRects = el => {
-    let rs = Array.from(el.getClientRects()).filter(r => r.width > 1 && r.height > 1);
+  const visibleRects = (el, raw, inclusive) => {
+    let rs = (raw || Array.from(el.getClientRects())).filter(r => r.width > 1 && r.height > 1);
     let pos = getComputedStyle(el).position;
-    for (let a = el.parentElement; a && rs.length; a = a.parentElement) {
+    for (let a = inclusive ? el : el.parentElement; a && rs.length; a = a.parentElement) {
       const cs = getComputedStyle(a);
       if (pos === 'fixed') break;
+      // An ancestor with clip-path or an absolute clip rectangle hides what
+      // it holds (the usual screen-reader-only text).
+      if (cs.clipPath !== 'none' || (cs.clip !== 'auto' && cs.position === 'absolute')) return [];
       const clips = a !== document.documentElement && a !== document.body && (cs.overflowX !== 'visible' || cs.overflowY !== 'visible');
       if (pos !== 'absolute' || cs.position !== 'static') {
         if (pos === 'absolute') pos = 'relative'; // its containing block reached
@@ -102,6 +105,24 @@ async page => page.evaluate(() => {
     }
     return rs;
   };
+  // Whether a text node is drawn text: it holds a letter or digit, sits outside
+  // any <svg> (an svg <title> is a tooltip, not text on the page), and some
+  // part of it, over 1x1 px, survives the clipping of its ancestors. Text only
+  // a screen reader gets (sr-only spans) is not drawn.
+  const drawnTextNode = n => {
+    if (!/[\p{L}\p{N}]/u.test(n.nodeValue)) return false;
+    const p = n.parentElement;
+    if (!p || p.closest('svg') || !shown(p)) return false;
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    return visibleRects(p, Array.from(range.getClientRects()), true).length > 0;
+  };
+  const holdsDrawnText = el => { // anywhere inside el
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (drawnTextNode(n)) return true;
+    return false;
+  };
+  const hasOwnDrawnText = el => Array.from(el.childNodes).some(n => n.nodeType === 3 && drawnTextNode(n));
 
   // Whether something drawn crosses the bottom edge of el's padding box: a text
   // range's client rect or a child element's rect. scrollHeight alone also
@@ -252,25 +273,34 @@ async page => page.evaluate(() => {
 
   // --- small-target (WCAG 2.5.8) ----------------------------------------------
   // A target under 24x24 passes when
-  //  - it is inline and holds text, or has text of its parent's around it: its
-  //    size is set by the line height of text (a link in a sentence, a nav
-  //    link, a link alone in a paragraph); an icon-only inline link is not, or
+  //  - it is exempt (see exempt): inline with drawn text of its own or of its
+  //    parent's, so its size is set by the line height of text (a link in a
+  //    sentence, a nav link, a link alone in a paragraph); an icon-only inline
+  //    link is not, even with sr-only text or an svg <title>, or
   //  - spacing: a 24 px circle centred on its box touches no other target and
   //    no other undersized target's circle. Touching by under half a pixel is
   //    not counted, so layout rounding cannot make a 24 px grid fire.
-  const small = targets.filter(t => t.r.width < 24 || t.r.height < 24);
+  // Exempt: inline, and holding drawn text or standing in drawn text of its
+  // parent's own (a separator such as a dot is not text).
+  const exempt = t => {
+    if (t.exempt === undefined) {
+      t.exempt = t.cs.display === 'inline' &&
+        (holdsDrawnText(t.el) || (!!t.el.parentElement && hasOwnDrawnText(t.el.parentElement)));
+    }
+    return t.exempt;
+  };
+  const isSmall = t => t.r.width < 24 || t.r.height < 24;
+  const small = targets.filter(isSmall);
   const centre = t => [t.r.left + t.r.width / 2, t.r.top + t.r.height / 2];
   for (const t of small) {
-    // Inline and holding text, or inline in text of its parent's own: sized by
-    // the line height of text. An inline icon-only link in a row is not.
-    if (t.cs.display === 'inline' && (t.el.textContent.trim() !== '' || (t.el.parentElement && ownText(t.el.parentElement) !== ''))) continue;
+    if (exempt(t)) continue;
     const [cx, cy] = centre(t);
     let crowded = false;
     for (const o of targets) {
       if (o === t || o.el.contains(t.el) || t.el.contains(o.el)) continue;
       const dx = Math.max(o.r.left - cx, 0, cx - o.r.right), dy = Math.max(o.r.top - cy, 0, cy - o.r.bottom);
       if (Math.hypot(dx, dy) < 12 - 0.5) { crowded = true; break; }
-      if (o.cs.display !== 'inline' && (o.r.width < 24 || o.r.height < 24)) {
+      if (isSmall(o) && !exempt(o)) {
         const [ox, oy] = centre(o);
         if (Math.hypot(ox - cx, oy - cy) < 24 - 0.5) { crowded = true; break; }
       }

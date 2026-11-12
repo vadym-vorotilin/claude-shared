@@ -808,11 +808,10 @@ assert_marked() { # session shot-name hit selector
   ' "$marks" "$(eval_json "$output" | tr -d '[:space:]')" || fail "outline is not around $4"
 }
 
-@test "checks find every seeded defect, and nothing the page did not seed" {
-  need_browser; need_server
-  S="t$$-a"
-  run "$LOOK" open "$S" "$BASE/defects.html"
-  [ "$status" -eq 0 ] || fail "$output"
+# Run checks on defects.html in the open session and require every data-defect
+# element to have a hit of its kind and no box hit to be unexpected.
+assert_seeded() { # session
+  local S="$1"
   run "$LOOK" checks "$S"
   [ "$status" -eq 0 ] || fail "$output"
   hits="$output"
@@ -832,6 +831,22 @@ assert_marked() { # session shot-name hit selector
     if (bad.length) { console.error(bad.join("\n")); process.exit(1); }
   ' "$hits" "$seeded"
   [ "$status" -eq 0 ] || fail "$output"
+}
+
+@test "checks find every seeded defect, and nothing the page did not seed" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/defects.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_seeded "$S"
+}
+
+@test "the seeded defects, icon-link rows included, are found at 800 px wide too" {
+  need_browser; need_server
+  S="t$$-a"
+  run "$LOOK" open "$S" "$BASE/defects.html" --width 800
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_seeded "$S"
 }
 
 @test "checks keep a guard-blocked write apart from a failed request and a console error" {
