@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reports - Tallyleaf</title>
+<style>
+:root{--bg:#f4f6f8;--surface:#fff;--ink:#1d232b;--muted:#566370;--line:#dbe1e7;--brand:#0f766e;--brand-ink:#fff;--link:#0b5f58;--soft:#e2f2ef;--field:#fff;
+--warn:#9a3412;--warn-bg:#fdeee3;--ok:#166534;--ok-bg:#e1f5e8;--info:#1e4fa3;--info-bg:#e4edfb;--draft:#4b5563;--draft-bg:#eceef1;--bar:#2f9a8f;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#12151a;--surface:#1b2027;--ink:#e8ecf1;--muted:#a3aebb;--line:#2c343e;--brand:#2dd4bf;--brand-ink:#06201c;--link:#5eead4;--soft:#173532;--field:#14181d;
+--warn:#fdba74;--warn-bg:#3a2414;--ok:#86efac;--ok-bg:#12301d;--info:#93c5fd;--info-bg:#172a48;--draft:#cbd5e1;--draft-bg:#2a313b;--bar:#2dd4bf}}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--link)}
+h1{font-size:26px;line-height:1.2;margin:0}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:16px;margin:0}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:20px;min-height:60px}
+.brand{display:inline-flex;align-items:center;gap:10px;height:36px;font-weight:700;font-size:18px;color:var(--ink);text-decoration:none}
+nav{display:flex;gap:4px;flex:1}
+nav a{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:8px;color:var(--ink);text-decoration:none}
+nav a[aria-current=page]{background:var(--soft);font-weight:600}
+.who{color:var(--muted);font-size:14px}
+main.wrap{padding-top:28px;padding-bottom:40px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.head-actions{display:flex;align-items:center;gap:12px}
+.note{color:var(--muted);font-size:13px}
+.note:empty{display:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn:disabled{opacity:.55;cursor:default}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;line-height:18px}
+.badge.paid{background:var(--ok-bg);color:var(--ok)}
+.badge.sent{background:var(--info-bg);color:var(--info)}
+.badge.overdue{background:var(--warn-bg);color:var(--warn)}
+.badge.draft{background:var(--draft-bg);color:var(--draft)}
+label{display:block;font-weight:600;font-size:14px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px}
+input[type=text],input[type=search],input[type=email],input[type=number],select{height:38px;padding:0 12px;width:100%}
+.field{display:flex;flex-direction:column;gap:6px}
+.hint{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;font-weight:600;color:var(--muted)}
+td.num,th.num{text-align:right}
+td.num{font-variant-numeric:tabular-nums}
+.scroller{overflow-x:auto}
+footer{border-top:1px solid var(--line);padding:18px 0 28px;color:var(--muted);font-size:13px}
+footer a{margin-left:12px}
+@media (max-width:640px){.wrap{padding:0 16px}.bar{gap:8px;flex-wrap:wrap;padding:8px 0}.who{display:none}nav a{padding:0 10px}h1{font-size:22px}}
+
+.tag{display:inline-block;margin-left:8px;padding:1px 9px;border-radius:6px;background:var(--soft);color:var(--link);font-size:12px;font-weight:700;letter-spacing:.02em;position:relative;top:-7px}
+.controls{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{height:34px;padding:0 14px;border:0;border-right:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--brand);color:var(--brand-ink)}
+.controls .spacer{flex:1}
+.summary{display:flex;gap:16px;margin-bottom:20px}
+.summary .card{flex:1}
+.stat-label{display:block;color:var(--muted);font-size:13px}
+.stat-value{display:block;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.chart-card{position:relative;margin-bottom:20px}
+.chart-head{margin-bottom:16px;min-height:24px}
+.stamp{position:absolute;left:236px;top:27px;font-size:12px;color:var(--muted)}
+.bars{display:flex;flex-direction:column;gap:12px}
+.bar-row{display:grid;grid-template-columns:150px 1fr 90px;align-items:center;gap:12px}
+.bar-row .name{font-size:14px}
+.bar-row .val{text-align:right;font-variant-numeric:tabular-nums;font-size:14px}
+.track{height:14px;border-radius:7px;background:var(--bg)}
+.fill{height:14px;border-radius:7px;background:var(--bar)}
+.aging.compact td,.aging.compact th{padding-top:6px;padding-bottom:6px}
+.aging tbody tr:last-child td{border-bottom:0}
+@media (max-width:640px){.summary{flex-direction:column;gap:12px}.bar-row{grid-template-columns:104px 1fr 76px;gap:8px}.stamp{left:20px;top:46px}.chart-head{min-height:44px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap bar">
+<a class="brand" href="index.html"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%230f766e'/%3E%3Cpath d='M8 15c0-5 4-8 11-8 0 7-3 11-8 11l-3 3z' fill='%23fff'/%3E%3C/svg%3E" width="28" height="28" alt=""><span>Tallyleaf</span></a>
+<nav aria-label="Main"><a href="index.html">Invoices</a><a href="reports.html" aria-current="page">Reports</a><a href="settings.html">Settings</a></nav>
+<span class="who">Maple Row Studio</span>
+</div></header>
+
+<main class="wrap">
+<div class="page-head"><h1>Reports<span class="tag">Beta</span></h1><div class="head-actions"><button type="button" class="btn" id="export">Download CSV</button><span class="note" id="export-note" role="status"></span></div></div>
+<div class="controls">
+<div class="seg" role="group" aria-label="Period">
+<button type="button" aria-pressed="true" data-period="q">This quarter</button>
+<button type="button" aria-pressed="false" data-period="pq">Last quarter</button>
+<button type="button" aria-pressed="false" data-period="ytd">Year to date</button>
+</div>
+<span class="spacer"></span>
+<button type="button" class="icon-btn" id="density"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 5h12M3 9h12M3 13h12"/></svg></button>
+</div>
+<section class="summary" aria-label="Totals">
+<div class="card"><span class="stat-label">Invoiced</span><span class="stat-value" id="s-inv"></span></div>
+<div class="card"><span class="stat-label">Collected</span><span class="stat-value" id="s-col"></span></div>
+<div class="card" style="margin-left:14px"><span class="stat-label">Average days to pay</span><span class="stat-value" id="s-days"></span></div>
+</section>
+<section class="card chart-card" aria-label="Revenue by client">
+<div class="chart-head"><h3>Revenue by client, this period</h3><span class="stamp">Updated 4 min ago</span></div>
+<div class="bars" id="bars"></div>
+</section>
+<section class="card" style="padding:0;overflow:hidden" aria-label="Open invoices by age">
+<div style="padding:16px 20px 4px"><h3>Open invoices by age</h3></div>
+<div class="scroller"><table class="aging" id="aging"><thead><tr><th>Age</th><th class="num">Invoices</th><th class="num">Amount</th></tr></thead>
+<tbody><tr><td>Not yet due</td><td class="num">3</td><td class="num">$5,490.00</td></tr><tr><td>1 to 30 days late</td><td class="num">2</td><td class="num">$4,825.50</td></tr><tr><td>31 to 60 days late</td><td class="num">1</td><td class="num">$5,980.00</td></tr><tr><td>Over 60 days late</td><td class="num">0</td><td class="num">$0.00</td></tr></tbody></table></div>
+</section>
+</main>
+<footer><div class="wrap">Tallyleaf 2.4<a href="settings.html">Account</a><a href="reports.html">Reports</a><a href="index.html">Invoices</a></div></footer>
+<script>
+  fetch('api/usage-summary.json').then(function (r) { return r.json(); }).then(function (s) { document.documentElement.dataset.plan = s.plan; });
+</script>
+<script>
+(function () {
+  var data = {
+    q: {inv: 38420, col: 29870, days: 19, rows: [['Kestrel Logistics', 11200], ['Harbor & Pine Studio', 8640], ['Moss & Marlow Law', 7150], ['Northfield Dental', 6210], ['Alder Street Books', 5220]]},
+    pq: {inv: 34100, col: 33600, days: 17, rows: [['Harbor & Pine Studio', 9800], ['Kestrel Logistics', 9450], ['Moss & Marlow Law', 6900], ['Northfield Dental', 4650], ['Brightside Cafe', 3300]]},
+    ytd: {inv: 121300, col: 109950, days: 21, rows: [['Kestrel Logistics', 36400], ['Harbor & Pine Studio', 28150], ['Moss & Marlow Law', 24300], ['Northfield Dental', 18950], ['Alder Street Books', 13500]]}
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var money = function (n) { return '$' + n.toLocaleString('en-US'); };
+  var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  function show(key) {
+    var d = data[key], max = d.rows[0][1];
+    $('s-inv').textContent = money(d.inv);
+    $('s-col').textContent = money(d.col);
+    $('s-days').textContent = d.days + ' days';
+    $('bars').innerHTML = d.rows.map(function (r) {
+      return '<div class="bar-row"><span class="name">' + esc(r[0]) + '</span><div class="track"><div class="fill" style="width:' + Math.round(r[1] / max * 100) + '%"></div></div><span class="val">' + money(r[1]) + '</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-period]'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.period === key)); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-period]'), function (b) { b.addEventListener('click', function () { show(b.dataset.period); }); });
+  $('density').addEventListener('click', function () { $('aging').classList.toggle('compact'); });
+  var note = $('export-note');
+  $('export').addEventListener('click', function () {
+    note.textContent = 'invoices.csv is ready (12 rows)';
+    clearTimeout(note._t); note._t = setTimeout(function () { note.textContent = ''; }, 4000);
+  });
+  show('q');
+})();
+</script>
+</body>
+</html>
