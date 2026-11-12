@@ -1,0 +1,78 @@
+{
+  "run": {
+    "app": "Larkspur Notes",
+    "url": "http://127.0.0.1:8080",
+    "date": "2026-11-12",
+    "changed": "Rebuilt the note list and the settings form"
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "title": "Save button does nothing visible",
+      "kind": "functional",
+      "page": "/notes",
+      "width": 1280,
+      "steps": ["Open /notes", "Type a title into the new-note field", "Press Save"],
+      "evidence": "Nothing changed for 2 s after Save; the list still shows 3 notes.",
+      "seen_by": 3,
+      "source": "observation",
+      "fix": "Show a saved toast and add the note to the list.",
+      "shots": [
+        {"path": "raw/notes-list.png", "box": {"x": 40, "y": 60, "w": 160, "h": 40}},
+        {"path": "raw/notes-saved.png", "box": {"x": 40, "y": 60, "w": 160, "h": 40}}
+      ]
+    },
+    {
+      "id": "F2",
+      "title": "Search field pokes past the page edge",
+      "kind": "visual",
+      "page": "/notes",
+      "width": 390,
+      "steps": ["Open /notes at 390 px wide"],
+      "evidence": "control-overflow: .search right edge 412 > viewport 390.",
+      "seen_by": 2,
+      "source": "check",
+      "fix": "Give .search max-width: 100%.",
+      "shots": [{"path": "raw/notes-list.png", "box": {"x": 200, "y": 60, "w": 190, "h": 40}}]
+    },
+    {
+      "id": "F3",
+      "title": "<script>alert(1)</script> label is unclear",
+      "kind": "ux",
+      "page": "/settings",
+      "width": 1280,
+      "steps": ["Open /settings", "Read the \"Sync\" toggle"],
+      "evidence": "Label says \"Sync\" & nothing about where; tooltip reads \"x < y\".",
+      "seen_by": 1,
+      "source": "observation",
+      "fix": "Say what syncs, e.g. \"Sync notes to this device\".",
+      "shots": [{"path": "raw/settings.png", "box": {"x": 200, "y": 120, "w": 140, "h": 50}}]
+    },
+    {
+      "id": "F4",
+      "title": "Delete icon is a 14 px target",
+      "kind": "visual",
+      "page": "/settings",
+      "width": 390,
+      "steps": ["Open /settings at 390 px wide"],
+      "evidence": "small-target: 14 x 14 px, minimum 24.",
+      "seen_by": 4,
+      "source": "check",
+      "fix": "Pad the icon button to 44 px.",
+      "shots": [{"path": "raw/settings.png", "box": null}]
+    },
+    {
+      "id": "F5",
+      "title": "Empty state gives no way to start",
+      "kind": "ux",
+      "page": "/notes",
+      "width": 1280,
+      "steps": ["Open /notes with no notes"],
+      "evidence": "The page says \"Nothing here\" and offers no button.",
+      "seen_by": 2,
+      "source": "observation",
+      "fix": "Add a New note button to the empty state.",
+      "shots": [{"path": "raw/notes-saved.png", "box": {"x": 150, "y": 100, "w": 100, "h": 40}}]
+    }
+  ]
+}
