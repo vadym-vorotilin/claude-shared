@@ -337,7 +337,7 @@ block POST   http://127.0.0.1@evil.test/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
   assert_contains "$output" "checked 9"
-  run guard_rules '{"disposableHost":"Dev.Example.test:8443"}' <<'EOF'
+  run guard_rules '{"disposableHost":"dev.example.test:8443"}' <<'EOF'
 pass  POST   http://DEV.example.test:8443/x
 block POST   http://example.test:8443/x
 EOF
@@ -393,6 +393,19 @@ EOF
 @test "guard rules: a disposable host with no port stops the guard" {
   type -P node >/dev/null || skip "no node here"
   for h in 127.0.0.1 dev.example.test '[::1]'; do
+    run guard_rules "{\"disposableHost\":\"$h\"}" </dev/null
+    [ "$status" -ne 0 ] || fail "disposableHost $h: the guard started: $output"
+    assert_contains "$output" "error: look guard: bad disposable"
+  done
+}
+
+# The guard reads only the canonical form look.sh writes: a lower-case name
+# or IPv4 address, or a bracketed IPv6 one, and a port 1-65535. Anything else
+# stops it rather than lift writes on whatever new URL makes of it
+# (x@evil.test is evil.test, a/b:80 is a:80).
+@test "guard rules: a disposable value not in look.sh's canonical form stops the guard" {
+  type -P node >/dev/null || skip "no node here"
+  for h in ::1 h h:0 h:65536 x@evil.test:80 a/b:80 Dev.Example.test:80 '[::1]x:80' 'h :80'; do
     run guard_rules "{\"disposableHost\":\"$h\"}" </dev/null
     [ "$status" -ne 0 ] || fail "disposableHost $h: the guard started: $output"
     assert_contains "$output" "error: look guard: bad disposable"
@@ -490,6 +503,9 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
     grep -qF "\"disposableHost\":\"$want\"" "$LOOK_HOME/t$$-n/guard.gen.js" \
       || fail "--disposable $h: want $want, got $(grep -o '"disposableHost":[^,]*' "$LOOK_HOME/t$$-n/guard.gen.js")"
     grep -qF '"allowWebsocket":true' "$LOOK_HOME/t$$-n/guard.gen.js"
+    # What look.sh accepts, the guard must start with.
+    run guard_rules "{\"disposableHost\":\"$want\"}" </dev/null
+    [ "$status" -eq 0 ] || fail "--disposable $h: the guard refused $want: $output"
   done
 }
 

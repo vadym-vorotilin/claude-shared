@@ -30,7 +30,9 @@
 //      scheme's default port normalised (h:443 is https://h/), so a dev
 //      server on :5173 does not lift writes to a tunnel on :8080. The port
 //      is required: a bare HOST would be two servers, on 80 and 443, so a
-//      config without one stops the guard and the open fails.
+//      config without one stops the guard and the open fails, as does any
+//      value not in the form look.sh writes (a lower-case name or IPv4
+//      address, or a bracketed IPv6 one, then :PORT).
 //      Writes are lifted only there; every other server keeps the write
 //      block. Deny words still block reads on the disposable server (a
 //      logout ends the run there too), but not its writes: naming a server
@@ -87,10 +89,13 @@ async page => {
 
   const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
   const words = new Set(config.denyGetWords.map(w => String(w).toLowerCase()));
-  // {hostname, port}, the port in decimal. No port is an error, not "any".
+  // {hostname, port}, the port in decimal. Only the canonical form look.sh
+  // writes is read: a lower-case name or IPv4 address, or a bracketed IPv6
+  // one, and a port. Anything else (no port, userinfo, a path) is an error,
+  // never what new URL would make of it: x@evil.test is evil.test.
   const disposable = (() => {
     if (config.disposableHost === null) return null;
-    const m = /^(\[[^\]]*\]|[^:\[\]]+):([0-9]+)$/.exec(config.disposableHost);
+    const m = /^([a-z0-9.-]+|\[[0-9a-f:.]+\]):([0-9]{1,5})$/.exec(config.disposableHost);
     if (!m) throw new Error('look guard: bad disposable host');
     const port = String(Number(m[2]));
     if (!(+port >= 1 && +port <= 65535)) throw new Error('look guard: bad disposable port');
