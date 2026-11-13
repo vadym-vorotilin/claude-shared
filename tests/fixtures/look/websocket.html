@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebSocket</title>
+<p>This page opens a WebSocket to its own server as soon as its script runs.</p>
+<script>
+  window.wsResult = new Promise(resolve => {
+    const ws = new WebSocket('ws://' + location.host + '/ws');
+    ws.onclose = e => resolve('closed ' + e.code + ' ' + e.reason);
+    setTimeout(() => resolve('still open'), 5000);
+  });
+</script>

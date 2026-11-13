@@ -13,8 +13,9 @@ limit), a few lines per issue, these nine items:
    contract dependencies). Then the **out-of-wave list**: every open card in
    the milestone this plan leaves out, **named**, one clause each on why it
    does not move the goal. An unnamed card reads as in scope.
-2. **Per issue**: model tier and effort, risk class, expected human gates, rough token
-   cost — the agent's **cumulative** cost including fix and re-review rounds.
+2. **Per issue**: model tier and effort (a row of the matrix block), risk
+   class, expected human gates, rough token cost — the agent's **cumulative**
+   cost including fix and re-review rounds.
    Fixers are the largest line, reviewers and approaches a fraction, rulings
    the smallest. A card with both a ruling and a contract act (schema or
    version-constant change, cross-repo pin) costs a multiple of its plain

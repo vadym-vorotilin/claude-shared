@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings - Tallyleaf</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f4f6f8;--surface:#fff;--ink:#1d232b;--muted:#566370;--line:#dbe1e7;--brand:#0f766e;--brand-ink:#fff;--link:#0b5f58;--soft:#e2f2ef;--field:#fff;
+--warn:#9a3412;--warn-bg:#fdeee3;--ok:#166534;--ok-bg:#e1f5e8;--info:#1e4fa3;--info-bg:#e4edfb;--draft:#4b5563;--draft-bg:#eceef1;--bar:#2f9a8f;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#12151a;--surface:#1b2027;--ink:#e8ecf1;--muted:#a3aebb;--line:#2c343e;--brand:#2dd4bf;--brand-ink:#06201c;--link:#5eead4;--soft:#173532;--field:#14181d;
+--warn:#fdba74;--warn-bg:#3a2414;--ok:#86efac;--ok-bg:#12301d;--info:#93c5fd;--info-bg:#172a48;--draft:#cbd5e1;--draft-bg:#2a313b;--bar:#2dd4bf}}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--link)}
+h1{font-size:26px;line-height:1.2;margin:0}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:16px;margin:0}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:20px;min-height:60px}
+.brand{display:inline-flex;align-items:center;gap:10px;height:36px;font-weight:700;font-size:18px;color:var(--ink);text-decoration:none}
+nav{display:flex;gap:4px;flex:1}
+nav a{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:8px;color:var(--ink);text-decoration:none}
+nav a[aria-current=page]{background:var(--soft);font-weight:600}
+.who{color:var(--muted);font-size:14px}
+main.wrap{padding-top:28px;padding-bottom:40px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.head-actions{display:flex;align-items:center;gap:12px}
+.note{color:var(--muted);font-size:13px}
+.note:empty{display:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn:disabled{opacity:.55;cursor:default}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;line-height:18px}
+.badge.paid{background:var(--ok-bg);color:var(--ok)}
+.badge.sent{background:var(--info-bg);color:var(--info)}
+.badge.overdue{background:var(--warn-bg);color:var(--warn)}
+.badge.draft{background:var(--draft-bg);color:var(--draft)}
+label{display:block;font-weight:600;font-size:14px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px}
+input[type=text],input[type=search],input[type=email],input[type=number],select{height:38px;padding:0 12px;width:100%}
+.field{display:flex;flex-direction:column;gap:6px}
+.hint{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;font-weight:600;color:var(--muted)}
+td.num,th.num{text-align:right}
+td.num{font-variant-numeric:tabular-nums}
+.scroller{overflow-x:auto}
+footer{border-top:1px solid var(--line);padding:18px 0 28px;color:var(--muted);font-size:13px}
+footer a{margin-left:12px}
+@media (max-width:640px){.wrap{padding:0 16px}.bar{gap:8px;flex-wrap:wrap;padding:8px 0}.who{display:none}nav a{padding:0 10px}h1{font-size:22px}}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+.tabs button{height:40px;padding:0 16px;border:0;border-bottom:3px solid transparent;background:none;color:var(--muted);font:inherit;font-weight:600;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--brand)}
+.panel{max-width:720px;display:flex;flex-direction:column;gap:18px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.checks{display:flex;flex-direction:column;gap:14px}
+.checks label{display:flex;align-items:center;gap:10px;font-weight:400}
+input[type=checkbox]{width:16px;height:16px;margin:0}
+.who-row{display:flex;align-items:center;gap:12px}
+.who-row .name{flex:1}
+.who-row .name span{display:block;color:var(--muted);font-size:13px}
+.mini{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer}
+.mini + .mini{margin-left:2px}
+.team{display:flex;flex-direction:column}
+.team .who-row{padding:12px 0;border-bottom:1px solid var(--line)}
+.team .who-row:last-child{border-bottom:0}
+.role{color:var(--muted);font-size:13px;min-width:90px}
+.actions{display:flex;align-items:center;gap:12px}
+.empty{padding:36px 20px;text-align:center;color:var(--muted)}
+@media (max-width:640px){.cols{grid-template-columns:1fr}.role{display:none}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap bar">
+<a class="brand" href="index.html"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%230f766e'/%3E%3Cpath d='M8 15c0-5 4-8 11-8 0 7-3 11-8 11l-3 3z' fill='%23fff'/%3E%3C/svg%3E" width="28" height="28" alt=""><span>Tallyleaf</span></a>
+<nav aria-label="Main"><a href="index.html">Invoices</a><a href="reports.html">Reports</a><a href="settings.html" aria-current="page">Settings</a></nav>
+<span class="who">Maple Row Studio</span>
+</div></header>
+
+<main class="wrap">
+<div class="page-head"><h1>Settings</h1><div class="head-actions"><span class="note" id="saved-note" role="status"></span></div></div>
+<div class="tabs" role="tablist" aria-label="Settings sections">
+<button type="button" role="tab" aria-selected="true" data-tab="profile">Profile</button>
+<button type="button" role="tab" aria-selected="false" data-tab="invoicing">Invoicing</button>
+<button type="button" role="tab" aria-selected="false" data-tab="notifications">Notifications</button>
+<button type="button" role="tab" aria-selected="false" data-tab="integrations">Integrations</button>
+</div>
+
+<section class="panel" data-panel="profile">
+<div class="card">
+<h2>Business details</h2>
+<p class="hint" style="margin-bottom:16px">These appear at the top of every invoice you send.</p>
+<div class="cols">
+<div class="field"><label for="biz">Business name</label><input type="text" id="biz" value="Maple Row Studio"></div>
+<div class="field"><label for="biz-email">Billing email</label><input type="email" id="biz-email" value="billing@maplerow.example"></div>
+</div>
+<div class="field" style="margin-top:16px"><label for="biz-addr">Mailing address</label><input type="text" id="biz-addr" value="14 Wren Court, Halden"><p class="hint" style="color:#a9b1ba">Printed under your business name. Leave blank to hide it.</p></div>
+</div>
+<div class="card">
+<h2>Team members</h2>
+<p class="hint" style="margin-bottom:8px">People who can create and edit invoices.</p>
+<div class="team"><div class="who-row"><div class="name">Dana Okafor<span>dana@maplerow.example</span></div><span class="role">Owner</span><span><button type="button" class="mini" aria-label="Edit Dana Okafor" title="Edit Dana Okafor"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l1-3 5-5 2 2-5 5z"/></svg></button><button type="button" class="mini" aria-label="Remove Dana Okafor" title="Remove Dana Okafor"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg></button></span></div><div class="who-row"><div class="name">Priya Raman<span>priya@maplerow.example</span></div><span class="role">Bookkeeper</span><span><button type="button" class="mini" aria-label="Edit Priya Raman" title="Edit Priya Raman"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l1-3 5-5 2 2-5 5z"/></svg></button><button type="button" class="mini" aria-label="Remove Priya Raman" title="Remove Priya Raman"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg></button></span></div></div>
+</div>
+</section>
+
+<section class="panel" data-panel="invoicing" hidden>
+<div class="card">
+<h2>Invoice defaults</h2>
+<p class="hint" style="margin-bottom:16px">New invoices start with these values.</p>
+<div class="cols">
+<div class="field"><label for="currency">Default currency</label><select id="currency"><option value="USD">US dollar (USD)</option><option value="EUR">Euro (EUR)</option><option value="GBP">Pound sterling (GBP)</option></select></div>
+<div class="field"><label for="terms">Payment terms</label><select id="terms"><option>Due on receipt</option><option selected>Net 14</option><option>Net 30</option><option>Net 60</option></select></div>
+<div class="field"><label for="prefix">Invoice number prefix</label><input type="text" id="prefix" value="INV-"></div>
+<div class="field"><label for="late">Late Fee Percentage</label><input type="number" id="late" min="0" step="0.5" value="1.5"></div>
+<div class="field"><label for="remind-days">Reminder days before due</label><input type="number" id="remind-days" min="0" value="3"></div>
+</div>
+</div>
+</section>
+
+<section class="panel" data-panel="notifications" hidden>
+<div class="card">
+<h2>Email me when</h2>
+<div class="checks" style="margin-top:12px">
+<label><input type="checkbox" checked> An invoice is paid</label>
+<label><input type="checkbox" checked> An invoice becomes overdue</label>
+<label><input type="checkbox"> A client opens an invoice</label>
+<label><input type="checkbox"> A draft has been idle for a week</label>
+</div>
+</div>
+</section>
+
+<section class="panel" data-panel="integrations" hidden>
+<div class="card"><div class="empty">No integrations connected.</div></div>
+</section>
+</main>
+<footer><div class="wrap">Tallyleaf 2.4<a href="settings.html">Account</a><a href="reports.html">Reports</a><a href="index.html">Invoices</a></div></footer>
+<script>
+(function () {
+  var tabs = document.querySelectorAll('[data-tab]'), panels = document.querySelectorAll('[data-panel]');
+  var defaults = {currency: 'USD'};
+  function show(name) {
+    Array.prototype.forEach.call(tabs, function (t) { t.setAttribute('aria-selected', String(t.dataset.tab === name)); });
+    Array.prototype.forEach.call(panels, function (p) { p.hidden = p.dataset.panel !== name; });
+    if (name === 'invoicing') document.getElementById('currency').value = defaults.currency;
+  }
+  Array.prototype.forEach.call(tabs, function (t) { t.addEventListener('click', function () { show(t.dataset.tab); }); });
+  show('profile');
+})();
+</script>
+</body>
+</html>

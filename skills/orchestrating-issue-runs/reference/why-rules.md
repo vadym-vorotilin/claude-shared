@@ -7,7 +7,7 @@ against. Read it when a rule seems not to apply, or before changing one.
 ## Model check
 
 **Model check at run start.** Orchestration is coordination, not the run's
-hardest thinking — the strongest tiers are dispatched per the table below,
+hardest thinking — the strongest tiers are dispatched per `$S/../agency/matrix.md`,
 while the orchestrator's own turns are mostly dispatch and bookkeeping that
 re-read its context. Run the orchestrator session on the **top standard tier
 (Opus-class)**: the strongest tier lists at roughly twice the rate per token

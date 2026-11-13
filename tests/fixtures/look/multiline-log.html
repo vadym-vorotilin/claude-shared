@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Multi-line logs</title>
+<link rel="icon" href="data:,">
+<body style="margin:0;font:16px sans-serif;color:#111;background:#fff"><p>Logs, no errors.</p>
+<script>
+  console.log("Welcome\nto the app\nv1.2");
+  console.log(JSON.stringify({a: 1, b: [1, 2]}, null, 2));
+  console.warn("careful\nsecond line");
+</script>

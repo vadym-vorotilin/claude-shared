@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Script errors</title>
+<link rel="icon" href="data:,">
+<body style="margin:0;font:16px sans-serif;color:#111;background:#fff"><p>Three script errors, none of them visible.</p>
+<script>
+  setTimeout(() => { throw new Error('boom-uncaught'); }, 10);
+  Promise.reject(new Error('boom-rejected'));
+  console.error('boom-logged');
+</script>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Seeded defects</title>
+<link rel="icon" href="data:,">
+<style>
+  body { margin: 0; font: 16px/1.4 sans-serif; color: #111; background: #fff; }
+  section { position: relative; height: 90px; }
+  .wide { position: absolute; left: 20px; top: 10px; width: 120px; overflow: hidden; white-space: nowrap; }
+  .ov-a, .ov-b { position: absolute; left: 260px; width: 200px; height: 30px; background: #eef; }
+  .ov-a { top: 20px; }
+  .ov-b { top: 36px; background: #fee; }
+  .pale { position: absolute; left: 520px; top: 10px; color: #aaa; }
+  .tiny { position: absolute; left: 20px; top: 50px; width: 14px; height: 14px; padding: 0; }
+  .noalt { position: absolute; left: 600px; top: 40px; }
+  .gone { position: absolute; left: 700px; top: 40px; }
+  .crop { position: absolute; left: 20px; top: 10px; width: 200px; height: 24px; overflow: hidden; }
+  .clamp { position: absolute; left: 300px; top: 10px; width: 200px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .icons { white-space: nowrap; margin: 0 20px 36px; }
+  .icons a { margin-right: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .stacked { line-height: 22px; margin: 0 20px 36px; }
+  .paleval { position: absolute; left: 600px; top: 10px; color: #ccc; }
+  .hero { height: auto; padding: 8px 0 24px; background: #eef4ff; clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%); }
+  .hero .pair { position: relative; height: 40px; }
+  .ov-c, .ov-d { position: absolute; top: 4px; width: 160px; height: 30px; }
+  .ov-c { left: 20px; }
+  .ov-d { left: 120px; }
+  .box { width: 240px; padding: 16px; background: #f4f4f4; margin: 0 20px 24px; }
+  .box input { width: 100%; padding: 12px; }
+</style>
+<section>
+  <div class="wide" data-defect="overflow">A very long line of text that cannot fit its narrow box</div>
+  <div class="ov-a" data-defect="overlap">First overlapping label</div>
+  <div class="ov-b">Second overlapping label</div>
+  <p class="pale" data-defect="contrast">Pale grey text on white</p>
+  <button class="tiny" data-defect="small-target" aria-label="close">x</button>
+  <button class="tiny" style="left:30px" data-defect="small-target" aria-label="pin">p</button>
+  <img class="noalt" data-defect="img-alt" width="40" height="40" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+  <img class="gone" data-defect="img-broken" width="40" height="40" alt="missing chart" src="missing-chart.png">
+</section>
+<section>
+  <div class="crop" data-defect="overflow">This sentence wraps onto several lines and the fixed height crops all but the first line of it.</div>
+  <div class="clamp" data-defect="overflow">This sentence wraps onto several lines and line clamp cuts it to one line of it.</div>
+  <input class="paleval" data-defect="contrast" type="text" value="pale value">
+</section>
+<section style="height:auto">
+  <div class="icons"><a href="#a" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><a href="#b" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><a href="#c" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+  <div class="icons"><a href="#d" data-defect="small-target"><span class="sr-only">One</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#e" data-defect="small-target"><span class="sr-only">Two</span><svg width="12" height="12"><circle cx="6" cy="6" r="5"/></svg></a><a href="#f" data-defect="small-target"><svg width="12" height="12"><title>Three</title><circle cx="6" cy="6" r="5"/></svg></a></div>
+  <div class="icons"><a href="#g" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>&middot;<a href="#h" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a>|<a href="#i" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+  <div class="stacked"><a href="#j" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><br><a href="#k" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+</section>
+<section style="height:auto">
+  <div class="box"><input data-defect="overflow" type="text" aria-label="Name" value="Ada"></div>
+</section>
+<section style="height:auto">
+  <div class="bar" data-defect="overflow" style="overflow:hidden;white-space:nowrap;width:180px;margin:0 20px 24px"><button type="button">Save draft</button> <button type="button">Publish now</button> <button type="button">Archive</button></div>
+</section>
+<section style="height:auto">
+  <div class="modal" style="overflow-y:auto;max-height:120px;width:240px;padding:24px;margin:0 20px 24px;background:#f4f4f4"><input data-defect="overflow" type="text" aria-label="Title" value="Ada" style="width:100%;padding:12px"></div>
+</section>
+<section style="height:auto">
+  <div class="form" style="overflow-y:auto;max-height:160px;width:240px;padding:24px;margin:0 20px 24px;background:#f4f4f4"><label for="f-name" style="display:block">Name</label><input id="f-name" type="text" value="Ada" style="box-sizing:border-box;width:100%;padding:12px"><input data-defect="overflow" type="text" aria-label="Email" value="ada@example.test" style="width:100%;padding:12px"></div>
+</section>
+<section style="height:auto">
+  <div class="tools" data-defect="overflow" style="overflow:hidden;white-space:nowrap;width:120px;margin:0 20px 24px"><button type="button" aria-label="Bold" style="width:48px;height:48px;padding:0"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"/></svg></button><button type="button" aria-label="Italic" style="width:48px;height:48px;padding:0"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"/></svg></button><button type="button" aria-label="Link" style="width:48px;height:48px;padding:0"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"/></svg></button></div>
+</section>
+<section style="height:auto">
+  <div class="ghost" data-defect="overflow" style="overflow:hidden;white-space:nowrap;width:120px;margin:0 20px 24px"><button type="button" aria-label="Undo" style="width:48px;height:48px;padding:0;background:none;border:0"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"/></svg></button><button type="button" aria-label="Redo" style="width:48px;height:48px;padding:0;background:none;border:0"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"/></svg></button><button type="button" aria-label="Clear" style="width:48px;height:48px;padding:0;background:none;border:0"><svg width="16" height="16" aria-hidden="true"><rect width="16" height="16"/></svg></button></div>
+</section>
+<section style="height:auto">
+  <div id="pad-card" style="overflow:hidden;padding:16px;width:240px;background:#f4f4f4;margin:0 20px 24px"><input data-defect="overflow" type="text" aria-label="City" value="Oslo" style="width:100%;padding:12px"></div>
+</section>
+<section class="hero">
+  <div class="pair"><button class="ov-c" data-defect="overlap">Start the tour</button><button class="ov-d">Skip the tour</button></div>
+  <div class="icons"><a href="#l" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a><a href="#m" data-defect="small-target"><svg width="12" height="12" aria-label="x"><circle cx="6" cy="6" r="5"/></svg></a></div>
+</section>

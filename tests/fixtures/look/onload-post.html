@@ -1,0 +1,8 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Onload post</title>
+<p>This page writes as soon as its script runs, before anyone clicks.</p>
+<script>
+  fetch('/save', {method: 'POST', body: 'x=1'}).catch(() => {});
+  navigator.sendBeacon('/beacon', 'x=1');
+</script>

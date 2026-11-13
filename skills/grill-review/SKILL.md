@@ -38,8 +38,10 @@ loop on this PR. If the user did not, ask before the first post.
    state,headRefOid,headRefName,baseRefName,isCrossRepository`. If `state` isn't `OPEN`, stop and
    say so. For a delta round, check the last reviewed sha is still an ancestor (`git merge-base --is-ancestor <old> <head>`). If it isn't (a
    force-push), or git can't find the sha, review the whole PR again.
-2. Dispatch a **reviewer** agent, on the strongest model you have, with `reviewer-brief.md` filled
-   in. One review per round, and a fresh agent each round.
+2. Dispatch a **reviewer** agent, with `reviewer-brief.md` filled in, on the model and effort of
+   `../agency/matrix.md`'s "Review that gates a merge" row — high effort when the PR touches what its
+   "Load-bearing" row lists, or when unsure. One review per round, and a fresh agent each round. If it reports being unsure of a finding or of its verdict, that one question goes to
+   the matrix's "Advisor" row, never the whole review.
 3. Read its numbered findings. No findings means step 6. Otherwise every finding is fixed **in this
    PR**, blocking or not, when the fix is cheap.
    - A finding that needs the user's call, or isn't cheap to fix, ends the loop: stop and ask, with

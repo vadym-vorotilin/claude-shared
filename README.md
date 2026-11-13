@@ -402,7 +402,9 @@ The managed block `sync.sh` writes to `~/.claude/CLAUDE.md` tells agents:
 
 - signal only pids and groups they started and checked;
 - run code that signals pids or groups it reads or computes under `pidjail`;
-- stop and ask on a `pidjail: refused:`.
+- stop and ask on a `pidjail: refused:`;
+- before calling visual work done, look at it with `/look`, and never ask you
+  for a screenshot they could take themselves.
 
 ## Shared skills
 
@@ -432,6 +434,15 @@ of these are available in every project on the machine.
 
 ### Long-running and multi-agent work
 
+- **`/agency`** — pick the model and effort for each piece of work instead of
+  letting every subagent inherit the session's. Run it at the start of a
+  subagent-driven session: from then on every dispatch names its model and
+  effort from one matrix (`skills/agency/matrix.md`) — cheap for locating, mid
+  for most building, top for load-bearing work and any review that gates a
+  merge, the strongest tier only as an advisor — and the session says once
+  when its own model looks wrong for the work ahead. `/orchestrating-issue-runs`,
+  `/research` and `/grill-review` read the same matrix, so it is the one place
+  to change a tier.
 - **`/orchestrating-issue-runs`** — run a backlog of GitHub issues through
   subagents end-to-end: scope for human approval, then approach → go-gate →
   fix → independent review → fix rounds → merge, per issue. Merges and closes
@@ -447,7 +458,7 @@ of these are available in every project on the machine.
   the main session never spends a turn waiting and keeps a 50-minute heartbeat
   (its cache lasts about an hour). Its `brief.md` is the block to paste into any
   subagent brief. `/orchestrating-issue-runs` depends on it, on
-  `/context-ceiling` and on `/unattended-run`.
+  `/context-ceiling`, on `/unattended-run` and on `/agency`.
 - **`/context-ceiling`** — bound how large a session's or a subagent's context
   grows. Dispatched agents stop at ~150k and return a checkpoint note a fresh
   agent continues from; the main session reads its own size with
@@ -501,8 +512,29 @@ of these are available in every project on the machine.
   the IDs needed to reach them afterwards. Stops nothing.
 - **`/research`** — run a research spike: frame the question, split it into
   legs (code surveys, web research, benchmarks, design), dispatch each on the
-  model and effort its kind needs instead of inheriting the session's, keep a
-  running log, and synthesise a recommendation with checked evidence.
+  model and effort its kind needs (from `/agency`) instead of inheriting the
+  session's, keep a running log, and synthesise a recommendation with checked
+  evidence.
+
+### Visual work
+
+- **`/look`** — before visual work is reported done (a page, component, style,
+  layout, chart or Artifact), open it in a real headless browser at desktop and
+  390 px width, in dark too where the page supports it, run measured checks (overflow, overlap,
+  contrast, tap targets, alt text, console and network errors), and read the
+  screenshots. Sessions are read-only on the network by default; writes need a
+  disposable server you confirm. Needs Node 18+ and a Chromium; it asks before
+  downloading one. The rule is in the managed block of `~/.claude/CLAUDE.md`
+  (`claude/CLAUDE.snippet.md`).
+- **`/swarm-of-clickers`** — a manual QA pass in parallel: you write 3, 5 or 10
+  charters (changed area, neighbours, a free explorer, each with an angle such
+  as keyboard only or narrow width), dispatch one clicker per charter on
+  `/agency`'s "UI clicker" row, each in its own `/look` browser, and review what
+  they return: duplicates merged, every screenshot read, every functional
+  finding re-run. The result is a local, offline report page (screenshot cards,
+  filters, tick boxes) in `.qa-runs/`, which is excluded from git without
+  touching `.gitignore`. Depends on `/look` and `/agency`; read-only on the app
+  unless you name a server disposable. Needs Python 3 and the Agent tool.
 
 ### Machine upkeep
 
@@ -576,7 +608,7 @@ eligible issue). Commit the written file in the target repo.
 | `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace and session, so no signal it sends (not even `kill -- -1` or `kill 0`) reaches anything outside it. Refuses, rather than run it unjailed, where namespaces are unavailable. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
 | `skills/*/` | symlinked into `~/.claude/skills/` | **All** shared skills (see above) |
-| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer, and the rule that agents signal only what they started and run signalling code under `pidjail` (see "What `sync.sh` writes") |
+| `claude/CLAUDE.snippet.md` | a managed block in `~/.claude/CLAUDE.md` | A `/claude-shared` pointer, the rule that agents signal only what they started and run signalling code under `pidjail`, and the rule to `/look` at visual work before calling it done (see "What `sync.sh` writes") |
 | — | `~/.claude/claude-shared-repo` | Records this repo's path so the skills can find it later |
 
 ### What `sync.sh` writes

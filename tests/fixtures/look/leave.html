@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Leave</title>
+<p>This page writes as it goes away, the way a draft autosave does.</p>
+<a id="away" href="/index.html" ping="/ping-on-click">Away</a>
+<script>
+  addEventListener('pagehide', () => {
+    navigator.sendBeacon('/beacon-on-leave', 'draft=1');
+    fetch('/keepalive-on-leave', {method: 'POST', body: 'draft=1', keepalive: true}).catch(() => {});
+  });
+</script>

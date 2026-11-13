@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invoices - Tallyleaf</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f4f6f8;--surface:#fff;--ink:#1d232b;--muted:#566370;--line:#dbe1e7;--brand:#0f766e;--brand-ink:#fff;--link:#0b5f58;--soft:#e2f2ef;--field:#fff;
+--warn:#9a3412;--warn-bg:#fdeee3;--ok:#166534;--ok-bg:#e1f5e8;--info:#1e4fa3;--info-bg:#e4edfb;--draft:#4b5563;--draft-bg:#eceef1;--bar:#2f9a8f;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#12151a;--surface:#1b2027;--ink:#e8ecf1;--muted:#a3aebb;--line:#2c343e;--brand:#2dd4bf;--brand-ink:#06201c;--link:#5eead4;--soft:#173532;--field:#14181d;
+--warn:#fdba74;--warn-bg:#3a2414;--ok:#86efac;--ok-bg:#12301d;--info:#93c5fd;--info-bg:#172a48;--draft:#cbd5e1;--draft-bg:#2a313b;--bar:#2dd4bf}}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--link)}
+h1{font-size:26px;line-height:1.2;margin:0}
+h2{font-size:17px;margin:0 0 4px}
+h3{font-size:16px;margin:0}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:20px;min-height:60px}
+.brand{display:inline-flex;align-items:center;gap:10px;height:36px;font-weight:700;font-size:18px;color:var(--ink);text-decoration:none}
+nav{display:flex;gap:4px;flex:1}
+nav a{display:inline-flex;align-items:center;height:36px;padding:0 14px;border-radius:8px;color:var(--ink);text-decoration:none}
+nav a[aria-current=page]{background:var(--soft);font-weight:600}
+.who{color:var(--muted);font-size:14px}
+main.wrap{padding-top:28px;padding-bottom:40px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.head-actions{display:flex;align-items:center;gap:12px}
+.note{color:var(--muted);font-size:13px}
+.note:empty{display:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn:disabled{opacity:.55;cursor:default}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;line-height:18px}
+.badge.paid{background:var(--ok-bg);color:var(--ok)}
+.badge.sent{background:var(--info-bg);color:var(--info)}
+.badge.overdue{background:var(--warn-bg);color:var(--warn)}
+.badge.draft{background:var(--draft-bg);color:var(--draft)}
+label{display:block;font-weight:600;font-size:14px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px}
+input[type=text],input[type=search],input[type=email],input[type=number],select{height:38px;padding:0 12px;width:100%}
+.field{display:flex;flex-direction:column;gap:6px}
+.hint{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;font-weight:600;color:var(--muted)}
+td.num,th.num{text-align:right}
+td.num{font-variant-numeric:tabular-nums}
+.scroller{overflow-x:auto}
+footer{border-top:1px solid var(--line);padding:18px 0 28px;color:var(--muted);font-size:13px}
+footer a{margin-left:12px}
+@media (max-width:640px){.wrap{padding:0 16px}.bar{gap:8px;flex-wrap:wrap;padding:8px 0}.who{display:none}nav a{padding:0 10px}h1{font-size:22px}}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.tile{display:flex;align-items:flex-start;gap:14px;padding:16px 18px}
+.tile-icon{flex:none;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--soft);color:var(--brand)}
+.tile-label{display:block;color:var(--muted);font-size:13px}
+.tile-value{display:block;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+.table-card{padding:0;overflow:hidden}
+.toolbar{display:flex;align-items:flex-end;gap:14px;padding:16px 20px;flex-wrap:wrap}
+.toolbar .field{width:220px}
+.toolbar .field.narrow{width:150px}
+.selbar{display:flex;align-items:center;gap:16px;padding:10px 20px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg);color:var(--muted);font-size:14px}
+.selbar .spacer{flex:1}
+.sort{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0;border:0;background:none;color:inherit;font:inherit;font-weight:600;cursor:pointer}
+th[aria-sort=ascending] .sort::after{content:"\2191"}
+th[aria-sort=descending] .sort::after{content:"\2193"}
+th.pick,td.pick{width:44px;padding-right:0}
+input[type=checkbox]{width:16px;height:16px;margin:0}
+td.amt{text-align:right;padding-right:34px;font-variant-numeric:tabular-nums}
+th.amt{text-align:right}
+tbody tr:last-child td{border-bottom:0}
+.empty{padding:28px 20px;text-align:center;color:var(--muted)}
+.empty .btn{margin-top:12px}
+.side{display:flex;flex-direction:column;gap:16px}
+.steps{display:flex;gap:6px;list-style:none;margin:12px 0 14px;padding:0;font-size:13px;color:var(--muted)}
+.steps li{flex:1;padding:6px 0;border-top:3px solid var(--line)}
+.steps li[aria-current=step]{border-top-color:var(--brand);color:var(--ink);font-weight:600}
+.sum{margin:0 0 14px}
+.sum div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
+.sum dt{color:var(--muted)}
+.sum dd{margin:0;font-variant-numeric:tabular-nums}
+.step-body{display:flex;flex-direction:column;gap:12px;min-height:128px}
+.step-actions{display:flex;justify-content:space-between;margin-top:14px}
+input.note-field{box-sizing:content-box;display:block;width:100%;padding:9px 12px;margin-top:8px;border:1px solid var(--line)}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.layout{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:640px){.tiles{gap:12px}.tile{padding:14px;gap:10px}.tile-value{font-size:18px}.toolbar .field,.toolbar .field.narrow{width:100%}.selbar{flex-wrap:wrap;gap:8px 16px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap bar">
+<a class="brand" href="index.html"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%230f766e'/%3E%3Cpath d='M8 15c0-5 4-8 11-8 0 7-3 11-8 11l-3 3z' fill='%23fff'/%3E%3C/svg%3E" width="28" height="28"><span>Tallyleaf</span></a>
+<nav aria-label="Main"><a href="index.html" aria-current="page">Invoices</a><a href="reports.html">Reports</a><a href="settings.html">Settings</a></nav>
+<span class="who">Maple Row Studio</span>
+</div></header>
+
+<main class="wrap">
+<div class="page-head"><h1>Invoices</h1><div class="head-actions"><button type="button" class="btn" id="export">Export CSV</button><span class="note" id="export-note" role="status"></span></div></div>
+<section class="tiles" aria-label="Summary"><div class="card tile"><span class="tile-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="2"/><path d="M3 9h14"/></svg></span><div><span class="tile-label">Outstanding</span><span class="tile-value" id="t-out"></span></div></div><div class="card tile"><span class="tile-icon" style="margin-top:8px"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/></svg></span><div><span class="tile-label">Overdue</span><span class="tile-value" id="t-over"></span></div></div><div class="card tile"><span class="tile-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg></span><div><span class="tile-label">Paid so far</span><span class="tile-value" id="t-paid"></span></div></div><div class="card tile"><span class="tile-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h7l3 3v11H5z"/><path d="M8 10h4M8 13h4"/></svg></span><div><span class="tile-label">Drafts</span><span class="tile-value" id="t-draft"></span></div></div></section>
+<div class="layout">
+<section class="card table-card" aria-label="Invoice list">
+<div class="toolbar">
+<div class="field"><label for="q">Search</label><input type="search" id="q" placeholder="Client or invoice number"></div>
+<div class="field narrow"><label for="status">Status</label><select id="status"><option value="all">All</option><option value="draft">Draft</option><option value="sent">Sent</option><option value="overdue">Overdue</option><option value="paid">Paid</option></select></div>
+<button type="button" class="btn" id="copy-view">Copy link to this view</button>
+</div>
+<div class="selbar"><span id="count"></span><span class="spacer"></span><span id="picked">0 selected</span><button type="button" class="btn" id="remind" disabled>Mark as reminded</button></div>
+<div class="scroller"><table id="inv">
+<thead><tr>
+<th class="pick"><input type="checkbox" id="pick-all" aria-label="Select all invoices"></th>
+<th aria-sort="ascending" data-key="number"><button type="button" class="sort">Invoice</button></th>
+<th data-key="client"><button type="button" class="sort">Client</button></th>
+<th data-key="due"><button type="button" class="sort">Due</button></th>
+<th class="amt" data-key="amount"><button type="button" class="sort">Amount</button></th>
+<th data-key="status"><button type="button" class="sort">Status</button></th>
+</tr></thead>
+<tbody></tbody></table></div>
+<div class="empty" id="empty" hidden><p>No invoices match these filters.</p><button type="button" class="btn" id="clear">Clear filters</button></div>
+</section>
+<aside class="side">
+<section class="card" aria-label="Quick invoice">
+<h2>Quick invoice</h2>
+<p class="hint">Start a draft in three steps.</p>
+<ol class="steps"><li aria-current="step">1 Review totals</li><li>2 Add line items</li><li>3 Choose client</li></ol>
+<div class="step-body">
+<div data-step="0"><dl class="sum"><div><dt>Subtotal</dt><dd>$0.00</dd></div><div><dt>Tax (8%)</dt><dd>$0.00</dd></div><div><dt>Total</dt><dd>$0.00</dd></div></dl></div>
+<div data-step="1" hidden><div class="field"><label for="li-desc">Description</label><input type="text" id="li-desc" placeholder="Logo refresh, 3 rounds"></div><div class="field"><label for="li-hours">Hours</label><input type="number" id="li-hours" min="0" value="1"></div></div>
+<div data-step="2" hidden><div class="field"><label for="li-client">Client</label><select id="li-client"></select></div></div>
+</div>
+<div class="step-actions"><button type="button" class="btn" id="step-back" disabled>Back</button><button type="button" class="btn primary" id="step-next">Next</button><button type="button" class="btn primary" id="step-done" hidden>Start draft</button></div>
+<p class="note" id="step-note" role="status"></p>
+</section>
+<section class="card" aria-label="Month notes">
+<h2>Month notes</h2>
+<label for="month-note" class="hint" style="font-weight:400">Anything to remember when you invoice in December?</label>
+<input type="text" id="month-note" class="note-field" placeholder="e.g. Kestrel pays on the 15th">
+</section>
+</aside>
+</div>
+</main>
+<footer><div class="wrap">Tallyleaf 2.4<a href="settings.html">Account</a><a href="reports.html">Reports</a><a href="index.html">Invoices</a></div></footer>
+<script>
+(function () {
+  var invoices = [
+    {number: 'INV-1038', client: 'Harbor & Pine Studio', due: '2026-10-02', amount: 1840.00, status: 'paid'},
+    {number: 'INV-1039', client: 'Northfield Dental', due: '2026-10-09', amount: 620.00, status: 'paid'},
+    {number: 'INV-1040', client: 'Brightside Cafe', due: '2026-10-14', amount: 415.50, status: 'overdue'},
+    {number: 'INV-1041', client: 'Alder Street Books', due: '2026-10-20', amount: 2300.00, status: 'sent'},
+    {number: 'INV-1042', client: 'Kestrel Logistics', due: '2026-10-24', amount: 5980.00, status: 'overdue'},
+    {number: 'INV-1043', client: 'Harbor & Pine Studio', due: '2026-10-30', amount: 960.00, status: 'sent'},
+    {number: 'INV-1044', client: 'Moss & Marlow Law', due: '2026-11-03', amount: 3150.00, status: 'paid'},
+    {number: 'INV-1045', client: 'Northfield Dental', due: '2026-11-06', amount: 1275.00, status: 'sent'},
+    {number: 'INV-1046', client: 'Kestrel Logistics', due: '2026-11-09', amount: 4410.00, status: 'overdue'},
+    {number: 'INV-1047', client: 'Moss & Marlow Law', due: '2026-11-21', amount: 2680.00, status: 'sent'},
+    {number: 'INV-1048', client: 'Alder Street Books', due: '2026-11-28', amount: 780.00, status: 'draft'},
+    {number: 'INV-1049', client: 'Brightside Cafe', due: '2026-12-02', amount: 530.00, status: 'draft'}
+  ];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var LABEL = {draft: 'Draft', sent: 'Sent', overdue: 'Overdue', paid: 'Paid'};
+  var $ = function (id) { return document.getElementById(id); };
+  var money = function (n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+  var shortDate = function (s) { var p = s.split('-'); return MONTHS[+p[1] - 1] + ' ' + (+p[2]); };
+  var esc = function (s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+
+  var sum = function (st) { return invoices.filter(function (r) { return st.indexOf(r.status) >= 0; }).reduce(function (a, r) { return a + r.amount; }, 0); };
+  $('t-out').textContent = money(sum(['sent', 'overdue']));
+  $('t-over').textContent = money(sum(['overdue']));
+  $('t-paid').textContent = money(sum(['paid']));
+  $('t-draft').textContent = String(invoices.filter(function (r) { return r.status === 'draft'; }).length);
+
+  var clients = invoices.map(function (r) { return r.client; }).filter(function (c, i, a) { return a.indexOf(c) === i; }).sort();
+  $('li-client').innerHTML = clients.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('');
+
+  var order = invoices.slice();
+  var sortKey = 'number', dir = 1;
+  var statusTests = {
+    draft: function (r) { return r.status === 'draft'; },
+    sent: function (r) { return r.status === 'sent'; },
+    paid: function (r) { return r.status === 'paid'; }
+  };
+  var table = $('inv'), tbody = table.tBodies[0];
+
+  function visibleRows() {
+    var q = $('q').value.trim().toLowerCase();
+    var test = statusTests[$('status').value];
+    return order.filter(function (r) {
+      if (test && !test(r)) return false;
+      return !q || r.client.toLowerCase().indexOf(q) >= 0 || r.number.toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  function updatePicked() {
+    var n = table.querySelectorAll('input[type=checkbox]:checked').length;
+    $('picked').textContent = n + ' selected';
+    $('remind').disabled = n === 0;
+  }
+  function render() {
+    var rows = visibleRows();
+    tbody.innerHTML = rows.map(function (r) {
+      return '<tr><td class="pick"><input type="checkbox" aria-label="Select ' + r.number + '"></td>' +
+        '<td><a href="#' + r.number + '">' + r.number + '</a></td><td>' + esc(r.client) + '</td><td>' + shortDate(r.due) + '</td>' +
+        '<td class="amt">' + money(r.amount) + '</td><td><span class="badge ' + r.status + '">' + LABEL[r.status] + '</span></td></tr>';
+    }).join('');
+    $('pick-all').checked = false;
+    $('count').textContent = 'Showing ' + rows.length + ' of ' + invoices.length + ' invoices';
+    $('empty').hidden = rows.length > 0;
+    updatePicked();
+  }
+  function compare(a, b, key) {
+    var x = a[key], y = b[key];
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  function sortBy(key) {
+    if (sortKey === key) dir = -dir; else { sortKey = key; dir = 1; }
+    var pos = {};
+    order.forEach(function (r, i) { pos[r.number] = i; });
+    order.sort(function (a, b) { return dir * compare(a, b, key) || pos[b.number] - pos[a.number]; });
+    Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th) {
+      if (th.dataset.key) th.setAttribute('aria-sort', th.dataset.key === key ? (dir > 0 ? 'ascending' : 'descending') : 'none');
+    });
+    render();
+  }
+  Array.prototype.forEach.call(table.tHead.querySelectorAll('th[data-key]'), function (th) {
+    th.querySelector('button').addEventListener('click', function () { sortBy(th.dataset.key); });
+  });
+  $('q').addEventListener('input', render);
+  $('status').addEventListener('change', render);
+  $('clear').addEventListener('click', function () { $('q').value = ''; $('status').value = 'all'; render(); });
+  $('pick-all').addEventListener('change', function () {
+    var on = this.checked;
+    Array.prototype.forEach.call(tbody.querySelectorAll('input[type=checkbox]'), function (c) { c.checked = on; });
+    updatePicked();
+  });
+  tbody.addEventListener('change', updatePicked);
+
+  var flash = function (el, text) { el.textContent = text; clearTimeout(el._t); el._t = setTimeout(function () { el.textContent = ''; }, 4000); };
+  $('export').addEventListener('click', function () { flash($('export-note'), 'invoices.csv is ready (' + visibleRows().length + ' rows)'); });
+  $('remind').addEventListener('click', function () {
+    var n = tbody.querySelectorAll('input:checked').length;
+    flash($('export-note'), 'Marked ' + n + (n === 1 ? ' invoice' : ' invoices') + ' as reminded');
+  });
+  $('copy-view').addEventListener('click', function () {
+    try { navigator.clipboard.writeText(location.href).catch(function () {}); } catch (e) {}
+  });
+
+  var step = 0, panels = document.querySelectorAll('[data-step]'), marks = document.querySelectorAll('.steps li');
+  function showStep(n) {
+    step = n;
+    Array.prototype.forEach.call(panels, function (p, i) { p.hidden = i !== n; });
+    Array.prototype.forEach.call(marks, function (m, i) { if (i === n) m.setAttribute('aria-current', 'step'); else m.removeAttribute('aria-current'); });
+    $('step-back').disabled = n === 0;
+    $('step-next').hidden = n === panels.length - 1;
+    $('step-done').hidden = n !== panels.length - 1;
+  }
+  $('step-next').addEventListener('click', function () { showStep(step + 1); });
+  $('step-back').addEventListener('click', function () { showStep(step - 1); });
+  $('step-done').addEventListener('click', function () { flash($('step-note'), 'Draft INV-1050 started'); });
+
+  render();
+})();
+</script>
+</body>
+</html>

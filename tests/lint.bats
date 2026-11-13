@@ -95,12 +95,28 @@ PY
   [ "$status" -eq 0 ] || fail "$output"
 }
 
+@test "only /agency maps work to a model tier and an effort" {
+  # Two skills once carried their own tier/effort tables and drifted apart;
+  # /agency is now the one source. A table outside it with both a tier (or
+  # model) column and an effort column is a second matrix, and a concrete model
+  # version (Sonnet 5.5, claude-opus-5-5) outside it is a second ladder.
+  # Family words ("Opus-class", `/model opus`) stay allowed.
+  A="$REPO/skills/agency"
+  grep -qE '^\|.*\b(Tier|Model)\b.*\|.*\bEffort\b' "$A/matrix.md" || fail "agency/matrix.md has no tier/effort table"
+  grep -qE '\b(Haiku|Sonnet|Opus|Fable) [0-9]' "$A/matrix.md" || fail "agency/matrix.md names no model version"
+  run grep -rnE '^\|.*\b(Tier|Model)\b.*\|.*\bEffort\b' "$REPO/skills" --include=*.md --exclude-dir=agency
+  [ "$status" -ne 0 ] || fail "a tier/effort table outside /agency: $output"
+  run grep -rniE '\b(haiku|sonnet|opus|fable|mythos) [0-9]+(\.[0-9]+)?\b|claude-(haiku|sonnet|opus|fable|mythos)-[0-9]' \
+      "$REPO/skills" --include=*.md --exclude-dir=agency
+  [ "$status" -ne 0 ] || fail "a model version outside /agency: $output"
+}
+
 @test "every brief block the orchestrator assembles exists" {
   # Briefs are joined with cat and never read by the orchestrator, so a missing
   # block would ship a brief without its rules and nobody would see it.
   S="$REPO/skills/orchestrating-issue-runs"
   n=0
-  for rel in $(grep -ohE '`(\.\./)?(briefs/[a-z-]+\.md|(cache-warmth|context-ceiling)/brief\.md)`' "$S/SKILL.md" "$S"/phase*.md | tr -d '`' | sed 's#^\.\./##' | sort -u); do
+  for rel in $(grep -ohE '`(\.\./)?(briefs/[a-z-]+\.md|(cache-warmth|context-ceiling)/brief\.md|agency/matrix\.md)`' "$S/SKILL.md" "$S"/phase*.md | tr -d '`' | sed 's#^\.\./##' | sort -u); do
     n=$((n + 1))
     case "$rel" in briefs/*) p="$S/$rel" ;; *) p="$S/../$rel" ;; esac
     [ -r "$p" ] || fail "the orchestrator names brief block $rel, missing"
@@ -112,8 +128,10 @@ PY
   # The decomposition's goal was to carry LESS skill text than the old single
   # runbook did (a median old run carried about 28 KB). SKILL.md plus every file
   # its "Every run" table names is what a run carries; it must not creep back.
+  # The budget includes the shared /agency matrix (raised from 28 KB when the
+  # matrix replaced the orchestrator's own, smaller tier table).
   S="$REPO/skills/orchestrating-issue-runs"
-  budget=28672
+  budget=32768
   files=$(awk '/^\| Every run \|/{t=1; next} t && /^\|/{print; next} t{exit}' "$S/SKILL.md" \
           | grep -oE '\]\(([A-Za-z0-9_./-]+\.md)\)' | sed -E 's/^\]\(|\)$//g' | sort -u)
   [ "$(echo "$files" | grep -c .)" -ge 3 ] || fail "could not read the Every-run table: [$files]"
@@ -259,4 +277,54 @@ PY
     || fail "the tracked-mode commit adds more than named paths"
   ! grep -rniE "(scratch(pad)? (file|directory)[^.]*(ledger|report)|(ledger|report)[^.]*scratch(pad)? (file|directory))" \
       "$REPO/skills" --include=*.md --exclude-dir=full || fail "run state still placed in a scratch file or directory"
+}
+
+@test "the playwright-cli version is pinned in one place" {
+  # No skill file may spell out a version of the CLI; look.sh names it once
+  # (LOOK_CLI_VERSION) and uses the variable everywhere else.
+  run grep -rnE '@playwright/cli@[0-9]' "$REPO/skills"
+  [ "$status" -eq 1 ] || fail "a file names a literal playwright-cli version: $output"
+  [ "$(grep -cE '^LOOK_CLI_VERSION=[0-9]' "$REPO/skills/look/tools/look.sh")" -eq 1 ] \
+    || fail "look.sh does not define LOOK_CLI_VERSION exactly once"
+  run grep -rnE '@playwright/cli@' "$REPO/skills"
+  ! grep -qv 'skills/look/tools/look.sh:.*@playwright/cli@\$LOOK_CLI_VERSION' <<< "$output" \
+    || fail "another use of @playwright/cli@ than look.sh's LOOK_CLI_VERSION: $output"
+}
+
+@test "the look skill's first code block runs: it assigns L and S before using them" {
+  skill="$REPO/skills/look/SKILL.md"
+  block="$(awk '/^```bash$/{f=1;next} /^```$/{if(f)exit} f' "$skill")"
+  [ -n "$block" ] || fail "no bash block in SKILL.md"
+  script="${block//<path to this SKILL.md>/$skill}"
+  # Offline and browserless: stub scripts stand in for the browser, the CLI and
+  # node (which the Docker image lacks), so setup must succeed.
+  stubs="$TEST_TMP/stubs"
+  mkdir -p "$stubs"
+  printf '#!/bin/sh\nexit 0\n' > "$stubs/browser"
+  printf '#!/bin/sh\nexit 0\n' > "$stubs/cli"
+  printf '#!/bin/sh\necho 20\n' > "$stubs/node"
+  chmod +x "$stubs/browser" "$stubs/cli" "$stubs/node"
+  PATH="$stubs:$PATH" LOOK_BROWSER="$stubs/browser" LOOK_CLI="$stubs/cli" run bash -c "$script"
+  [ "$status" -eq 0 ] || fail "status $status: $output"
+  refute_contains "$output" "No such file"
+  # The checkout may be reached through a symlink; the block resolves it.
+  assert_contains "$output" "L=$(readlink -f "$REPO")/skills/look S=look-"
+  assert_contains "$output" " LOOK_HOME=/"
+}
+
+@test "swarm-of-clickers names the UI clicker matrix row, and the row exists" {
+  grep -q '^| UI clicker' "$REPO/skills/agency/matrix.md" || fail "agency/matrix.md has no UI clicker row"
+  grep -q 'UI clicker' "$REPO/skills/swarm-of-clickers/SKILL.md" || fail "swarm-of-clickers does not name the UI clicker row"
+  [ -r "$REPO/skills/swarm-of-clickers/clicker-brief.md" ] || fail "clicker-brief.md missing"
+}
+
+@test "swarm-of-clickers states no tier word or effort value as a setting" {
+  # The matrix row is the only place; a literal pairing here is a second table,
+  # and an agent sent "at the strongest tier" picks a tier of its own. The eval
+  # harness dispatches agents too, so its docs are held to the same rule.
+  run grep -nEi '\b(cheap|mid|top|strongest) *(/|,|tier) *(low|medium|high|xhigh)\b|\beffort[: ]+(low|medium|high|xhigh)\b|\b(model|tier)[: ]+(cheap|mid|top|strongest)\b|\b(at|on) (the |a )?(cheap|mid|top|strongest)[- ]tier\b|\b(cheap|mid|top|strongest)-tier\b' \
+      "$REPO/skills/swarm-of-clickers/SKILL.md" "$REPO/skills/swarm-of-clickers/clicker-brief.md" \
+      "$REPO"/skills/swarm-of-clickers/eval/*.md
+  # 1 is "no line matched"; 2 (a file missing) must not pass as clean.
+  [ "$status" -eq 1 ] || fail "a tier or effort value outside /agency (grep status $status): $output"
 }
