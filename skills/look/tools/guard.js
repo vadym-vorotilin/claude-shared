@@ -6,7 +6,7 @@
 // the page, so nothing may follow it but comments.
 //
 // Config: {allowPost: [glob], denyGetWords: [word],
-//          disposableHost: "HOST" | "HOST:PORT" | null, allowWebsocket: boolean}
+//          disposableHost: "HOST:PORT" | null, allowWebsocket: boolean}
 //
 // Where it sits. HTTP requests are intercepted in the browser process, through
 // a browser-level CDP session with Fetch interception on every URL. That
@@ -27,9 +27,10 @@
 //      host and one port, compared as URL.host: the host name canonical
 //      (127.1 is 127.0.0.1) and case-insensitive, so 127.0.0.1 is not
 //      127.0.0.10 and not localhost. HOST:PORT matches that port only, the
-//      scheme's default port normalised (h:443 is https://h/). A bare HOST
-//      matches only that host on its scheme's default port, never on another
-//      port: a dev server on :5173 does not lift writes to a tunnel on :8080.
+//      scheme's default port normalised (h:443 is https://h/), so a dev
+//      server on :5173 does not lift writes to a tunnel on :8080. The port
+//      is required: a bare HOST would be two servers, on 80 and 443, so a
+//      config without one stops the guard and the open fails.
 //      Writes are lifted only there; every other server keeps the write
 //      block. Deny words still block reads on the disposable server (a
 //      logout ends the run there too), but not its writes: naming a server
@@ -86,13 +87,13 @@ async page => {
 
   const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
   const words = new Set(config.denyGetWords.map(w => String(w).toLowerCase()));
-  // {hostname, port}: port '' is "the scheme's default port", else decimal.
+  // {hostname, port}, the port in decimal. No port is an error, not "any".
   const disposable = (() => {
     if (config.disposableHost === null) return null;
-    const m = /^(\[[^\]]*\]|[^:\[\]]+)(?::([0-9]+))?$/.exec(config.disposableHost);
+    const m = /^(\[[^\]]*\]|[^:\[\]]+):([0-9]+)$/.exec(config.disposableHost);
     if (!m) throw new Error('look guard: bad disposable host');
-    const port = m[2] === undefined ? '' : String(Number(m[2]));
-    if (port !== '' && !(+port >= 1 && +port <= 65535)) throw new Error('look guard: bad disposable port');
+    const port = String(Number(m[2]));
+    if (!(+port >= 1 && +port <= 65535)) throw new Error('look guard: bad disposable port');
     return {hostname: new URL('http://' + m[1]).hostname, port};
   })();
   const DEFAULT_PORT = {'http:': '80', 'https:': '443', 'ws:': '80', 'wss:': '443'};
@@ -123,7 +124,6 @@ async page => {
   };
   const onDisposable = url => {
     if (disposable === null || url.hostname !== disposable.hostname) return false;
-    if (disposable.port === '') return url.port === '';
     return (url.port || DEFAULT_PORT[url.protocol]) === disposable.port;
   };
 

@@ -342,13 +342,13 @@ pass  POST   http://DEV.example.test:8443/x
 block POST   http://example.test:8443/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
-  run guard_rules '{"disposableHost":"127.1"}' <<'EOF'
+  run guard_rules '{"disposableHost":"127.1:80"}' <<'EOF'
 pass  POST   http://127.0.0.1/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
 }
 
-@test "guard rules: a disposable HOST:PORT lifts writes on that port only, a bare HOST on the default port only" {
+@test "guard rules: a disposable HOST:PORT lifts writes on that port only" {
   type -P node >/dev/null || skip "no node here"
   run guard_rules '{"disposableHost":"127.0.0.1:5173"}' <<'EOF'
 pass  POST   http://127.0.0.1:5173/api/save
@@ -363,14 +363,14 @@ block WS     ws://127.0.0.1:8080/live
 EOF
   [ "$status" -eq 0 ] || fail "$output"
   assert_contains "$output" "checked 9"
-  run guard_rules '{"disposableHost":"127.0.0.1"}' <<'EOF'
+  run guard_rules '{"disposableHost":"127.0.0.1:80"}' <<'EOF'
 pass  POST   http://127.0.0.1/x
 pass  POST   http://127.0.0.1:80/x
-pass  POST   https://127.0.0.1/x
+block POST   https://127.0.0.1/x
 block POST   http://127.0.0.1:5173/x
 block POST   http://127.0.0.1:443/x
 pass  WS     ws://127.0.0.1/live
-block WS     ws://127.0.0.1:8080/live
+block WS     wss://127.0.0.1/live
 EOF
   [ "$status" -eq 0 ] || fail "$output"
   assert_contains "$output" "checked 7"
@@ -386,6 +386,17 @@ block POST   http://[::1]:8081/x
 block POST   http://[::1]/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
+}
+
+# A bare HOST would be two servers, ports 80 and 443: the guard refuses it,
+# so open fails before the first navigation.
+@test "guard rules: a disposable host with no port stops the guard" {
+  type -P node >/dev/null || skip "no node here"
+  for h in 127.0.0.1 dev.example.test '[::1]'; do
+    run guard_rules "{\"disposableHost\":\"$h\"}" </dev/null
+    [ "$status" -ne 0 ] || fail "disposableHost $h: the guard started: $output"
+    assert_contains "$output" "error: look guard: bad disposable"
+  done
 }
 
 @test "guard rules: a WebSocket opens only to the disposable host, or anywhere when allowed" {
@@ -424,7 +435,7 @@ GUARD_ON='### Result
   fake_cli "$bin"
   FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
     run "$LOOK" open "t$$-n" 'http://example.invalid/' \
-      --preset grafana --allow-post '**/q*' --disposable Dev.Example.test
+      --preset grafana --allow-post '**/q*' --disposable Dev.Example.test:8443
   [ "$status" -eq 0 ] || fail "$output"
   dir="$LOOK_HOME/t$$-n"
   grep -qF '"serviceWorkers": "block"' "$dir/.playwright/cli.config.json"
@@ -433,7 +444,7 @@ GUARD_ON='### Result
   ! grep -qF '/*GUARD_CONFIG*/' "$gen"
   grep -qF '"allowPost":["**/api/ds/query*","**/q*"]' "$gen"
   grep -qF '"denyGetWords":["logout","delete","remove","destroy","approve","reject","revoke","unsubscribe"]' "$gen"
-  grep -qF '"disposableHost":"dev.example.test"' "$gen"
+  grep -qF '"disposableHost":"dev.example.test:8443"' "$gen"
   grep -qF '"allowWebsocket":false' "$gen"
   # The order that matters: blank page, guard, then the first real navigation.
   run grep -nE '^-s=t[0-9]+-n (open about:blank|run-code --filename=guard.gen.js|goto)' "$FAKE_LOG"
@@ -470,7 +481,7 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
   fake_cli "$bin"
   # given=canonical: the host as URL.hostname gives it, the port in decimal.
   for pair in 127.1:5173=127.0.0.1:5173 0x7f.1:05173=127.0.0.1:5173 \
-              127.0.0.1:5173=127.0.0.1:5173 127.1=127.0.0.1 \
+              127.0.0.1:5173=127.0.0.1:5173 127.1:80=127.0.0.1:80 \
               DEV.Example.Test:8443=dev.example.test:8443 '[0:0::1]:8080=[::1]:8080'; do
     h="${pair%%=*}" want="${pair#*=}"
     FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
@@ -510,7 +521,7 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
   [ ! -e "$FAKE_LOG" ]
 }
 
-@test "a disposable server must be HOST or HOST:PORT and nothing else" {
+@test "a disposable server must be HOST:PORT and nothing else" {
   type -P node >/dev/null || skip "no node here"
   bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
   fake_cli "$bin"
@@ -520,6 +531,20 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
       run "$LOOK" open "t$$-n" 'http://example.invalid/' --disposable "$h"
     [ "$status" -eq 2 ] || fail "--disposable $h: status $status: $output"
     assert_contains "$output" "--disposable"
+  done
+  [ ! -e "$FAKE_LOG" ]
+}
+
+@test "a bare --disposable HOST is refused, asking for the server's port" {
+  type -P node >/dev/null || skip "no node here"
+  bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
+  fake_cli "$bin"
+  for h in 127.0.0.1 localhost Dev.Example.test '[::1]'; do
+    FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
+      run "$LOOK" open "t$$-n" 'http://example.invalid/' --disposable "$h"
+    [ "$status" -eq 2 ] || fail "--disposable $h: status $status: $output"
+    assert_contains "$output" "HOST:PORT"
+    assert_contains "$output" "port"
   done
   [ ! -e "$FAKE_LOG" ]
 }
@@ -647,13 +672,7 @@ assert_sent() { # session method url [mode]
   [ "$status" -eq 0 ] || fail "$output"
   assert_sent "$A" POST "$BASE/api/orders"
   LOOK_SRV_LOG="$LOOK_SRV2_LOG" assert_blocked "$A" POST "$BASE2/api/orders" no-cors
-  # A bare host is its default port only, so neither server takes writes.
-  run "$LOOK" open "$B" "$BASE/index.html" --disposable 127.0.0.1
-  [ "$status" -eq 0 ] || fail "$output"
-  assert_blocked "$B" POST "$BASE/api/orders"
-  LOOK_SRV_LOG="$LOOK_SRV2_LOG" assert_blocked "$B" POST "$BASE2/api/orders" no-cors
   # The control: the second server's own port does take them.
-  "$LOOK" close "$B"
   run "$LOOK" open "$B" "$BASE/index.html" --disposable "127.0.0.1:$LOOK_PORT2"
   [ "$status" -eq 0 ] || fail "$output"
   LOOK_SRV_LOG="$LOOK_SRV2_LOG" assert_sent "$B" POST "$BASE2/api/orders" no-cors
