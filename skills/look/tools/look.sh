@@ -4,7 +4,7 @@
 #
 #   look.sh setup
 #   look.sh open <session> <url|path> [--width N] [--height N] [--scheme light|dark]
-#                [--disposable HOST] [--allow-post GLOB]... [--preset NAME]
+#                [--disposable HOST[:PORT]] [--allow-post GLOB]... [--preset NAME]
 #                [--allow-websocket]
 #   look.sh cli <session> <command> [args...]   (allowlisted commands only)
 #   look.sh checks <session>                    (JSON hits; writes checks.json)
@@ -18,7 +18,8 @@
 # A session only ever closes itself; nothing here closes or kills others.
 # Every session is read-only on the network: open installs guard.js before the
 # first navigation (writes pass only per --allow-post/--preset, or on the one
-# --disposable host). Presets are presets/<name>.json beside this script.
+# --disposable server: HOST:PORT is that port only, a bare HOST only the
+# scheme's default port). Presets are presets/<name>.json beside this script.
 set -euo pipefail
 
 LOOK_CLI_VERSION=0.1.24
@@ -230,11 +231,21 @@ cmd_open() {
   local fileaccess=false
   [[ "$url" =~ ^[Ff][Ii][Ll][Ee]: ]] && fileaccess=true
   case "$scheme" in light|dark) ;; *) die "--scheme must be light or dark" 2 ;; esac
-  # A bare host name or IP, compared with URL.hostname on any port: no scheme,
-  # port, path or wildcard, so what is lifted is exactly one host.
+  # A host name or IP with an optional port, compared with URL.host: no
+  # scheme, path or wildcard, so what is lifted is exactly one server. A bare
+  # HOST is that host on the scheme's default port only (the guard's header).
+  local disposable_port=""
   if [ -n "$disposable" ]; then
+    # The port is split off only after a name, an IPv4 address or a bracketed
+    # IPv6 one; an unbracketed IPv6 address stays whole and is refused below.
+    if [[ "$disposable" =~ ^([^:]+|\[[^]]*\]):([0-9]{1,5})$ ]]; then
+      disposable_port="$((10#${BASH_REMATCH[2]}))"
+      disposable="${BASH_REMATCH[1]}"
+      [ "$disposable_port" -ge 1 ] && [ "$disposable_port" -le 65535 ] \
+        || die "--disposable port must be 1-65535, not '$disposable_port'" 2
+    fi
     [[ "$disposable" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ || "$disposable" =~ ^\[[0-9A-Fa-f:.]+\]$ ]] \
-      || die "--disposable takes a bare host name such as 127.0.0.1 or dev.example.test, not '$disposable'" 2
+      || die "--disposable takes HOST or HOST:PORT, such as 127.0.0.1:5173 or dev.example.test, not '$disposable${disposable_port:+:$disposable_port}'" 2
     disposable="${disposable,,}"
   fi
   if [ -n "$preset" ]; then preset_path "$preset" >/dev/null || exit 2; fi
@@ -243,11 +254,13 @@ cmd_open() {
   browser="$(find_browser)" || exit $?
   check_node || exit $?
   if [ -n "$disposable" ]; then
-    # The form URL.hostname gives, the one the guard compares (127.1 is 127.0.0.1).
-    local canonical
+    # The host in the form URL.hostname gives, the one the guard compares
+    # (127.1 is 127.0.0.1), and the port in decimal.
+    local canonical given="$disposable${disposable_port:+:$disposable_port}"
     canonical="$(node -e 'console.log(new URL("http://" + process.argv[1]).hostname)' "$disposable" 2>/dev/null)" \
-      || die "--disposable '$disposable' is not a host name" 2
-    [ "$canonical" = "$disposable" ] || echo "look: --disposable $disposable is $canonical" >&2
+      || die "--disposable '$given' is not a host name" 2
+    canonical+="${disposable_port:+:$disposable_port}"
+    [ "$canonical" = "$given" ] || echo "look: --disposable $given is $canonical" >&2
     disposable="$canonical"
   fi
   cli="$(find_cli)" || exit $?

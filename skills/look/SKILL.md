@@ -36,7 +36,7 @@ For each configuration — desktop width and `--width 390`, each in light and, i
 
 Sessions are read-only on the network. `request-blocked` hits are the guard working, not defects. A page that loads empty with blocked reads: rerun with `--allow-post GLOB` for those read-only paths, or `--preset grafana`. Never ask the user to lift the guard.
 
-Writes: ask once per server whether it is disposable. Only the user's yes allows `--disposable HOST`, for that host. Other hosts stay blocked. `--allow-websocket` also needs the user's yes, and it lifts WebSockets on every host.
+Writes: ask once per server whether it is disposable. Only the user's yes allows `--disposable HOST:PORT` of that one server. Other servers stay blocked, other ports on the same host too; a bare `HOST` is its default port only. `--allow-websocket` also needs the user's yes, and it lifts WebSockets on every host.
 
 Limits: the deny-word list for state-changing GETs is a heuristic (it misses `sign_out`, `logoff`, `:delete`), so never click logout or delete links. WebSockets are blocked; `--allow-websocket` lifts that and their messages may write; a worker's WebSocket is not routed.
 

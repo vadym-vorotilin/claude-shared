@@ -5,8 +5,8 @@
 // and before the first real navigation. It is one expression, a function of
 // the page, so nothing may follow it but comments.
 //
-// Config: {allowPost: [glob], denyGetWords: [word], disposableHost: host|null,
-//          allowWebsocket: boolean}
+// Config: {allowPost: [glob], denyGetWords: [word],
+//          disposableHost: "HOST" | "HOST:PORT" | null, allowWebsocket: boolean}
 //
 // Where it sits. HTTP requests are intercepted in the browser process, through
 // a browser-level CDP session with Fetch interception on every URL. That
@@ -23,13 +23,17 @@
 // The rules, for each HTTP request:
 //
 //   1. GET, HEAD and OPTIONS pass, unless a deny word is in the URL.
-//   2. Any other method on the disposable host passes. The host is compared
-//      as URL.hostname, canonical (127.1 is 127.0.0.1) and case-insensitive,
-//      on any port: 127.0.0.1 is not 127.0.0.10 and not localhost. Writes
-//      are lifted only there; every other host keeps the write block. Deny
-//      words still block reads on the disposable host (a logout ends the run
-//      there too), but not its writes: naming a host disposable says
-//      deleting there is fine.
+//   2. Any other method on the disposable server passes. The server is one
+//      host and one port, compared as URL.host: the host name canonical
+//      (127.1 is 127.0.0.1) and case-insensitive, so 127.0.0.1 is not
+//      127.0.0.10 and not localhost. HOST:PORT matches that port only, the
+//      scheme's default port normalised (h:443 is https://h/). A bare HOST
+//      matches only that host on its scheme's default port, never on another
+//      port: a dev server on :5173 does not lift writes to a tunnel on :8080.
+//      Writes are lifted only there; every other server keeps the write
+//      block. Deny words still block reads on the disposable server (a
+//      logout ends the run there too), but not its writes: naming a server
+//      disposable says deleting there is fine.
 //   3. A POST that matches an allowPost glob passes, unless a deny word is in
 //      the URL, or its path has an encoded slash or backslash (%2F, %5C),
 //      which a glob's `*` would cross. An allowlisted path with "delete" in it
@@ -42,7 +46,8 @@
 //      Anything the guard cannot parse, and any error while deciding, is
 //      blocked too.
 //
-// WebSockets: a connection opens only to the disposable host, or to any host
+// WebSockets: a connection opens only to the disposable server (the same
+// host-and-port rule, ws: and wss: taking 80 and 443), or to any host
 // when look.sh open was given --allow-websocket (WebSocket messages may
 // write: nothing inspects them). Any other is closed by the guard before it
 // reaches the server, with code 4000 and reason "blocked by the look guard".
@@ -81,8 +86,16 @@ async page => {
 
   const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
   const words = new Set(config.denyGetWords.map(w => String(w).toLowerCase()));
-  const disposable = config.disposableHost === null ? null
-    : new URL('http://' + config.disposableHost).hostname;
+  // {hostname, port}: port '' is "the scheme's default port", else decimal.
+  const disposable = (() => {
+    if (config.disposableHost === null) return null;
+    const m = /^(\[[^\]]*\]|[^:\[\]]+)(?::([0-9]+))?$/.exec(config.disposableHost);
+    if (!m) throw new Error('look guard: bad disposable host');
+    const port = m[2] === undefined ? '' : String(Number(m[2]));
+    if (port !== '' && !(+port >= 1 && +port <= 65535)) throw new Error('look guard: bad disposable port');
+    return {hostname: new URL('http://' + m[1]).hostname, port};
+  })();
+  const DEFAULT_PORT = {'http:': '80', 'https:': '443', 'ws:': '80', 'wss:': '443'};
 
   const globToRegExp = glob => {
     let re = '';
@@ -108,7 +121,11 @@ async page => {
     for (const [name, value] of url.searchParams) if (isWord(name) || isWord(value)) return true;
     return false;
   };
-  const onDisposable = url => disposable !== null && url.hostname === disposable;
+  const onDisposable = url => {
+    if (disposable === null || url.hostname !== disposable.hostname) return false;
+    if (disposable.port === '') return url.port === '';
+    return (url.port || DEFAULT_PORT[url.protocol]) === disposable.port;
+  };
 
   const passes = (method, href) => {
     const url = new URL(href);

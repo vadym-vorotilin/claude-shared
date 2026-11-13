@@ -7,27 +7,35 @@
 
 load 'helpers/setup'
 
-# One static server for the file, bound to 127.0.0.1 on a port the OS picks.
-# python's http.server answers POST and DELETE with 501, so the guard tests
-# tell "blocked" (the fetch rejects, ERR_BLOCKED_BY_CLIENT) from "sent" (any
-# status), not 2xx from 4xx.
+# Two static servers for the files, bound to 127.0.0.1 on ports the OS picks:
+# the second is another server on the same host, for the disposable-port
+# tests. python's http.server answers POST and DELETE with 501, so the guard
+# tests tell "blocked" (the fetch rejects, ERR_BLOCKED_BY_CLIENT) from "sent"
+# (any status), not 2xx from 4xx.
+start_server() { # log -> sets SRV_PID, SRV_PORT
+  local log="$1" i
+  SRV_PORT=""
+  python3 -u -m http.server 0 --bind 127.0.0.1 \
+    --directory "$REPO_ROOT/tests/fixtures/look" >"$log" 2>&1 3>&- &
+  SRV_PID=$!
+  for i in $(seq 50); do
+    SRV_PORT="$(sed -n 's/^Serving HTTP on 127\.0\.0\.1 port \([0-9][0-9]*\) .*/\1/p' "$log")"
+    [ -z "$SRV_PORT" ] || break
+    sleep 0.1
+  done
+}
 setup_file() {
   LOOK_PORT="" LOOK_SRV_PID="" LOOK_SRV_LOG="$BATS_FILE_TMPDIR/http.log"
+  LOOK_PORT2="" LOOK_SRV2_PID="" LOOK_SRV2_LOG="$BATS_FILE_TMPDIR/http2.log"
   if command -v python3 >/dev/null 2>&1; then
-    local log="$LOOK_SRV_LOG" i
-    python3 -u -m http.server 0 --bind 127.0.0.1 \
-      --directory "$REPO_ROOT/tests/fixtures/look" >"$log" 2>&1 3>&- &
-    LOOK_SRV_PID=$!
-    for i in $(seq 50); do
-      LOOK_PORT="$(sed -n 's/^Serving HTTP on 127\.0\.0\.1 port \([0-9][0-9]*\) .*/\1/p' "$log")"
-      [ -z "$LOOK_PORT" ] || break
-      sleep 0.1
-    done
+    start_server "$LOOK_SRV_LOG"; LOOK_SRV_PID="$SRV_PID" LOOK_PORT="$SRV_PORT"
+    start_server "$LOOK_SRV2_LOG"; LOOK_SRV2_PID="$SRV_PID" LOOK_PORT2="$SRV_PORT"
   fi
-  export LOOK_PORT LOOK_SRV_PID LOOK_SRV_LOG
+  export LOOK_PORT LOOK_SRV_PID LOOK_SRV_LOG LOOK_PORT2 LOOK_SRV2_PID LOOK_SRV2_LOG
 }
 teardown_file() {
   [ -z "${LOOK_SRV_PID-}" ] || kill "$LOOK_SRV_PID" 2>/dev/null || true
+  [ -z "${LOOK_SRV2_PID-}" ] || kill "$LOOK_SRV2_PID" 2>/dev/null || true
 }
 
 setup() {
@@ -316,9 +324,9 @@ EOF
 
 @test "guard rules: the disposable host takes writes, matched exactly by host name" {
   type -P node >/dev/null || skip "no node here"
-  run guard_rules '{"disposableHost":"127.0.0.1"}' <<'EOF'
+  run guard_rules '{"disposableHost":"127.0.0.1:5173"}' <<'EOF'
 pass  POST   http://127.0.0.1:5173/api/save
-pass  DELETE http://127.0.0.1/items/7
+pass  DELETE http://127.0.0.1:5173/items/7
 pass  POST   http://127.0.0.1:5173/items/7/delete
 block GET    http://127.0.0.1:5173/logout
 block POST   http://127.0.0.10:5173/api/save
@@ -329,9 +337,9 @@ block POST   http://127.0.0.1@evil.test/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
   assert_contains "$output" "checked 9"
-  run guard_rules '{"disposableHost":"Dev.Example.test"}' <<'EOF'
+  run guard_rules '{"disposableHost":"Dev.Example.test:8443"}' <<'EOF'
 pass  POST   http://DEV.example.test:8443/x
-block POST   http://example.test/x
+block POST   http://example.test:8443/x
 EOF
   [ "$status" -eq 0 ] || fail "$output"
   run guard_rules '{"disposableHost":"127.1"}' <<'EOF'
@@ -340,10 +348,51 @@ EOF
   [ "$status" -eq 0 ] || fail "$output"
 }
 
+@test "guard rules: a disposable HOST:PORT lifts writes on that port only, a bare HOST on the default port only" {
+  type -P node >/dev/null || skip "no node here"
+  run guard_rules '{"disposableHost":"127.0.0.1:5173"}' <<'EOF'
+pass  POST   http://127.0.0.1:5173/api/save
+pass  POST   https://127.0.0.1:5173/api/save
+block POST   http://127.0.0.1:8080/api/orders
+block DELETE http://127.0.0.1:8080/api/orders
+block POST   http://127.0.0.1/api/save
+block POST   https://127.0.0.1/api/save
+block POST   http://127.0.0.1:51730/api/save
+pass  WS     ws://127.0.0.1:5173/live
+block WS     ws://127.0.0.1:8080/live
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" "checked 9"
+  run guard_rules '{"disposableHost":"127.0.0.1"}' <<'EOF'
+pass  POST   http://127.0.0.1/x
+pass  POST   http://127.0.0.1:80/x
+pass  POST   https://127.0.0.1/x
+block POST   http://127.0.0.1:5173/x
+block POST   http://127.0.0.1:443/x
+pass  WS     ws://127.0.0.1/live
+block WS     ws://127.0.0.1:8080/live
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_contains "$output" "checked 7"
+  run guard_rules '{"disposableHost":"dev.example.test:443"}' <<'EOF'
+pass  POST   https://dev.example.test/x
+pass  WS     wss://dev.example.test/live
+block POST   http://dev.example.test/x
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+  run guard_rules '{"disposableHost":"[::1]:8080"}' <<'EOF'
+pass  POST   http://[::1]:8080/x
+block POST   http://[::1]:8081/x
+block POST   http://[::1]/x
+EOF
+  [ "$status" -eq 0 ] || fail "$output"
+}
+
 @test "guard rules: a WebSocket opens only to the disposable host, or anywhere when allowed" {
   type -P node >/dev/null || skip "no node here"
-  run guard_rules '{"disposableHost":"127.0.0.1"}' <<'EOF'
+  run guard_rules '{"disposableHost":"127.0.0.1:8080"}' <<'EOF'
 pass  WS ws://127.0.0.1:8080/live
+block WS ws://127.0.0.1:8081/live
 block WS ws://localhost:8080/live
 block WS wss://chat.example.test/socket
 EOF
@@ -419,11 +468,16 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
   type -P node >/dev/null || skip "no node here"
   bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
   fake_cli "$bin"
-  for h in 127.1 0x7f.1 127.0.0.1; do
+  # given=canonical: the host as URL.hostname gives it, the port in decimal.
+  for pair in 127.1:5173=127.0.0.1:5173 0x7f.1:05173=127.0.0.1:5173 \
+              127.0.0.1:5173=127.0.0.1:5173 127.1=127.0.0.1 \
+              DEV.Example.Test:8443=dev.example.test:8443 '[0:0::1]:8080=[::1]:8080'; do
+    h="${pair%%=*}" want="${pair#*=}"
     FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
       run "$LOOK" open "t$$-n" 'http://127.0.0.1:5173/' --disposable "$h" --allow-websocket
     [ "$status" -eq 0 ] || fail "--disposable $h: $output"
-    grep -qF '"disposableHost":"127.0.0.1"' "$LOOK_HOME/t$$-n/guard.gen.js"
+    grep -qF "\"disposableHost\":\"$want\"" "$LOOK_HOME/t$$-n/guard.gen.js" \
+      || fail "--disposable $h: want $want, got $(grep -o '"disposableHost":[^,]*' "$LOOK_HOME/t$$-n/guard.gen.js")"
     grep -qF '"allowWebsocket":true' "$LOOK_HOME/t$$-n/guard.gen.js"
   done
 }
@@ -456,11 +510,12 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
   [ ! -e "$FAKE_LOG" ]
 }
 
-@test "a disposable host must be a bare host name" {
+@test "a disposable server must be HOST or HOST:PORT and nothing else" {
   type -P node >/dev/null || skip "no node here"
   bin="$(sandbox_path bash env dirname mkdir rmdir sleep flock rm mv cat sed grep ls true node)"
   fake_cli "$bin"
-  for h in http://127.0.0.1 127.0.0.1:3000 'h.test/x' '*.test' 'h test'; do
+  for h in http://127.0.0.1 http://127.0.0.1:3000 127.0.0.1:0 127.0.0.1:65536 127.0.0.1: \
+           ::1:8080 '[::1]:x' 'h.test/x' 'h.test:80/x' '*.test' 'h test'; do
     FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
       run "$LOOK" open "t$$-n" 'http://example.invalid/' --disposable "$h"
     [ "$status" -eq 2 ] || fail "--disposable $h: status $status: $output"
@@ -574,13 +629,35 @@ assert_sent() { # session method url [mode]
 @test "a disposable host takes writes; another host still does not" {
   need_browser; need_server
   S="t$$-a"
-  run "$LOOK" open "$S" "$BASE/index.html" --disposable 127.0.0.1
+  run "$LOOK" open "$S" "$BASE/index.html" --disposable "127.0.0.1:$LOOK_PORT"
   [ "$status" -eq 0 ] || fail "$output"
   assert_sent "$S" POST "$BASE/catalog"
   assert_sent "$S" DELETE "$BASE/catalog"
   assert_blocked "$S" POST "http://localhost:$LOOK_PORT/catalog" no-cors
   assert_blocked "$S" POST "http://127.0.0.10:$LOOK_PORT/catalog" no-cors
   assert_blocked "$S" GET "$BASE/logout"
+}
+
+@test "a disposable port takes writes; another server on the same host does not" {
+  need_browser; need_server
+  [ -n "${LOOK_PORT2-}" ] || skip "no second http.server here"
+  A="t$$-a"; B="t$$-b"
+  BASE2="http://127.0.0.1:$LOOK_PORT2"
+  run "$LOOK" open "$A" "$BASE/index.html" --disposable "127.0.0.1:$LOOK_PORT"
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_sent "$A" POST "$BASE/api/orders"
+  LOOK_SRV_LOG="$LOOK_SRV2_LOG" assert_blocked "$A" POST "$BASE2/api/orders" no-cors
+  # A bare host is its default port only, so neither server takes writes.
+  run "$LOOK" open "$B" "$BASE/index.html" --disposable 127.0.0.1
+  [ "$status" -eq 0 ] || fail "$output"
+  assert_blocked "$B" POST "$BASE/api/orders"
+  LOOK_SRV_LOG="$LOOK_SRV2_LOG" assert_blocked "$B" POST "$BASE2/api/orders" no-cors
+  # The control: the second server's own port does take them.
+  "$LOOK" close "$B"
+  run "$LOOK" open "$B" "$BASE/index.html" --disposable "127.0.0.1:$LOOK_PORT2"
+  [ "$status" -eq 0 ] || fail "$output"
+  LOOK_SRV_LOG="$LOOK_SRV2_LOG" assert_sent "$B" POST "$BASE2/api/orders" no-cors
+  assert_blocked "$B" POST "$BASE/api/orders"
 }
 
 # ---- what look.sh cli passes on ------------------------------------------
@@ -686,7 +763,7 @@ leave_four_ways() {
   refute_sent POST /keepalive-on-leave
   refute_sent POST /ping-on-click
   # The control: with writes lifted, the same steps do reach the server.
-  run "$LOOK" open "$B" "$BASE/leave.html" --disposable 127.0.0.1
+  run "$LOOK" open "$B" "$BASE/leave.html" --disposable "127.0.0.1:$LOOK_PORT"
   [ "$status" -eq 0 ] || fail "$output"
   srv_mark
   leave_four_ways "$B"
@@ -739,7 +816,7 @@ leave_four_ways() {
   assert_reached GET /ws
   "$LOOK" close "$B"
   srv_mark
-  run "$LOOK" open "$A" "$BASE/websocket.html" --disposable 127.0.0.1
+  run "$LOOK" open "$A" "$BASE/websocket.html" --disposable "127.0.0.1:$LOOK_PORT"
   [ "$status" -eq 0 ] || fail "$output"
   run "$LOOK" cli "$A" eval "async () => window.wsResult"
   refute_contains "$output" 'blocked by the look guard'
