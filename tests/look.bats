@@ -400,10 +400,11 @@ EOF
 }
 
 # The guard reads only the canonical form look.sh writes: a lower-case name
-# or IPv4 address, or a bracketed IPv6 one, and a port 1-65535. Anything else
+# or IPv4 address that starts and ends with a letter or digit (so not -a:80
+# or .a:80), or a bracketed IPv6 one, and a port 1-65535. Anything else
 # stops it rather than lift writes on whatever new URL makes of it
 # (x@evil.test is evil.test, a/b:80 is a:80), and so does a value that is
-# not its own canonical form (127.1:80, h:080, -a:80), which look.sh never writes.
+# not its own canonical form (127.1:80, h:080), which look.sh never writes.
 @test "guard rules: a disposable value not in look.sh's canonical form stops the guard" {
   type -P node >/dev/null || skip "no node here"
   for h in ::1 h h:0 h:65536 x@evil.test:80 a/b:80 Dev.Example.test:80 '[::1]x:80' 'h :80' \
@@ -497,7 +498,8 @@ $long" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
   # given=canonical: the host as URL.hostname gives it, the port in decimal.
   for pair in 127.1:5173=127.0.0.1:5173 0x7f.1:05173=127.0.0.1:5173 \
               127.0.0.1:5173=127.0.0.1:5173 127.1:80=127.0.0.1:80 \
-              DEV.Example.Test:8443=dev.example.test:8443 '[0:0::1]:8080=[::1]:8080'; do
+              DEV.Example.Test:8443=dev.example.test:8443 '[0:0::1]:8080=[::1]:8080' \
+              H:80=h:80; do
     h="${pair%%=*}" want="${pair#*=}"
     FAKE_RUNCODE_OUT="$GUARD_ON" PATH="$bin" LOOK_BROWSER="$bin/true" LOOK_CLI="$bin/fakecli" \
       run "$LOOK" open "t$$-n" 'http://127.0.0.1:5173/' --disposable "$h" --allow-websocket
