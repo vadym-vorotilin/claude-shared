@@ -25,7 +25,7 @@ Input: the URL, what changed, and any FRs or spec. Size: 3, 5 or 10, from the us
 - `<project>` is `git rev-parse --show-toplevel`. The run directory is `<project>/.qa-runs/<YYYY-MM-DD-HHMM>/`. In a git repo, first run `f=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$f")"; grep -qxF '.qa-runs/' "$f" 2>/dev/null || { [ -z "$(tail -c1 "$f" 2>/dev/null)" ] || echo >> "$f"; echo '.qa-runs/' >> "$f"; }`. Never touch `.gitignore`. Outside git, name a directory and tell the user where.
 - Session names carry a run stamp so they are unique: `q1942-c1`…`q1942-cN` (any short stamp), and your own re-run session is `q1942-review`, under the same `LOOK_HOME`.
 - Write `<run>/charters/<session name>.md` per clicker (`q1942-c1`…): start URL, the host to stay on, an angle, widths and schemes. Most charters cover the changed area, one or two its neighbours (regressions), one is a free explorer. Angles: keyboard only, narrow width, bad input, first-time user, empty and error states.
-- Guard flags for every clicker: `--preset NAME` or `--allow-post GLOB` when the app needs them, for read-only paths only. `--disposable HOST:PORT` of the one server and `--allow-websocket` only after the user said yes (the second lifts WebSockets on every host).
+- Guard flags for every clicker: `--preset NAME` or `--allow-post GLOB` when the app needs them, for read-only paths only. An `--allow-post` path must only ever read, such as a search or query endpoint; an endpoint that also takes writes (GraphQL, JSON-RPC, a batch endpoint) is never allowlisted: ask the user whether the server is disposable instead. `--disposable HOST:PORT` of the one server and `--allow-websocket` only after the user said yes (the second lifts WebSockets on every host).
 
 ## 2. Dispatch
 
@@ -50,7 +50,7 @@ Read every `notes.json`, then:
 2. read every screenshot; drop misreads;
 3. **re-run every functional finding's steps yourself**, in your own look session (`<stamp>-review`, same `LOOK_HOME`); you may add a `box` only to a plain viewport shot of your own re-run, in that shot's pixels, never copied from a `checks.json` (clickers' shots carry `box: null`), before keeping it;
 4. classify functional, visual or UX; write `fix`; give each finding an `id`;
-5. a `request-blocked` the page visibly broke on: add a read-only `--allow-post` path and re-run that clicker, never ask the user to lift the guard.
+5. a `request-blocked` the page visibly broke on: add an `--allow-post` path only under the guard-flag rule in section 1 (it only ever reads; never GraphQL, JSON-RPC or a batch endpoint, for which you ask the user whether the server is disposable) and re-run that clicker; never ask the user to lift the guard.
 
 Write `<run>/findings.json` in the schema in the header of `tools/report.py`, with `run.app`, `url`, `date`, `changed`.
 
@@ -69,7 +69,7 @@ Print the absolute path it prints, and give a few lines: findings per kind, what
 | "The clicker said it's a bug; copy it in" | Clickers observe. You verify. |
 | "That functional finding is obviously real" | Re-run its steps first. |
 | "`close-all` clears the leftovers" | It kills the others' browsers. Close your own. |
-| "Ask the user to lift the guard" | Add a read-only `--allow-post` path. |
+| "Ask the user to lift the guard" | Add an `--allow-post` path that only ever reads, or ask whether the server is disposable. |
 | "Clickers can share a session to save setup" | One session and one session directory each, or the shots mix. |
 | "Claude-in-Chrome is already open" | It carries the user's logins. Use `look.sh`. |
 | "I'll name the model here" | The matrix row names it. |
