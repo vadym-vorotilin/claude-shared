@@ -319,8 +319,12 @@ PY
 }
 
 @test "swarm-of-clickers states no tier word or effort value as a setting" {
-  # The matrix row is the only place; a literal pairing here is a second table.
-  run grep -nEi '\b(cheap|mid|top|strongest) *(/|,|tier) *(low|medium|high|xhigh)\b|\beffort[: ]+(low|medium|high|xhigh)\b|\b(model|tier)[: ]+(cheap|mid|top|strongest)\b' \
-      "$REPO/skills/swarm-of-clickers/SKILL.md" "$REPO/skills/swarm-of-clickers/clicker-brief.md"
-  [ "$status" -ne 0 ] || fail "a tier or effort value outside /agency: $output"
+  # The matrix row is the only place; a literal pairing here is a second table,
+  # and an agent sent "at the strongest tier" picks a tier of its own. The eval
+  # harness dispatches agents too, so its docs are held to the same rule.
+  run grep -nEi '\b(cheap|mid|top|strongest) *(/|,|tier) *(low|medium|high|xhigh)\b|\beffort[: ]+(low|medium|high|xhigh)\b|\b(model|tier)[: ]+(cheap|mid|top|strongest)\b|\b(at|on) (the |a )?(cheap|mid|top|strongest)[- ]tier\b|\b(cheap|mid|top|strongest)-tier\b' \
+      "$REPO/skills/swarm-of-clickers/SKILL.md" "$REPO/skills/swarm-of-clickers/clicker-brief.md" \
+      "$REPO"/skills/swarm-of-clickers/eval/*.md
+  # 1 is "no line matched"; 2 (a file missing) must not pass as clean.
+  [ "$status" -eq 1 ] || fail "a tier or effort value outside /agency (grep status $status): $output"
 }
