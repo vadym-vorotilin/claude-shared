@@ -90,14 +90,14 @@ async page => {
   const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
   const words = new Set(config.denyGetWords.map(w => String(w).toLowerCase()));
   // {hostname, port}, the port in decimal. Only the canonical form look.sh
-  // writes is read: a lower-case name or IPv4 address, or a bracketed IPv6
-  // one, and a port. Anything else (no port, userinfo, a path) is an error,
+  // writes is read: a lower-case name or IPv4 address that starts and ends
+  // with a letter or digit, or a bracketed IPv6 one, and a port. Anything else (no port, userinfo, a path) is an error,
   // never what new URL would make of it: x@evil.test is evil.test. The value
   // must also be its own canonical form, so 127.1:80 or h:080 stop the guard
   // too: they mean look.sh's canonicalisation was skipped.
   const disposable = (() => {
     if (config.disposableHost === null) return null;
-    const m = /^([a-z0-9.-]*[a-z0-9]|\[[0-9a-f:.]+\]):([0-9]{1,5})$/.exec(config.disposableHost);
+    const m = /^([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:.]+\]):([0-9]{1,5})$/.exec(config.disposableHost);
     if (!m) throw new Error('look guard: bad disposable host');
     const port = String(Number(m[2]));
     if (!(+port >= 1 && +port <= 65535)) throw new Error('look guard: bad disposable port');

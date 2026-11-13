@@ -403,11 +403,11 @@ EOF
 # or IPv4 address, or a bracketed IPv6 one, and a port 1-65535. Anything else
 # stops it rather than lift writes on whatever new URL makes of it
 # (x@evil.test is evil.test, a/b:80 is a:80), and so does a value that is
-# not its own canonical form (127.1:80, h:080), which look.sh never writes.
+# not its own canonical form (127.1:80, h:080, -a:80), which look.sh never writes.
 @test "guard rules: a disposable value not in look.sh's canonical form stops the guard" {
   type -P node >/dev/null || skip "no node here"
   for h in ::1 h h:0 h:65536 x@evil.test:80 a/b:80 Dev.Example.test:80 '[::1]x:80' 'h :80' \
-           127.1:80 0x7f.1:80 h:080 h:00080 '[::ffff:127.0.0.1]:80' h.:80; do
+           127.1:80 0x7f.1:80 h:080 h:00080 '[::ffff:127.0.0.1]:80' h.:80 -a:80 .a:80; do
     run guard_rules "{\"disposableHost\":\"$h\"}" </dev/null
     [ "$status" -ne 0 ] || fail "disposableHost $h: the guard started: $output"
     assert_contains "$output" "error: look guard: bad disposable"
