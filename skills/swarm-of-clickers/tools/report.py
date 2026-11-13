@@ -20,6 +20,11 @@ own pixels (viewport shots at device scale 1); the page draws it as a
 percentage of the image, so it stays on the element at any rendered size.
 Nothing is written until the whole input has been validated.
 
+Ticks ("Done") are kept in the browser's localStorage, when it is available,
+under "swarm:" + the page's location.pathname + ":" + the finding id. Chromium
+gives every file:// page one localStorage, so the key names this report's own
+file: a second run on the same day, with the same ids, starts with no ticks.
+
 Exit codes: 0 built; 2 bad input (message on stderr, naming the file or key).
 """
 import html
@@ -180,7 +185,7 @@ def build(run, plan):
     kind_chips = "".join(
         f'<button type="button" class="chip" data-kind="{k}" aria-pressed="false">{e(KIND_LABEL[k])}</button>'
         for k in kinds)
-    payload = json.dumps({"date": run["date"], "findings": data}, ensure_ascii=True)
+    payload = json.dumps({"findings": data}, ensure_ascii=True)
     payload = payload.replace("</", "<\\/").replace("<", "\\u003c")
     total = len(plan)
     parts = {
@@ -365,7 +370,8 @@ dl.fields ol { margin: 0; padding-left: 20px; }
   var cards = Array.prototype.slice.call(document.querySelectorAll(".card"));
   var mem = {};
 
-  function key(id) { return "swarm:" + DATA.date + ":" + id; }
+  // Per report file: every file:// page shares one localStorage.
+  function key(id) { return "swarm:" + window.location.pathname + ":" + id; }
   function isDone(id) {
     try { var v = window.localStorage.getItem(key(id)); if (v !== null) return v === "1"; } catch (e) {}
     return mem[id] === true;

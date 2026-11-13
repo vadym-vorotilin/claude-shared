@@ -1,7 +1,8 @@
 #!/usr/bin/env bats
 #
 # skills/swarm-of-clickers/tools/report.py — findings.json to a gallery page.
-# Needs python3 only; no browser.
+# Needs python3 only, except the tick-key test, which opens the reports in a
+# /look session and skips when no browser or Playwright CLI is available.
 
 load 'helpers/setup'
 
@@ -12,7 +13,10 @@ setup() {
   mkdir -p "$RUN"
   cp -r "$REPO/tests/fixtures/swarm/." "$RUN/"
 }
-teardown() { common_teardown; }
+teardown() {
+  [ -z "${LOOK-}" ] || "$LOOK" close "t$$-r" >/dev/null 2>&1 || true
+  common_teardown
+}
 
 @test "the report has one card per finding and filter chips per page and kind" {
   run python3 "$REPORT" "$RUN"
@@ -107,11 +111,41 @@ teardown() { common_teardown; }
   [ "$status" -eq 0 ]
   html="$(cat "$RUN/report.html")"
   assert_contains "$html" "prefers-color-scheme"
-  assert_contains "$html" "swarm:"
+  assert_contains "$html" "\"swarm:\" + window.location.pathname + \":\" + id"
   assert_contains "$html" "try {"
   refute_contains "$html" "innerHTML"
   refute_contains "$html" "http://fonts"
   refute_contains "$html" "<script src"
+}
+
+# Chromium gives every file:// page one localStorage, so a key that two runs
+# can share (the same date and finding ids) carries one run's ticks into the
+# next. Two runs here differ only in their directory.
+@test "a tick in one report does not show in another report with the same date and ids" {
+  LOOK="$REPO/skills/look/tools/look.sh"
+  export LOOK_HOME="$TEST_TMP/look"
+  "$LOOK" setup >/dev/null 2>&1 || skip "no browser or Playwright CLI here"
+  B="$TEST_TMP/run-b"
+  cp -r "$RUN" "$B"
+  python3 "$REPORT" "$RUN" >/dev/null
+  python3 "$REPORT" "$B" >/dev/null
+  S="t$$-r"
+  run "$LOOK" open "$S" "$RUN/report.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  ticked() { "$LOOK" cli "$S" eval "() => 'F1 ' + document.querySelector('input[data-tick=\"F1\"]').checked"; }
+  run "$LOOK" cli "$S" eval "() => { document.querySelector('input[data-tick=\"F1\"]').click(); return 'clicked'; }"
+  assert_contains "$output" '"clicked"'
+  run ticked
+  assert_contains "$output" '"F1 true"'
+  run "$LOOK" cli "$S" goto "file://$B/report.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run ticked
+  assert_contains "$output" '"F1 false"'
+  # The control: the first report kept its tick, so storage did carry over.
+  run "$LOOK" cli "$S" goto "file://$RUN/report.html"
+  [ "$status" -eq 0 ] || fail "$output"
+  run ticked
+  assert_contains "$output" '"F1 true"'
 }
 
 @test "a placeholder-looking string in a field stays literal and injects nothing" {
