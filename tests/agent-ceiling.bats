@@ -69,11 +69,13 @@ agent_at() { # context-tokens
   run agent_at 260000
   [ "$status" -eq 2 ]
   assert_contains "$(cat "$TEST_TMP/stderr")" "~250,000"
+  [[ "$(cat "$TEST_TMP/stderr")" != *"HARD STOP"* ]]
 }
 
 @test "an agent past the default hard ceiling (310k) is blocked at ~300,000" {
   run agent_at 310000
   [ "$status" -eq 2 ]
+  assert_contains "$(cat "$TEST_TMP/stderr")" "HARD STOP"
   assert_contains "$(cat "$TEST_TMP/stderr")" "~300,000"
 }
 

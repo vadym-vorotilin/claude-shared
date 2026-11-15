@@ -27,8 +27,9 @@ it reads as a control that is working.
 **On a 200k context window none of the numbers above can fire**, for a main
 session as much as for an agent. Lower them to fit, e.g. for the hook
 `AGENT_CEILING_SOFT=150000 AGENT_CEILING_HARD=180000` (tokens), for the tool
-`context-size.py --soft 150 --hard 180` (thousands), and edit the numbers in
-`brief.md` to match.
+`context-size.py --soft 150 --hard 180` (thousands), and change the ~250k and
+~300k in each brief after you `cat` `brief.md` into it. Leave the shared
+`brief.md` alone: it is linked from this repo and used by every project.
 
 ## What this assumes
 

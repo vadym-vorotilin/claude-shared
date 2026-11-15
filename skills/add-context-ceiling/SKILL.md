@@ -97,7 +97,8 @@ thresholds high enough for the longest reviewer you dispatch, and bound
 reviewers by a turn budget instead. On a model with a 200k context window neither
 default can fire: set both lower, e.g. 150000 and 180000 (tokens; for a main
 session's `context-size.py` the same limits are `--soft 150 --hard 180`, in
-thousands), and edit the numbers in the ceiling's `brief.md` to match.
+thousands), and change the numbers in each assembled brief after `cat`-ing the
+ceiling's `brief.md` into it, not in the shared file.
 
 ## 4. Prove it fires
 
