@@ -24,8 +24,8 @@ code and blocking behaviour are unchanged. The main loop (no agent_id and not
 a subagent transcript) is exempt, not unmeasured, so it exits 0 silently.
 
 Env: AGENT_CEILING_SOFT (default 250000), AGENT_CEILING_HARD (default 300000).
-On a model with a 200k context window the hard stop can never fire: export
-lower values, e.g. 150000 and 180000.
+On a model with a 200k context window neither default can fire: export lower
+values, e.g. 150000 and 180000.
 """
 import json, os, sys
 

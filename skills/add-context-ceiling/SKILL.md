@@ -94,8 +94,10 @@ Defaults: soft **250000**, hard **300000** tokens. Override with
 starts** — the hook inherits the CLI's environment, so a value set mid-session
 never reaches it. The hook cannot tell a reviewer from an implementer: set the
 thresholds high enough for the longest reviewer you dispatch, and bound
-reviewers by a turn budget instead. On a model with a 200k context window the
-hard stop can never fire: set both lower, e.g. 150000 and 180000.
+reviewers by a turn budget instead. On a model with a 200k context window neither
+default can fire: set both lower, e.g. 150000 and 180000 (tokens; for a main
+session's `context-size.py` the same limits are `--soft 150 --hard 180`, in
+thousands), and edit the numbers in the ceiling's `brief.md` to match.
 
 ## 4. Prove it fires
 

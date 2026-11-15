@@ -129,7 +129,7 @@ crashes, resume that same session — only it can message its agents. **An agent
 stalled on something that has not started** (a queued CI run): have it return
 with `CI: queued` and own that gate yourself.
 
-**Past your soft ceiling (200k, read with `context-size.py`).** Bring the ledger
+**Past your soft ceiling (300k, read with `context-size.py`).** Bring the ledger
 fully current, post one handover message and **start no new work** until it is
 answered: where the run is, what each in-flight agent waits on, open gates, the
 ledger's path, and the choice — a **fresh session** at a wave boundary with

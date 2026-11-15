@@ -47,7 +47,9 @@ python3 $S --json                            # totals for scripting/budget gates
 ```
 
 `--ctx-cap N` (default 200, in k-tokens) sets the threshold the `leaks` view
-prices against.
+prices against. The default sits below the `context-ceiling` agent ceiling
+(~250k), so it also counts turns an agent may legitimately spend between 200k
+and 250k; pass `--ctx-cap 250` to price only spend past the ceiling.
 
 ## Reading the output
 
@@ -101,7 +103,9 @@ A fresh agent starts with a sizeable fixed prefix (system prompt, tool
 definitions, project instructions), but a dispatch brief itself is small next to
 a context that has grown. Resuming is cheap while the context is small and the
 dominant cost driver once it is large; ~250k is a rule of thumb, not a measured
-threshold — tune it with `--ctx-cap` and the `leaks` view.
+threshold — tune it with `--ctx-cap` and the `leaks` view (`--ctx-cap 250`
+prices only spend past the agent ceiling; the default 200 also counts the turns
+between 200k and 250k).
 
 ## Budget gate
 

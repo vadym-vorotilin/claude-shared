@@ -351,7 +351,7 @@ stop and the stop sequence. The orchestrator's specifics:
 - **Stop conditions** add the orchestrator's: every remaining card, gate or wrap
   step needs the operator — a human gate, a release, a deferred-register
   ruling, a held amendment. The context ceiling is the orchestrator's soft one
-  (overlay, or 200k).
+  (overlay, or 300k).
 - **The stop** writes the ledger's RESUME PACKET and runs the project's handoff
   wrap (`/handoff wrap`, or its handoff doc); the ledger is pushed only if the
   overlay or the operator granted pushing.
