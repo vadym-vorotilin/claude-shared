@@ -76,8 +76,8 @@ and reviewing what it returns are already paid at the session's own tier.
 9. **Context is a budget, and the orchestrator's is not the fixer's** — the
    **`context-ceiling`** skill holds the rule, the instruments and the
    checkpoint note. Its numbers, as this run uses them:
-   - **Fixers and other long-running dispatched agents stop at ~150k, write a
-     checkpoint note, and return it** (hard stop ~200k), enforced by the hook
+   - **Fixers and other long-running dispatched agents stop at ~250k, write a
+     checkpoint note, and return it** (hard stop ~300k), enforced by the hook
      `/add-context-ceiling` installs; the orchestrator dispatches a
      continuation from that note.
    - **The orchestrator's ceiling is soft 200k / hard 500k**, read with

@@ -20,9 +20,13 @@ it reads as a control that is working.
 
 | Who | Ceiling | Instrument | Past it |
 |---|---|---|---|
-| A **dispatched agent** doing the work | soft ~150k, hard ~200k | `hooks/agent-ceiling.py`, a `PreToolUse` hook (install it with `/add-context-ceiling`) | writes a checkpoint note and returns it |
+| A **dispatched agent** doing the work | soft ~250k, hard ~300k | `hooks/agent-ceiling.py`, a `PreToolUse` hook (install it with `/add-context-ceiling`) | writes a checkpoint note and returns it |
 | The **main session**, coordinating | soft 200k, hard 500k by default | `tools/context-size.py`, read at every progress report | offers a handover at the next natural boundary; stops at the hard one |
 | A **reviewer** | none — a verdict does not split | a **turn budget** in its brief | reports what it could not cover |
+
+**On a 200k context window the 300k hard stop cannot fire.** If the agents run
+on a model with that window, set `AGENT_CEILING_SOFT` and `AGENT_CEILING_HARD`
+lower, e.g. 150000 and 180000, and `--soft` / `--hard` to match.
 
 ## What this assumes
 
@@ -52,7 +56,7 @@ Returning is not:
   the note.** This is the case the ceiling exists for.
 - **A bounded finish → finish, and say so in the note.** "Bounded" is evidence,
   not a feeling: the tests are already green, one named deliverable remains, no
-  decision is open. Hard stop at ~200k whatever the state.
+  decision is open. Hard stop at ~300k whatever the state.
 - **A job that outlasts the agent → launch it detached and return `running`**,
   with the log path, the done marker and the job's PID verified against
   `/proc/<pid>/exe` (Linux; use your platform's equivalent) — `$!` is often the
@@ -99,7 +103,7 @@ its size and its cache:
   agent id). It keeps its task context for a fraction of the price. Verify the
   worktree, branch and PR state yourself and hand those facts back in the
   message, with "recreate the worktree at a fresh path if it is gone".
-- **Past ~150k, or cold for more than a few minutes with a large context →
+- **Past ~250k, or cold for more than a few minutes with a large context →
   continue instead**: dispatch a fresh agent from its last checkpoint note, or
   failing that from your own record plus the facts you verified. Both paths pay
   one full cache write at that moment; only the resume keeps paying for the
@@ -131,7 +135,7 @@ write rate. Held to an agent's number it would hand over before doing anything
 substantial, and every handover costs a cold write plus a re-orientation, which
 is where details get lost. **A main session doing the heavy work itself**
 (reading code, running tests, re-deriving a diff) is in the agent's position:
-pass `--soft 150 --hard 200`.
+pass `--soft 250 --hard 300`.
 
 **Past the soft ceiling, do not stop — offer a handover at the next natural
 boundary** (a finished task, a merge, a decision point). Until the operator
@@ -164,7 +168,7 @@ and started redoing the work.
 ## Red flags
 
 - A ceiling in a brief with no hook installed and nothing saying so
-- A long-running agent past ~150k still going instead of returning its note
+- A long-running agent past ~250k still going instead of returning its note
 - Resuming a cold agent that is already over the ceiling — that is a
   continuation from its checkpoint note
 - A continuation briefed from a *summary* of the note
@@ -178,7 +182,7 @@ and started redoing the work.
 
 | Excuse | Reality |
 |---|---|
-| "It's nearly done, it can push past the ceiling" | "Nearly done" is the estimate most often wrong, so make it evidential: tests green, one named deliverable left, no open decision. That finishes (hard stop ~200k). Anything else writes the note and returns. |
+| "It's nearly done, it can push past the ceiling" | "Nearly done" is the estimate most often wrong, so make it evidential: tests green, one named deliverable left, no open decision. That finishes (hard stop ~300k). Anything else writes the note and returns. |
 | "A fresh agent is cleaner than resuming" | True above the ceiling. Below it a resume keeps the task context for a fraction of the price. |
 | "The main session is past its ceiling, hand over now" | Past the soft one you **offer** a handover at the next natural boundary, and the operator decides; you do not stop mid-task. |
 | "The agent ran to several times its ceiling but it finished, so note it" | The rule did not bind, which means every other agent under it is unmeasured too. Fix the instrument before the next dispatch. |

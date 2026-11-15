@@ -23,7 +23,9 @@ distinguishable from one that is quietly succeeding. stderr only; the exit
 code and blocking behaviour are unchanged. The main loop (no agent_id and not
 a subagent transcript) is exempt, not unmeasured, so it exits 0 silently.
 
-Env: AGENT_CEILING_SOFT (default 150000), AGENT_CEILING_HARD (default 200000).
+Env: AGENT_CEILING_SOFT (default 250000), AGENT_CEILING_HARD (default 300000).
+On a model with a 200k context window the hard stop can never fire: export
+lower values, e.g. 150000 and 180000.
 """
 import json, os, sys
 
@@ -33,8 +35,8 @@ def _threshold(name, default):
     except Exception:      # unset, or set to something that is not a number
         return default
 
-SOFT = _threshold("AGENT_CEILING_SOFT", 150_000)
-HARD = _threshold("AGENT_CEILING_HARD", 200_000)
+SOFT = _threshold("AGENT_CEILING_SOFT", 250_000)
+HARD = _threshold("AGENT_CEILING_HARD", 300_000)
 
 def _skipped(reason):
     """Breadcrumb for 'could not measure'. Never raises, never blocks."""

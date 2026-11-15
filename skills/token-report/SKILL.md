@@ -95,12 +95,12 @@ N turns pays roughly `N × C / 2` in cache reads. Halving an agent's peak
 context saves more than halving its turn count.
 
 So: **long-lived agents are the expensive failure mode, not chatty ones.** When
-an agent passes ~150k context, have it write a handoff note (files touched,
+an agent passes ~250k context, have it write a handoff note (files touched,
 decisions made, work remaining, branch/PR/SHA) and continue in a fresh agent.
 A fresh agent starts with a sizeable fixed prefix (system prompt, tool
 definitions, project instructions), but a dispatch brief itself is small next to
 a context that has grown. Resuming is cheap while the context is small and the
-dominant cost driver once it is large; ~150k is a rule of thumb, not a measured
+dominant cost driver once it is large; ~250k is a rule of thumb, not a measured
 threshold — tune it with `--ctx-cap` and the `leaks` view.
 
 ## Budget gate
