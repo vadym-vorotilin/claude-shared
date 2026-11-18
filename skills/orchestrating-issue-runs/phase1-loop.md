@@ -120,7 +120,7 @@ The merge spec names the card's worktree, for removal. On `SWEEP DOWN`, fix what
 
 **Rescue.** A dead agent under its ceiling: resume it by `SendMessage`, after
 verifying its worktree, branch and PR yourself and handing those facts back.
-Above ~150k, or cold with a large context: dispatch a continuation from its
+Above ~250k, or cold with a large context: dispatch a continuation from its
 checkpoint note **verbatim**, plus the standard brief. Copy every checkpoint
 note into the ledger on arrival and verify its STATE lines (worktree, branch,
 PR, SHA) yourself before dispatching from it; with no note, the verified facts
@@ -129,7 +129,7 @@ crashes, resume that same session — only it can message its agents. **An agent
 stalled on something that has not started** (a queued CI run): have it return
 with `CI: queued` and own that gate yourself.
 
-**Past your soft ceiling (200k, read with `context-size.py`).** Bring the ledger
+**Past your soft ceiling (300k, read with `context-size.py`).** Bring the ledger
 fully current, post one handover message and **start no new work** until it is
 answered: where the run is, what each in-flight agent waits on, open gates, the
 ledger's path, and the choice — a **fresh session** at a wave boundary with

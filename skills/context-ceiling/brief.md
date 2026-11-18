@@ -1,6 +1,6 @@
 **Context ceiling.** You cannot see your own context size; a hook may tell you
-when you pass it. When your context passes **~150k**, stop and write a
-checkpoint note — do not push on. Hard stop at **~200k**, whatever the state.
+when you pass it. When your context passes **~250k**, stop and write a
+checkpoint note — do not push on. Hard stop at **~300k**, whatever the state.
 - Write the note to `CHECKPOINT.md` in your worktree **and** return it with
   `STATUS: CHECKPOINT`. Never commit it: add `CHECKPOINT.md` to
   `$(git rev-parse --git-path info/exclude)` first (in a linked worktree that

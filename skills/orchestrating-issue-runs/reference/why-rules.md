@@ -76,11 +76,11 @@ and reviewing what it returns are already paid at the session's own tier.
 9. **Context is a budget, and the orchestrator's is not the fixer's** — the
    **`context-ceiling`** skill holds the rule, the instruments and the
    checkpoint note. Its numbers, as this run uses them:
-   - **Fixers and other long-running dispatched agents stop at ~150k, write a
-     checkpoint note, and return it** (hard stop ~200k), enforced by the hook
+   - **Fixers and other long-running dispatched agents stop at ~250k, write a
+     checkpoint note, and return it** (hard stop ~300k), enforced by the hook
      `/add-context-ceiling` installs; the orchestrator dispatches a
      continuation from that note.
-   - **The orchestrator's ceiling is soft 200k / hard 500k**, read with
+   - **The orchestrator's ceiling is soft 300k / hard 500k**, read with
      `context-size.py` **at each progress stamp** into the ledger. Past the soft
      one it does not stop — it **offers the operator a handover at the next
      natural boundary**: a merge, a wave end, a ruling.
@@ -144,11 +144,11 @@ fixer it cannot be handed off to cap that (below). Keep reviewers on the top
 standard tier: this is the last gate before merge, and the saving from
 downgrading it is small next to what it catches.
 
-**The orchestrator's ceiling is not the fixer's: soft 200k, hard 500k.** Why
+**The orchestrator's ceiling is not the fixer's: soft 300k, hard 500k.** Why
 the numbers differ, and how to read the orchestrator's, is in the
 `context-ceiling` skill ("The main session"). Read `context-size.py` at each
 progress stamp and write its `current` beside the stamp in the ledger; the run
-milestones alone ("second wave boundary") say nothing about which side of 200k
+milestones alone ("second wave boundary") say nothing about which side of 300k
 or 500k you are on.
 
 **The ledger is the orchestrator's own handover record.** When the instrument says

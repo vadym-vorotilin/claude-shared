@@ -5,7 +5,7 @@ description: Install the context-ceiling hook into a project so every subagent d
 
 # add-context-ceiling — install the ceiling hook into a project
 
-The `context-ceiling` skill asks long-running agents to stop at ~150k and write
+The `context-ceiling` skill asks long-running agents to stop at ~250k and write
 a checkpoint note. No agent can see its own context, so without this hook that
 is a brief line only. The hook (`context-ceiling/hooks/agent-ceiling.py`) is a
 `PreToolUse` hook: it reads the calling agent's transcript and, on the first
@@ -89,12 +89,16 @@ it; at the top level it is valid JSON the harness silently ignores.
 
 ## 3. Thresholds
 
-Defaults: soft **150000**, hard **200000** tokens. Override with
+Defaults: soft **250000**, hard **300000** tokens. Override with
 `AGENT_CEILING_SOFT` / `AGENT_CEILING_HARD`, **exported before the CLI
 starts** — the hook inherits the CLI's environment, so a value set mid-session
 never reaches it. The hook cannot tell a reviewer from an implementer: set the
 thresholds high enough for the longest reviewer you dispatch, and bound
-reviewers by a turn budget instead.
+reviewers by a turn budget instead. On a model with a 200k context window neither
+default can fire: set both lower, e.g. 150000 and 180000 (tokens; for a main
+session's `context-size.py` the same limits are `--soft 150 --hard 180`, in
+thousands), and change the numbers in each assembled brief after `cat`-ing the
+ceiling's `brief.md` into it, not in the shared file.
 
 ## 4. Prove it fires
 

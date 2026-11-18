@@ -53,3 +53,10 @@ teardown() { common_teardown; }
   [ "$status" -eq 2 ]
   assert_equal "$(jq -r .state <<<"$output")" past-hard
 }
+
+@test "the defaults are soft 300k and hard 500k" {
+  run python3 "$TOOL" --transcript "$T" --json
+  [ "$status" -eq 1 ]   # the fixture ends at 300k: past soft, under hard
+  assert_equal "$(jq -r .soft_k <<<"$output")" 300
+  assert_equal "$(jq -r .hard_k <<<"$output")" 500
+}

@@ -152,8 +152,8 @@ Phase 2  demo, walkthrough, milestone closed, register → operator ruling →
 8. **Report progress after every substantial completion** (phase1-loop.md →
    "Progress line").
 9. **Context is a budget** (the `context-ceiling` skill): dispatched agents stop
-   at ~150k (hard ~200k) and return a checkpoint note; the orchestrator's soft
-   200k / hard 500k is read with `$S/../context-ceiling/tools/context-size.py`;
+   at ~250k (hard ~300k) and return a checkpoint note; the orchestrator's soft
+   300k / hard 500k is read with `$S/../context-ceiling/tools/context-size.py`;
    reviewers get a turn budget, not a ceiling.
 10. **A threshold ships with the instrument that reads it**, or is restated as
     something the agent can see. An agent measured past twice its ceiling is an

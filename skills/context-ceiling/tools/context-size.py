@@ -3,7 +3,7 @@
 
 The harness reports no context size to the model, and the token-report skill's
 agent view is built from subagent rows, so the main loop has no instrument for
-its own soft / hard ceiling (defaults 200k / 500k). This reads the session transcript
+its own soft / hard ceiling (defaults 300k / 500k). This reads the session transcript
 JSONL and, for every assistant turn, sums the prompt the model was given:
 input_tokens + cache_read_input_tokens + cache_creation_input_tokens. That sum
 IS the context size for that turn.
@@ -14,7 +14,7 @@ Usage:
   context-size.py --session <uuid>     # by session id, under the cwd's project
   context-size.py --project-dir DIR    # another project's transcript directory
   context-size.py --json               # machine-readable
-  context-size.py --soft 200 --hard 500   # ceilings in k-tokens (defaults)
+  context-size.py --soft 300 --hard 500   # ceilings in k-tokens (defaults)
 
 Exit status: 0 under the soft ceiling, 1 past the soft, 2 past the hard — so a
 stamp line can branch on it. Read it at every progress report and record the
@@ -61,7 +61,7 @@ def measure(path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--transcript"); ap.add_argument("--session"); ap.add_argument("--project-dir")
-    ap.add_argument("--soft", type=int, default=200); ap.add_argument("--hard", type=int, default=500)
+    ap.add_argument("--soft", type=int, default=300); ap.add_argument("--hard", type=int, default=500)
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     pdir = a.project_dir or project_dir(os.getcwd())

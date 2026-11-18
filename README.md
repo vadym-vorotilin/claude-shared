@@ -460,7 +460,7 @@ of these are available in every project on the machine.
   subagent brief. `/orchestrating-issue-runs` depends on it, on
   `/context-ceiling`, on `/unattended-run` and on `/agency`.
 - **`/context-ceiling`** — bound how large a session's or a subagent's context
-  grows. Dispatched agents stop at ~150k and return a checkpoint note a fresh
+  grows. Dispatched agents stop at ~250k and return a checkpoint note a fresh
   agent continues from; the main session reads its own size with
   `tools/context-size.py` and offers a handover past its soft ceiling. Its
   `brief.md` is the block to paste into a long-running subagent's brief.
