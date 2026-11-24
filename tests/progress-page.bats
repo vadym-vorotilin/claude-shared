@@ -84,6 +84,9 @@ EOF
   assert_equal "$(jq -r .track.finished "$D/status.json")" 2026-05-29T16:30:00Z
   run python3 "$TOOL" build "$D"
   [ "$status" -eq 0 ]
+  assert_equal "$(jq -r '.[0].finished' "$(ls "$D"/out/track-*.json)")" 2026-05-29T16:30:00Z
+  run python3 "$TOOL" finish "$D" --at 2026-05-29T18:30:00+02:00 --undo
+  [ "$status" -ne 0 ]
   run python3 "$TOOL" finish "$D" --undo
   assert_equal "$(jq -r '.track.finished // "-"' "$D/status.json")" -
   python3 - "$D/status.json" <<'EOF'
@@ -95,6 +98,23 @@ EOF
   run python3 "$TOOL" build "$D"
   [ "$status" -ne 0 ]
   assert_contains "$output" "track.finished"
+  python3 - "$D/status.json" <<'EOF'
+import json, sys
+p = sys.argv[1]; s = json.load(open(p))
+s["track"]["finished"] = "2026-13-45T25:61:00Z"
+json.dump(s, open(p, "w"))
+EOF
+  run python3 "$TOOL" build "$D"
+  [ "$status" -ne 0 ]
+  assert_contains "$output" "track.finished"
+}
+
+@test "plain finish stamps the current time and warns about items left open" {
+  real
+  run python3 "$TOOL" finish "$D"
+  [ "$status" -eq 0 ]
+  [[ "$(jq -r .track.finished "$D/status.json")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$ ]]
+  assert_contains "$output" "neither done nor cut"
 }
 
 @test "batch refuses a dataset with no recorded version unless --first" {

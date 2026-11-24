@@ -91,6 +91,17 @@ def save(p, obj):
     p.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n")
 
 
+def real_stamp(v):
+    """A UTC stamp in track.py's shape that is also a real time (no month 13)."""
+    if not STAMP.match(str(v)):
+        return False
+    try:
+        datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
+
+
 def utc(iso):
     try:
         t = datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))
@@ -158,7 +169,7 @@ def check(s, d):
             errs.append("track.ref_url: an https:// link template with {n}, or an object of ref prefix -> "
                         "template (the page shows only https links)")
     fin = s["track"].get("finished")
-    if fin is not None and not STAMP.match(str(fin)):
+    if fin is not None and not real_stamp(fin):
         errs.append("track.finished: a UTC stamp from track.py finish")
     dl = s["track"].get("deadline")
     if dl and not is_day(dl):
@@ -246,6 +257,10 @@ def cmd_finish(a):
             s["track"].pop("finished", None)
             return "track open again: the page follows the clock"
         s["track"]["finished"] = utc(a.at) if a.at else now()
+        left = [i.get("id", "?") for i in s.get("items", []) if i.get("state") not in ("done", "cut")]
+        if left:
+            print(f"track.py: warning: {len(left)} item(s) neither done nor cut, frozen as they are: "
+                  + ", ".join(left), file=sys.stderr)
         return f"track finished at {s['track']['finished']}: the page no longer changes with time"
     edit_status(a, fn)
 

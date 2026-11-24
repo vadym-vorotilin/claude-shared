@@ -196,5 +196,6 @@ Plain `track.py page` would put the stock template back over their edits.
 - When the track ends, also run `track.py finish DIR` (with `--at` read from a
   record when it ended earlier), then build and send the track dataset. The
   page then freezes at that moment: the roadmap drops its "now" line, and
-  nothing on it changes with the clock. `track.py finish DIR --undo` reopens
-  the track.
+  nothing on it changes with the clock. Settle every item first (done or
+  cut): `finish` warns about the rest, which stay frozen as they are.
+  `track.py finish DIR --undo` reopens the track.
