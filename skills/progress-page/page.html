@@ -201,10 +201,11 @@
       return !mine.length || mine.some((i) => i.state !== 'done' && i.state !== 'cut');
     };
     const ordered = g.data.slice().sort((a, b) => a.order - b.order).filter(open);
-    const next = ordered.find((r) => window.ppDated(r) && window.ppParse(r.target) >= today)
-      || ordered.find((r) => !window.ppDated(r));
+    // A dated phase still to come first, then one past due, then one with no dates.
+    const ahead = ordered.find((r) => window.ppDated(r) && window.ppParse(r.target) >= today);
     const late = ordered.find((r) => window.ppDated(r));
-    if (!next && late) { el.textContent = `Overdue phase: ${late.name}, was due ${fmtDay(window.ppParse(late.target))}.`; return; }
+    if (!ahead && late) { el.textContent = `Overdue phase: ${late.name}, was due ${fmtDay(window.ppParse(late.target))}.`; return; }
+    const next = ahead || ordered.find((r) => !window.ppDated(r));
     if (!next) { el.textContent = 'No phase left.'; return; }
     if (!window.ppDated(next)) { el.textContent = `Next phase: ${next.name}, not scheduled.`; return; }
     const label = window.ppParse(next.start) <= today ? 'Current phase' : 'Next phase';
