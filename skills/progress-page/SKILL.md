@@ -62,7 +62,7 @@ permission prompt or refusal.
    | Section | Dataset | Shows |
    |---|---|---|
    | Summary | track, items, phases, log, visuals | title; goal, done / total, active, next phase, days to `deadline` in one sentence; last change (the newest log, item or visual stamp) |
-   | Roadmap | phases | a bar per phase, start → target, filled by its share of items done; today's line |
+   | Roadmap | phases | a bar per phase from its start through its target day; a finished phase's bar ends when its last item was done. Each bar is filled by its share of items done. A line marks the current time until the track is finished. A phase with no dates is listed as not scheduled, with no bar |
    | In progress now · Recent activity | items · log | side by side: `blocked`, `review` and `building` items with a pill and stage; the newest 12 events |
    | Results | visuals | thumbnails with captions; a click opens a full-page viewer: ←/→ step through them, Esc or a click closes it |
    | All work, by phase | items | every item with its state pill, stage and linked ref, `cut` included |
@@ -106,6 +106,9 @@ the answer must be yes.
    drift by the time-zone offset). Starting mid-track, past events and done
    items (`log`, `item`, `add-item`) take `--at` with a time read from a record (`git log -1
    --format=%cI <sha>`, `gh pr view N --json mergedAt`), never from memory.
+   A phase with no dates yet leaves out both `start` and `target` and shows as
+   not scheduled; never give it a placeholder date, which draws a bar of work
+   nobody planned.
 2. New images: make a copy of each, at most 600 KB, sharp enough to read when
    enlarged: a plot as a PNG at its own resolution (draw it at 150-200 dpi), a
    picture or map as a JPEG at most 1,600 px on its longest side (`magick
@@ -190,3 +193,9 @@ Plain `track.py page` would put the stock template back over their edits.
 - `cut` items stay visible; deleting them hides a decision.
 - A page that stops updating misleads. If the track pauses (`/pause`) or ends,
   log it ("Paused until Monday", "Track done") so the page says so.
+- When the track ends, also run `track.py finish DIR` (with `--at` read from a
+  record when it ended earlier), then build and send the track dataset. The
+  page then freezes at that moment: the roadmap drops its "now" line, and
+  nothing on it changes with the clock. Settle every item first (done or
+  cut): `finish` warns about the rest, which stay frozen as they are.
+  `track.py finish DIR --undo` reopens the track.

@@ -61,18 +61,18 @@
 <div class="pp">
   <header class="pp-head" id="summary">
     <h1 class="pp-title" data-draw="title" data-source="track" data-field="title" data-row="0">—</h1>
-    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. <span data-draw="nextphase" data-source="phases">Next phase: —.</span><span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
-    <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log items visuals">—</time>. Claude updates this page as work lands.</p>
+    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. <span data-draw="nextphase" data-source="phases items track">—</span><span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
+    <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log items visuals track">—</time>. <span class="pp-live">Claude updates this page as work lands.</span><span class="pp-frozen" hidden>The track is finished; this page no longer changes.</span><span data-draw="updates" data-source="track"></span></p>
   </header>
   <section class="pp-card" id="roadmap">
     <h2 class="pp-h2">Roadmap</h2>
-    <p class="pp-note">Each bar runs from a phase's start to its target date and fills as its items are done. The dashed line is today. Point at a bar for what it holds.</p>
-    <div class="pp-chart" data-draw="roadmap" data-source="phases phase_progress"></div>
+    <p class="pp-note">Each bar runs from a phase's start through its target day, or until its last item was done, and fills as its items are done. A phase with no dates is listed as not scheduled. The dashed line is the current time, until the track is finished. Point at a bar for what it holds.</p>
+    <div class="pp-chart" data-draw="roadmap" data-source="phases phase_progress items track"></div>
   </section>
   <div class="pp-two">
     <section class="pp-card" id="running">
       <h2 class="pp-h2">In progress now</h2>
-      <ul class="pp-running" data-draw="running" data-source="items"></ul>
+      <ul class="pp-running" data-draw="running" data-source="items track"></ul>
     </section>
     <section class="pp-card" id="activity">
       <h2 class="pp-h2">Recent activity</h2>
@@ -95,7 +95,9 @@
   </section>
 </div>
 <script>
-  window.ppParse = d3.utcParse('%Y-%m-%d');
+  const ppParseDay = d3.utcParse('%Y-%m-%d');
+  window.ppParse = (v) => (typeof v === 'string' ? ppParseDay(v) : null);
+  window.ppDated = (r) => window.ppParse(r.start) != null && window.ppParse(r.target) != null;
   window.ppTrack = () => {
     const t = dash.data('track');
     return t.status === 'ok' && t.data && t.data[0] ? t.data[0] : {};
@@ -115,9 +117,16 @@
     const url = t.replace('{n}', encodeURIComponent(n));
     return /^https:\/\//.test(url) ? url : null;
   };
+  // A finished track (track.finished, a UTC stamp) is frozen at that moment:
+  // no "now" line, no "ago", nothing that changes with the clock.
+  window.ppFinished = () => {
+    const t = Date.parse(window.ppTrack().finished);
+    return Number.isFinite(t) ? new Date(t) : null;
+  };
+  window.ppNow = () => window.ppFinished() || new Date();
   window.ppAgo = (iso) => {
     const t = Date.parse(iso);
-    if (!Number.isFinite(t)) return '';
+    if (!Number.isFinite(t) || window.ppFinished()) return '';
     const min = Math.round((Date.now() - t) / 60000);
     if (min < 1) return 'just now';
     if (min < 60) return `${min} min ago`;
@@ -168,7 +177,9 @@
   dash.draw('deadline', (el) => {
     const d = window.ppTrack().deadline;
     const day = d ? window.ppParse(d) : null;
-    if (!day) { el.textContent = ''; return; }
+    if (!day) { const f = window.ppFinished(); el.textContent = f ? ` Finished ${fmtDay(f)}.` : ''; return; }
+    const fin = window.ppFinished();
+    if (fin) { el.textContent = ` Deadline ${fmtDay(day)}; finished ${fmtDay(fin)}.`; return; }
     const left = d3.utcDay.count(d3.utcDay.floor(new Date()), day);
     const when = left > 0 ? `${left} day${left === 1 ? '' : 's'} from today`
       : left === 0 ? 'today' : `passed ${-left} day${left === -1 ? '' : 's'} ago`;
@@ -181,12 +192,31 @@
   dash.draw('nextphase', (el) => {
     const g = dash.data('phases');
     if (g.status !== 'ok') { el.textContent = 'Next phase: —.'; return; }
-    const today = d3.utcDay.floor(new Date());
-    const next = g.data.slice().sort((a, b) => a.order - b.order)
-      .find((r) => window.ppParse(r.target) >= today);
+    const today = d3.utcDay.floor(window.ppNow());
+    // A phase is left to do unless it has items and every one is done or cut.
+    const it = dash.data('items');
+    const items = it.status === 'ok' && Array.isArray(it.data) ? it.data : [];
+    const open = (r) => {
+      const mine = items.filter((i) => i.phase === r.id);
+      return !mine.length || mine.some((i) => i.state !== 'done' && i.state !== 'cut');
+    };
+    const ordered = g.data.slice().sort((a, b) => a.order - b.order).filter(open);
+    // A dated phase still to come first, then one past due, then one with no dates.
+    const ahead = ordered.find((r) => window.ppDated(r) && window.ppParse(r.target) >= today);
+    const late = ordered.find((r) => window.ppDated(r));
+    if (!ahead && late) { el.textContent = `Overdue phase: ${late.name}, was due ${fmtDay(window.ppParse(late.target))}.`; return; }
+    const next = ahead || ordered.find((r) => !window.ppDated(r));
     if (!next) { el.textContent = 'No phase left.'; return; }
+    if (!window.ppDated(next)) { el.textContent = `Next phase: ${next.name}, not scheduled.`; return; }
     const label = window.ppParse(next.start) <= today ? 'Current phase' : 'Next phase';
     el.textContent = `${label}: ${next.name}, due ${fmtDay(window.ppParse(next.target))}.`;
+  });
+
+  // The two sentences are static HTML; this draw only shows the one that applies.
+  dash.draw('updates', (el) => {
+    const fin = !!window.ppFinished();
+    document.querySelectorAll('.pp-live').forEach((n) => { n.hidden = fin; });
+    document.querySelectorAll('.pp-frozen').forEach((n) => { n.hidden = !fin; });
   });
 
   dash.draw('stamp', (el) => {
@@ -196,7 +226,8 @@
     });
     if (!stamps.length) { el.textContent = '—'; return; }
     const last = stamps.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a));
-    el.textContent = `${d3.timeFormat('%a %-d %b, %H:%M')(new Date(last))} (${window.ppAgo(last)})`;
+    const ago = window.ppAgo(last);
+    el.textContent = `${d3.timeFormat('%a %-d %b, %H:%M')(new Date(last))}${ago ? ` (${ago})` : ''}`;
     el.setAttribute('datetime', last);
   });
 
@@ -215,14 +246,27 @@
     const W = Math.max(280, el.clientWidth);
     const rowH = 46, top = 26, bottom = 8;
     const H = top + rows.length * rowH + bottom;
-    const today = d3.utcDay.floor(new Date());
-    const lo = d3.min([...rows.map((r) => window.ppParse(r.start)), today]);
-    const hi = d3.max([...rows.map((r) => window.ppParse(r.target)), today]);
+    const now = window.ppNow();
+    const live = !window.ppFinished();
+    const today = d3.utcDay.floor(now);
+    const dated = rows.filter(window.ppDated);
+    const lo = d3.min([...dated.map((r) => window.ppParse(r.start)), today]);
+    // A finished phase ends when its last item was done, so its bar shows the real dates;
+    // on a finished track nothing ends after the moment it was finished.
+    const it = dash.data('items');
+    const finished = new Map();
+    for (const r of dated) {
+      const pr = prog.get(r.id);
+      if (!pr || !pr.total || pr.done !== pr.total || it.status !== 'ok') continue;
+      const t = d3.max(it.data.filter((i) => i.phase === r.id && i.state === 'done'), (i) => Date.parse(i.updated));
+      if (Number.isFinite(t)) finished.set(r.id, new Date(live ? t : Math.min(t, +now)));
+    }
+    const hi = d3.max([...dated.map((r) => window.ppParse(r.target)), ...finished.values(), today, now]);
     const x = d3.scaleUtc().domain([d3.utcDay.offset(lo, -1), d3.utcDay.offset(hi, 2)]).range([4, W - 4]);
     const svg = d3.select(el).append('svg')
       .attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`)
       .attr('role', 'img')
-      .attr('aria-label', 'Roadmap: each phase from start to target, filled by the share of its items done, with a line at today.');
+      .attr('aria-label', 'Roadmap: each phase from start to target, filled by the share of its items done, with a line at the current time.');
     const days = d3.utcDay.count(lo, hi);
     const ticks = days > 120 ? d3.utcMonth.every(1) : (W < 520 || days > 42) ? d3.utcMonday.every(2) : d3.utcMonday.every(1);
     svg.append('g').attr('transform', `translate(0,${top - 6})`)
@@ -233,39 +277,52 @@
     const rowG = svg.selectAll('g.row').data(rows).join('g')
       .attr('class', 'row').attr('transform', (d, i) => `translate(0,${top + i * rowH})`);
     const minW = 6;
-    const xs = (d) => x(window.ppParse(d.start));
-    const xe = (d) => Math.max(xs(d) + minW, x(d3.utcDay.offset(window.ppParse(d.target), 1)));
-    rowG.append('text')
-      .attr('x', (d) => Math.min(xs(d), W - 180)).attr('y', 14)
+    const xs = (d) => (window.ppDated(d) ? x(window.ppParse(d.start)) : x(now));
+    const end = (d) => finished.get(d.id) || d3.utcDay.offset(window.ppParse(d.target), 1);
+    const xe = (d) => Math.max(xs(d) + minW, x(end(d)));
+    const labels = rowG.append('text')
+      .attr('x', (d) => (window.ppDated(d) ? xs(d) : xs(d) + 6)).attr('y', 14)
       .style('fill', 'var(--color-fg)').style('font-size', 'var(--cds-font-size-caption)')
       .style('font-weight', 'var(--cds-font-weight-medium)')
       .text((d) => {
         const pr = prog.get(d.id);
-        return pr && pr.total ? `${d.name} · ${pr.done}/${pr.total}` : d.name;
+        const base = pr && pr.total ? `${d.name} · ${pr.done}/${pr.total}` : d.name;
+        return window.ppDated(d) ? base : `${base} · not scheduled`;
       });
-    rowG.append('rect').attr('class', 'track')
+    // Keep every label inside the chart: shift it left by however much it overflows.
+    labels.each(function () {
+      const len = this.getComputedTextLength ? this.getComputedTextLength() : 0;
+      const x0 = +this.getAttribute('x');
+      if (len && x0 + len > W - 4) this.setAttribute('x', Math.max(4, W - 4 - len));
+    });
+    const bars = rowG.filter(window.ppDated);
+    bars.append('rect').attr('class', 'track')
       .attr('x', xs).attr('y', 20).attr('height', 14).attr('rx', 3)
       .attr('width', (d) => xe(d) - xs(d))
       .style('fill', 'var(--color-bg)').style('stroke', 'var(--color-border-line)');
-    rowG.append('rect').attr('class', 'fill')
+    bars.append('rect').attr('class', 'fill')
       .attr('x', xs).attr('y', 20).attr('height', 14).attr('rx', 3)
       .attr('width', (d) => { const pr = prog.get(d.id); return (xe(d) - xs(d)) * ((pr ? pr.pct : 0) / 100); })
       .style('fill', 'var(--color-ok)');
-    rowG.filter((d) => window.ppParse(d.start) <= today && today <= window.ppParse(d.target))
+    bars.filter((d) => !finished.has(d.id) && window.ppParse(d.start) <= today && today <= window.ppParse(d.target))
       .select('rect.track').style('stroke', dash.colors[0]).style('stroke-width', 2);
 
-    const tx = x(today);
-    svg.append('line').attr('x1', tx).attr('x2', tx).attr('y1', top - 6).attr('y2', H - bottom)
+    const tx = x(now);
+    if (live) svg.insert('line', 'g.row').attr('x1', tx).attr('x2', tx).attr('y1', top - 6).attr('y2', H - bottom)
       .style('stroke', 'var(--cds-chart-reference)').style('stroke-width', 1.5).style('stroke-dasharray', '3 3');
-    svg.append('text').attr('x', Math.min(tx + 4, W - 40)).attr('y', H - 1)
-      .style('fill', 'var(--cds-text-secondary)').style('font-size', 'var(--cds-font-size-caption)').text('today');
+    if (live) svg.append('text').attr('x', Math.min(tx + 4, W - 40)).attr('y', H - 1)
+      .style('fill', 'var(--cds-text-secondary)').style('font-size', 'var(--cds-font-size-caption)').text('now');
 
     const show = (ev, d) => {
       const pr = prog.get(d.id) || {done: 0, total: 0};
       tip.attr('hidden', null).selectAll('*').remove();
       tip.append('strong').text(d.name);
       if (d.contents) tip.append('div').text(d.contents);
-      tip.append('span').text(`${d3.utcFormat('%-d %b')(window.ppParse(d.start))} to ${d3.utcFormat('%-d %b')(window.ppParse(d.target))} · ${pr.done} of ${pr.total} items done`);
+      const when = window.ppDated(d)
+        ? `${d3.utcFormat('%-d %b')(window.ppParse(d.start))} to ${d3.utcFormat('%-d %b')(window.ppParse(d.target))}`
+        : 'Not scheduled';
+      const done = finished.get(d.id);
+      tip.append('span').text(`${when}${done ? `, done ${d3.utcFormat('%-d %b')(done)}` : ''} · ${pr.done} of ${pr.total} items done`);
       const [mx, my] = d3.pointer(ev, el);
       const tw = 280;
       tip.style('left', `${Math.max(0, Math.min(mx + 12, el.clientWidth - tw))}px`).style('top', `${my + 14}px`);
@@ -414,7 +471,7 @@
       if (!mine.length) continue;
       const hr = document.createElement('tr'); hr.className = 'pp-phaserow';
       const hc = document.createElement('td'); hc.colSpan = 4;
-      hc.textContent = `${ph.name} · due ${fmtDay(window.ppParse(ph.target))}`;
+      hc.textContent = window.ppDated(ph) ? `${ph.name} · due ${fmtDay(window.ppParse(ph.target))}` : `${ph.name} · not scheduled`;
       hr.append(hc); el.append(hr);
       for (const r of mine) {
         const tr = document.createElement('tr'); tr.dataset.key = encodeURIComponent(r.id);

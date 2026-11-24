@@ -20,6 +20,8 @@ version is ever typed by hand.
   track.py record DIR --version-only NAME=VERSION...  store a version you read; drops any pending batch
   track.py resolve DIR NAME (--version V --url U | --missing)   settle a pending write whose result was
                                           lost, from what ArtifactData get shows for NAME
+  track.py finish DIR [--at ISO | --undo]  mark the track finished (the page freezes at that time),
+                                          or open it again
   track.py show   DIR                     print the page URL, versions and pending uploads
   track.py page   DIR (--version V | --new) [--file F]   print the pinned write that installs the page
                                           (F: an edited copy; default this skill's page.html)
@@ -89,6 +91,17 @@ def save(p, obj):
     p.write_text(json.dumps(obj, ensure_ascii=False, indent=1) + "\n")
 
 
+def real_stamp(v):
+    """A UTC stamp in track.py's shape that is also a real time (no month 13)."""
+    if not STAMP.match(str(v)):
+        return False
+    try:
+        datetime.datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
+
+
 def utc(iso):
     try:
         t = datetime.datetime.fromisoformat(iso.replace("Z", "+00:00"))
@@ -155,6 +168,9 @@ def check(s, d):
         if bad:
             errs.append("track.ref_url: an https:// link template with {n}, or an object of ref prefix -> "
                         "template (the page shows only https links)")
+    fin = s["track"].get("finished")
+    if fin is not None and not real_stamp(fin):
+        errs.append("track.finished: a UTC stamp from track.py finish")
     dl = s["track"].get("deadline")
     if dl and not is_day(dl):
         errs.append(f"track.deadline {dl!r}: a date as YYYY-MM-DD")
@@ -164,9 +180,12 @@ def check(s, d):
             errs.append(f"{k}: id {dup!r} appears more than once")
     phase_ids = {p.get("id") for p in s["phases"]}
     for p in s["phases"]:
-        for f in ("id", "name", "start", "target"):
+        for f in ("id", "name"):
             if not p.get(f):
                 errs.append(f"phase {p.get('id', '?')}: missing {f}")
+        if bool(p.get("start")) != bool(p.get("target")):
+            errs.append(f"phase {p.get('id', '?')}: give both start and target, or neither "
+                        "(a phase with neither is shown as not scheduled)")
         for f in ("start", "target"):
             if p.get(f) and not is_day(p[f]):
                 errs.append(f"phase {p.get('id', '?')}: {f} {p[f]!r} must be a date as YYYY-MM-DD")
@@ -230,6 +249,20 @@ def edit_status(a, fn):
     msg = fn(s)
     save(sp, s)
     print(msg)
+
+
+def cmd_finish(a):
+    def fn(s):
+        if a.undo:
+            s["track"].pop("finished", None)
+            return "track open again: the page follows the clock"
+        s["track"]["finished"] = utc(a.at) if a.at else now()
+        left = [i.get("id", "?") for i in s.get("items", []) if i.get("state") not in ("done", "cut")]
+        if left:
+            print(f"track.py: warning: {len(left)} item(s) neither done nor cut, frozen as they are: "
+                  + ", ".join(left), file=sys.stderr)
+        return f"track finished at {s['track']['finished']}: the page no longer changes with time"
+    edit_status(a, fn)
 
 
 def cmd_log(a):
@@ -503,6 +536,9 @@ def main():
     p = sub.add_parser("log"); p.add_argument("dir"); p.add_argument("text"); p.add_argument("--ref")
     p.add_argument("--at")
     p.set_defaults(f=cmd_log)
+    p = sub.add_parser("finish"); p.add_argument("dir")
+    g = p.add_mutually_exclusive_group(); g.add_argument("--at"); g.add_argument("--undo", action="store_true")
+    p.set_defaults(f=cmd_finish)
     p = sub.add_parser("item"); p.add_argument("dir"); p.add_argument("id"); p.add_argument("state")
     p.add_argument("--stage"); p.add_argument("--at"); p.set_defaults(f=cmd_item)
     p = sub.add_parser("add-item")
