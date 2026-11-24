@@ -87,6 +87,8 @@ EOF
   assert_equal "$(jq -r '.[0].finished' "$(ls "$D"/out/track-*.json)")" 2026-05-29T16:30:00Z
   run python3 "$TOOL" finish "$D" --at 2026-05-29T18:30:00+02:00 --undo
   [ "$status" -ne 0 ]
+  assert_contains "$output" "not allowed with"
+  assert_equal "$(jq -r .track.finished "$D/status.json")" 2026-05-29T16:30:00Z
   run python3 "$TOOL" finish "$D" --undo
   assert_equal "$(jq -r '.track.finished // "-"' "$D/status.json")" -
   python3 - "$D/status.json" <<'EOF'

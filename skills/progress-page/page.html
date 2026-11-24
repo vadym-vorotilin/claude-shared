@@ -61,7 +61,7 @@
 <div class="pp">
   <header class="pp-head" id="summary">
     <h1 class="pp-title" data-draw="title" data-source="track" data-field="title" data-row="0">—</h1>
-    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. <span data-draw="nextphase" data-source="phases phase_progress track">Next phase: —.</span><span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
+    <p class="pp-lede"><span data-draw="goal" data-source="track" data-field="goal" data-row="0"></span> <b data-draw="overall-done" data-source="overall" data-field="done" data-row="0">—</b> of <b data-draw="overall-total" data-source="overall" data-field="total" data-row="0">—</b> planned items are done, and <b data-draw="overall-active" data-source="overall" data-field="active" data-row="0">—</b> are being built or reviewed right now. <span data-draw="nextphase" data-source="phases items track">—</span><span data-draw="deadline" data-source="track" data-field="deadline" data-row="0"></span></p>
     <p class="pp-stamp">Last change: <time data-draw="stamp" data-source="log items visuals track">—</time>. <span class="pp-live">Claude updates this page as work lands.</span><span class="pp-frozen" hidden>The track is finished; this page no longer changes.</span><span data-draw="updates" data-source="track"></span></p>
   </header>
   <section class="pp-card" id="roadmap">
@@ -193,12 +193,18 @@
     const g = dash.data('phases');
     if (g.status !== 'ok') { el.textContent = 'Next phase: —.'; return; }
     const today = d3.utcDay.floor(window.ppNow());
-    const pp = dash.data('phase_progress');
-    const prog = new Map(pp.status === 'ok' && Array.isArray(pp.data) ? pp.data.map((r) => [r.phase, r]) : []);
-    const open = (r) => { const p = prog.get(r.id); return !p || !p.total || p.done < p.total; };
+    // A phase is left to do unless it has items and every one is done or cut.
+    const it = dash.data('items');
+    const items = it.status === 'ok' && Array.isArray(it.data) ? it.data : [];
+    const open = (r) => {
+      const mine = items.filter((i) => i.phase === r.id);
+      return !mine.length || mine.some((i) => i.state !== 'done' && i.state !== 'cut');
+    };
     const ordered = g.data.slice().sort((a, b) => a.order - b.order).filter(open);
     const next = ordered.find((r) => window.ppDated(r) && window.ppParse(r.target) >= today)
       || ordered.find((r) => !window.ppDated(r));
+    const late = ordered.find((r) => window.ppDated(r));
+    if (!next && late) { el.textContent = `Overdue phase: ${late.name}, was due ${fmtDay(window.ppParse(late.target))}.`; return; }
     if (!next) { el.textContent = 'No phase left.'; return; }
     if (!window.ppDated(next)) { el.textContent = `Next phase: ${next.name}, not scheduled.`; return; }
     const label = window.ppParse(next.start) <= today ? 'Current phase' : 'Next phase';
@@ -208,9 +214,8 @@
   // The two sentences are static HTML; this draw only shows the one that applies.
   dash.draw('updates', (el) => {
     const fin = !!window.ppFinished();
-    const p = el.parentElement;
-    p.querySelector('.pp-live').hidden = fin;
-    p.querySelector('.pp-frozen').hidden = !fin;
+    document.querySelectorAll('.pp-live').forEach((n) => { n.hidden = fin; });
+    document.querySelectorAll('.pp-frozen').forEach((n) => { n.hidden = !fin; });
   });
 
   dash.draw('stamp', (el) => {
