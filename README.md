@@ -266,8 +266,10 @@ file created exclusively, so a planted link is never written through.
 
 agy, the Antigravity CLI, runs a custom status line the same way Claude Code
 does, from a `statusLine` command in `~/.gemini/antigravity-cli/settings.json`,
-so the same line draws there too. `claude/agy-statusline.sh` translates agy's
-JSON into the shape `statusline-command.sh` reads and hands it over:
+so the same line draws there too. `agy/agy-statusline.sh` translates agy's
+JSON into the shape `statusline-command.sh` reads and hands it over. The agy
+scripts live in `agy/` in this repo but install into `~/.claude/`, beside the
+status line they draw with:
 
 - **Effort** comes from `model.effort`; a model name that ends in the same
   effort, such as `(Medium)`, loses that ending.
@@ -280,7 +282,7 @@ JSON into the shape `statusline-command.sh` reads and hands it over:
   Claude's quota for tools that read it outside a session.
 - **The cache clock becomes a cache reading**, `cache: 96.40%`: the share of
   the last model call's input that Gemini read from cache. There is no
-  countdown: Gemini's automatic caching has no published lifetime. `claude/agy-cache.py` (needs `python3`)
+  countdown: Gemini's automatic caching has no published lifetime. `agy/agy-cache.py` (needs `python3`)
   reads it from agy's database for the conversation,
   `~/.gemini/antigravity-cli/conversations/<id>.db`. That format is
   undocumented and was worked out by decoding real conversations, so an agy
@@ -636,8 +638,8 @@ eligible issue). Commit the written file in the target repo.
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
 | `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
-| `claude/agy-cache.py` | `~/.claude/agy-cache.py` | Reads the cache share of an agy conversation's last model call, for the agy status line |
-| `claude/agy-statusline.sh` | `~/.claude/agy-statusline.sh`, plus `statusLine` in agy's `settings.json` when agy is installed | The same status line in agy (the Antigravity CLI): translates agy's JSON and draws it with `statusline-command.sh`, percentages to two decimals |
+| `agy/agy-cache.py` | `~/.claude/agy-cache.py` | Reads the cache share of an agy conversation's last model call, for the agy status line |
+| `agy/agy-statusline.sh` | `~/.claude/agy-statusline.sh`, plus `statusLine` in agy's `settings.json` when agy is installed | The same status line in agy (the Antigravity CLI): translates agy's JSON and draws it with `statusline-command.sh`, percentages to two decimals |
 | `claude/kill-guard-hook.sh` | `~/.claude/kill-guard-hook.sh`, plus a PreToolUse entry in `settings.json` | Blocks a Bash command that would signal every process you own or end the login session (`kill -9 -1`, `pkill -u`, `loginctl terminate-user`, …). A tripwire on the command line only; see `pidjail` |
 | `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace and session, so no signal it sends (not even `kill -- -1` or `kill 0`) reaches anything outside it. Refuses, rather than run it unjailed, where namespaces are unavailable. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |

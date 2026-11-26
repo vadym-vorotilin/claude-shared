@@ -25,6 +25,14 @@
 # Percentages print with 2 decimals, and the quota reading is kept out of
 # Claude's rate-limits.json, which is Claude's quota, not Gemini's.
 here=$(dirname "${BASH_SOURCE[0]}")
+# Installed, statusline-command.sh sits beside this script in ~/.claude; in
+# the repo, this script is in agy/ and the status line in claude/.
+statusline="$here/statusline-command.sh"
+# The fallback is taken only inside the repo (sync.sh one level up), so an
+# installed copy never runs some unrelated ../claude/ script.
+if [ ! -f "$statusline" ] && [ -f "$here/../sync.sh" ]; then
+  statusline="$here/../claude/statusline-command.sh"
+fi
 input=$(cat)
 now=${STATUSLINE_NOW:-$(date +%s)}
 
@@ -73,4 +81,4 @@ translated=$(printf '%s' "$input" | jq -c --argjson now "$now" \
 [ -n "$translated" ] || translated='{}'
 
 printf '%s' "$translated" \
-  | STATUSLINE_PCT_DECIMALS=2 STATUSLINE_NO_RATE_FILE=1 bash "$here/statusline-command.sh"
+  | STATUSLINE_PCT_DECIMALS=2 STATUSLINE_NO_RATE_FILE=1 bash "$statusline"

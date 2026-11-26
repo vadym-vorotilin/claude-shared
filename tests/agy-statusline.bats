@@ -28,7 +28,7 @@ agy_json() {
   }' | jq -c "${1:-.}"
 }
 
-agy_line() { agy_json "${1:-.}" | bash "$REPO/claude/agy-statusline.sh" | sed $'s/\033\\[[0-9;]*m//g'; }
+agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\033\\[[0-9;]*m//g'; }
 
 @test "shows the Gemini quota windows as used percent with 2 decimals and countdowns" {
   out="$(agy_line)"
@@ -77,7 +77,7 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/claude/agy-statusline.sh" | sed $'
 }
 
 @test "input that is not JSON still prints a line and exits 0" {
-  run bash -c "printf 'not json' | bash '$REPO/claude/agy-statusline.sh'"
+  run bash -c "printf 'not json' | bash '$REPO/agy/agy-statusline.sh'"
   assert_equal "$status" 0
   assert_contains "$output" "⠀"
 }

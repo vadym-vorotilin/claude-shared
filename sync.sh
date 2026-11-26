@@ -12,8 +12,9 @@
 #   - claude/statusline-progress-hook.sh
 #                                    -> ~/.claude/statusline-progress-hook.sh,
 #                                      and a PostToolUse entry in settings.json
-#   - claude/agy-cache.py           -> ~/.claude/agy-cache.py (read by the next)
-#   - claude/agy-statusline.sh      -> ~/.claude/agy-statusline.sh, and agy's
+#   - agy/agy-cache.py              -> ~/.claude/agy-cache.py (read by the next)
+#   - agy/agy-statusline.sh         -> ~/.claude/agy-statusline.sh, beside the
+#                                      status line it draws with, and agy's
 #                                      statusLine in ~/.gemini/antigravity-cli/
 #                                      settings.json when agy is installed
 #   - claude/kill-guard-hook.sh      -> ~/.claude/kill-guard-hook.sh,
@@ -106,9 +107,17 @@ mkdir -p "$CLAUDE_DIR/skills"
 
 # 1. Status line scripts -----------------------------------------------------
 # The session's line, the agent panel's rows, and the helpers both source.
-for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh statusline-progress.sh statusline-progress-hook.sh agy-statusline.sh agy-cache.py; do
+for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh statusline-progress.sh statusline-progress-hook.sh; do
   log "deploy $f"
   cp "$REPO/claude/$f" "$CLAUDE_DIR/$f"
+  chmod +x "$CLAUDE_DIR/$f"
+done
+
+# agy's status line: kept in agy/ in the repo, but installed beside the
+# scripts above, since it draws with statusline-command.sh.
+for f in agy-statusline.sh agy-cache.py; do
+  log "deploy $f"
+  cp "$REPO/agy/$f" "$CLAUDE_DIR/$f"
   chmod +x "$CLAUDE_DIR/$f"
 done
 

@@ -85,6 +85,16 @@ run_sync() { run bash "$REPO/sync.sh"; }
   refute_contains "$out" "No such file"
 }
 
+# agy/ installs beside claude/'s scripts, and draws with the copy next to it.
+@test "the deployed agy status line runs from ~/.claude" {
+  run_sync
+  out="$(printf '%s' '{"cwd":"/tmp","model":{"display_name":"M","effort":"high"},"context_window":{"used_percentage":1.5}}' \
+         | bash "$HOME/.claude/agy-statusline.sh" 2>&1)"
+  assert_contains "$out" "ctx: 1.50%"
+  refute_contains "$out" "No such file"
+  assert_executable "$HOME/.claude/agy-cache.py"
+}
+
 @test "symlinks every shared skill into ~/.claude/skills" {
   run_sync
   for d in "$REPO"/skills/*/; do
@@ -494,7 +504,7 @@ wait_until() { # tries command...
 # A checkout with a local bare origin, one commit behind it.
 make_pull_fixture() {
   mkdir -p "$TEST_TMP/seed"
-  cp -R "$REPO/claude" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/seed/"
+  cp -R "$REPO/claude" "$REPO/agy" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/seed/"
   git -C "$TEST_TMP/seed" init -q
   git -C "$TEST_TMP/seed" add -A
   git -C "$TEST_TMP/seed" commit -q -m seed
@@ -530,7 +540,7 @@ make_pull_fixture() {
   cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
   # sync.sh resolves its own directory, so run a copy with the snippet removed.
   mkdir -p "$TEST_TMP/repo"
-  cp -R "$REPO/claude" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/repo/"
+  cp -R "$REPO/claude" "$REPO/agy" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/repo/"
   rm "$TEST_TMP/repo/claude/CLAUDE.snippet.md"
   rm -f "$HOME/.claude/claude-shared-repo"
   run bash "$TEST_TMP/repo/sync.sh"
