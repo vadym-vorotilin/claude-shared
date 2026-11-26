@@ -85,6 +85,16 @@ run_sync() { run bash "$REPO/sync.sh"; }
   refute_contains "$out" "No such file"
 }
 
+# agy/ installs beside claude/'s scripts, and draws with the copy next to it.
+@test "the deployed agy status line runs from ~/.claude" {
+  run_sync
+  out="$(printf '%s' '{"cwd":"/tmp","model":{"display_name":"M","effort":"high"},"context_window":{"used_percentage":1.5}}' \
+         | bash "$HOME/.claude/agy-statusline.sh" 2>&1)"
+  assert_contains "$out" "ctx: 1.50%"
+  refute_contains "$out" "No such file"
+  assert_executable "$HOME/.claude/agy-cache.py"
+}
+
 @test "symlinks every shared skill into ~/.claude/skills" {
   run_sync
   for d in "$REPO"/skills/*/; do
@@ -494,7 +504,7 @@ wait_until() { # tries command...
 # A checkout with a local bare origin, one commit behind it.
 make_pull_fixture() {
   mkdir -p "$TEST_TMP/seed"
-  cp -R "$REPO/claude" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/seed/"
+  cp -R "$REPO/claude" "$REPO/agy" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/seed/"
   git -C "$TEST_TMP/seed" init -q
   git -C "$TEST_TMP/seed" add -A
   git -C "$TEST_TMP/seed" commit -q -m seed
@@ -530,7 +540,7 @@ make_pull_fixture() {
   cp "$HOME/.claude/CLAUDE.md" "$TEST_TMP/before"
   # sync.sh resolves its own directory, so run a copy with the snippet removed.
   mkdir -p "$TEST_TMP/repo"
-  cp -R "$REPO/claude" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/repo/"
+  cp -R "$REPO/claude" "$REPO/agy" "$REPO/skills" "$REPO/sync.sh" "$TEST_TMP/repo/"
   rm "$TEST_TMP/repo/claude/CLAUDE.snippet.md"
   rm -f "$HOME/.claude/claude-shared-repo"
   run bash "$TEST_TMP/repo/sync.sh"
@@ -546,4 +556,104 @@ make_pull_fixture() {
   run_sync
   # BUG: `rm -rf "$link"` blows away the user's real directory before symlinking.
   assert_file_exists "$HOME/.claude/skills/sync-claude-env/USER_FILE.md"
+}
+
+# agy (the Antigravity CLI): its status line is pointed at agy-statusline.sh.
+@test "agy: sets the status line, keeping agy's other settings and the file's mode" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"model":"X","trustedWorkspaces":["/w"]}' > "$d/settings.json"; chmod 600 "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_executable "$HOME/.claude/agy-statusline.sh"
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" "$HOME/.claude/agy-statusline.sh"
+  assert_equal "$(jq -r '.statusLine.type' "$d/settings.json")" command
+  assert_equal "$(jq -r '.model, .trustedWorkspaces[0]' "$d/settings.json" | tr '\n' ' ')" "X /w "
+  assert_equal "$(stat -c %a "$d/settings.json" 2>/dev/null || stat -f %Lp "$d/settings.json")" 600
+}
+
+@test "agy: keeps stack_with_default and is idempotent" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/old/.claude/agy-statusline.sh","stack_with_default":true}}' > "$d/settings.json"
+  run_sync; run_sync
+  assert_equal "$status" 0
+  assert_equal "$(jq -c '.statusLine' "$d/settings.json")" \
+    "{\"type\":\"command\",\"command\":\"$HOME/.claude/agy-statusline.sh\",\"stack_with_default\":true}"
+}
+
+@test "agy: leaves someone else's status line command alone" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/my/own.sh"}}' > "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" /my/own.sh
+}
+
+@test "agy: an unparsable settings.json is left byte-identical" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  printf '{ broken' > "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_equal "$(cat "$d/settings.json")" "{ broken"
+  [ -z "$(ls "$d" | grep -v '^settings.json$')" ] || fail "temp file left: $(ls "$d")"
+}
+
+@test "agy: not installed, nothing is created under ~/.gemini" {
+  run_sync
+  assert_equal "$status" 0
+  [ ! -e "$HOME/.gemini" ] || fail "~/.gemini was created"
+}
+
+@test "agy: a symlinked settings.json stays a link and its target gets the status line" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d" "$HOME/dotfiles"
+  echo '{"model":"X"}' > "$HOME/dotfiles/agy.json"; ln -s ../../dotfiles/agy.json "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  [ -L "$d/settings.json" ] || fail "the link was replaced by a file"
+  assert_equal "$(jq -r '.statusLine.command, .model' "$HOME/dotfiles/agy.json" | tr '\n' ' ')" "$HOME/.claude/agy-statusline.sh X "
+}
+
+@test "agy: another script whose name merely ends the same is left alone" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/opt/x/my-agy-statusline.sh"}}' > "$d/settings.json"
+  run_sync
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" /opt/x/my-agy-statusline.sh
+}
+
+@test "agy: keeps a status line switched off with /statusline off" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/old/.claude/agy-statusline.sh","enabled":false}}' > "$d/settings.json"
+  run_sync
+  assert_equal "$(jq -r '.statusLine.enabled' "$d/settings.json")" false
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" "$HOME/.claude/agy-statusline.sh"
+}
+
+@test "agy: an unwritable agy folder warns and the rest of the sync still runs" {
+  [ "$(id -u)" != 0 ] || skip "root writes anywhere"
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{}' > "$d/settings.json"; chmod 555 "$d"
+  run_sync
+  chmod 755 "$d"
+  assert_equal "$status" 0
+  assert_contains "$output" "could not write"
+  assert_executable "$HOME/.claude/kill-guard-hook.sh"
+  assert_equal "$(cat "$d/settings.json")" "{}"
+}
+
+@test "agy: an empty settings.json is reported as unparsable and left alone" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  : > "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_contains "$output" "could not parse"
+  [ ! -s "$d/settings.json" ] || fail "the empty file was written"
+}
+
+@test "agy: a symlink loop is reported and the sync finishes" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  ln -s settings.json "$d/settings.json"
+  run timeout 60 bash "$REPO/sync.sh"
+  assert_equal "$status" 0
+  assert_contains "$output" "symlink loop"
+  assert_executable "$HOME/.claude/kill-guard-hook.sh"
+  [ -L "$d/settings.json" ] || fail "the link was replaced"
 }

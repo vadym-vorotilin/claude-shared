@@ -120,11 +120,25 @@ fi
 
 # Context window. Round in jq, not bash printf: macOS /bin/bash is 3.2, whose
 # builtin printf has no %f float support and errors on any non-integer value.
-used=$(echo "$input" | jq -r '(.context_window.used_percentage // empty) | round')
+# Percentages print whole, or with STATUSLINE_PCT_DECIMALS (0-4) fixed
+# decimals for a harness that sends finer readings (agy-statusline.sh sets 2);
+# those are held to 0..1000000, so float noise below zero never prints "0.-0".
+case "${STATUSLINE_PCT_DECIMALS:-0}" in [0-4]) pct_dp=${STATUSLINE_PCT_DECIMALS:-0} ;; *) pct_dp=0 ;; esac
+pct_of() { # jq path -> the percentage at it, formatted, or nothing
+  echo "$input" | jq -r --argjson d "$pct_dp" "
+    ($1 // empty) | numbers
+    | if \$d == 0 then round | tostring
+      else (if . < 0 then 0 elif . > 1000000 then 1000000 else . end
+            | . * pow(10; \$d) | round | tostring) as \$s
+        | ((\$d + 1 - (\$s | length)) as \$k | if \$k > 0 then \"0\" * \$k else \"\" end + \$s) as \$p
+        | \$p[:-\$d] + \".\" + \$p[-\$d:]
+      end"
+}
+used=$(pct_of '.context_window.used_percentage')
 
 # Quota windows: 5-hour and 7-day share a shape (same float-rounding caveat).
-five_pct=$(echo "$input" | jq -r '(.rate_limits.five_hour.used_percentage // empty) | round')
-week_pct=$(echo "$input" | jq -r '(.rate_limits.seven_day.used_percentage // empty) | round')
+five_pct=$(pct_of '.rate_limits.five_hour.used_percentage')
+week_pct=$(pct_of '.rate_limits.seven_day.used_percentage')
 five_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
@@ -145,7 +159,10 @@ week_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 # a window, use only rises), so a session holding an old reading cannot roll
 # either window back. A window already past its reset never blocks. The block
 # prints nothing and never changes the status line's output or exit code.
+# STATUSLINE_NO_RATE_FILE=1 skips it, for a harness whose quota is not
+# Claude's (agy-statusline.sh), so its reading never lands in this file.
 persist_rate_limits() {
+  [ "${STATUSLINE_NO_RATE_FILE:-}" = 1 ] && return 0
   local dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude"
   local file="$dir/rate-limits.json" prev="" next tmp
   [ -r "$file" ] && prev=$(cat "$file" 2>/dev/null)
@@ -257,6 +274,22 @@ if [ -n "$main_ttl_pct" ]; then
   printf "%s%sTTL: %s%%" "$SEP" "$(ttl_color "$main_ttl_pct")" "$main_ttl_pct"
   [ "${main_ttl_left:-0}" -gt 0 ] && printf " (-%s)" "$(fmt_dur "$main_ttl_left")"
   printf "%s" "$RESET"
+fi
+# In place of the cache clock, a harness whose cache has no known lifetime may
+# send cache_reading (agy-statusline.sh does): the share of its last model
+# call's input read from cache and, when known (last_call_at), how long ago
+# that call finished, as "(3m)".
+if [ -z "$main_ttl_pct" ]; then
+  cache_hit=$(pct_of '.cache_reading.hit_percentage')
+  cache_at=$(echo "$input" | jq -r '.cache_reading.last_call_at // empty | numbers | floor')
+  if [ -n "$cache_hit" ]; then
+    printf "%s%scache: %s%%" "$SEP" "$WHITE" "$cache_hit"
+    if [ -n "$cache_at" ]; then
+      cache_age=$(( now - cache_at )); [ "$cache_age" -ge 0 ] || cache_age=0
+      printf " %s(%s)" "$GRAY" "$(fmt_dur "$cache_age")"
+    fi
+    printf "%s" "$RESET"
+  fi
 fi
 
 # Line 3: quotas — only when the harness sent rate-limit data. The 5h window

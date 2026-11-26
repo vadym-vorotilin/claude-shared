@@ -12,6 +12,11 @@
 #   - claude/statusline-progress-hook.sh
 #                                    -> ~/.claude/statusline-progress-hook.sh,
 #                                      and a PostToolUse entry in settings.json
+#   - agy/agy-cache.py              -> ~/.claude/agy-cache.py (read by the next)
+#   - agy/agy-statusline.sh         -> ~/.claude/agy-statusline.sh, beside the
+#                                      status line it draws with, and agy's
+#                                      statusLine in ~/.gemini/antigravity-cli/
+#                                      settings.json when agy is installed
 #   - claude/kill-guard-hook.sh      -> ~/.claude/kill-guard-hook.sh,
 #                                      and a PreToolUse entry in settings.json
 #   - claude/pidjail                 -> ~/.claude/bin/pidjail
@@ -107,6 +112,74 @@ for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh 
   cp "$REPO/claude/$f" "$CLAUDE_DIR/$f"
   chmod +x "$CLAUDE_DIR/$f"
 done
+
+# agy's status line: kept in agy/ in the repo, but installed beside the
+# scripts above, since it draws with statusline-command.sh.
+for f in agy-statusline.sh agy-cache.py; do
+  log "deploy $f"
+  cp "$REPO/agy/$f" "$CLAUDE_DIR/$f"
+  chmod +x "$CLAUDE_DIR/$f"
+done
+
+# agy (the Antigravity CLI), when installed: point its custom status line at
+# agy-statusline.sh. Only a missing statusLine, or one already running an
+# installed copy (…/.claude/agy-statusline.sh), is set; any other command is
+# left alone, the repo's own agy/agy-statusline.sh included. The file is
+# rewritten through a
+# temp copy that keeps its mode, and left as it was if jq cannot parse it
+# (agy refuses to load a broken settings.json).
+AGY_DIR="$HOME/.gemini/antigravity-cli"
+AGY_CMD="$CLAUDE_DIR/agy-statusline.sh"
+if [ -d "$AGY_DIR" ]; then
+  # A symlinked settings.json (say, into a dotfiles repo) is resolved first,
+  # so the file it points to is rewritten and the link itself is kept.
+  # Capped at 40 hops, so a link cycle is reported instead of hanging the sync.
+  AGY_SETTINGS="$AGY_DIR/settings.json"
+  agy_hops=0
+  while [ -h "$AGY_SETTINGS" ] && [ "$agy_hops" -lt 40 ]; do
+    d="$(cd -P "$(dirname "$AGY_SETTINGS")" >/dev/null 2>&1 && pwd)"
+    AGY_SETTINGS="$(readlink "$AGY_SETTINGS")"
+    case "$AGY_SETTINGS" in /*) ;; *) AGY_SETTINGS="$d/$AGY_SETTINGS" ;; esac
+    agy_hops=$(( agy_hops + 1 ))
+  done
+  # ours: this command, or the same script deployed under another ~/.claude.
+  # agy keeps "/statusline off" as "enabled": false beside the command; every
+  # key other than type and command is carried over untouched.
+  agy_state=new
+  if [ -h "$AGY_SETTINGS" ]; then
+    agy_state=loop
+  elif [ -e "$AGY_SETTINGS" ]; then
+    agy_state="$(jq -r --arg cmd "$AGY_CMD" '
+        if (.statusLine | type) != "object" or (.statusLine.command // "") == "" then "set"
+        elif .statusLine.command == $cmd or (.statusLine.command | test("(^|/)\\.claude/agy-statusline\\.sh$"))
+        then (if .statusLine.command == $cmd and .statusLine.type == "command" then "ok" else "set" end)
+        else "other" end' "$AGY_SETTINGS" 2>/dev/null)" || agy_state=""
+  fi
+  case "$agy_state" in
+    set|new)
+      log "point agy's status line at agy-statusline.sh"
+      # mktemp makes the temp file 0600, agy's own mode for a new file; an
+      # existing file's mode is copied over by cp -p. A failure anywhere
+      # leaves the file as it was and the rest of the sync still runs.
+      agy_tmp="$(mktemp "$AGY_SETTINGS.XXXXXX" 2>/dev/null)" || agy_tmp=""
+      if [ -n "$agy_tmp" ] \
+         && { [ "$agy_state" = new ] || cp -p "$AGY_SETTINGS" "$agy_tmp"; } \
+         && { if [ "$agy_state" = new ]; then printf '{}'; else cat "$AGY_SETTINGS"; fi; } \
+            | jq --arg cmd "$AGY_CMD" '.statusLine = ((if (.statusLine | type) == "object" then .statusLine else {} end)
+                                                    + {type: "command", command: $cmd})' > "$agy_tmp" \
+         && mv "$agy_tmp" "$AGY_SETTINGS"; then
+        agy_tmp=""
+      else
+        log "warning: could not write $AGY_SETTINGS; agy's status line was not set"
+      fi
+      [ -z "$agy_tmp" ] || rm -f "$agy_tmp"
+      ;;
+    ok)    log "agy's status line already runs agy-statusline.sh" ;;
+    other) log "skip agy: its settings.json runs another status line command; left as it is" ;;
+    loop)  log "warning: could not resolve $AGY_DIR/settings.json (a symlink loop); agy's status line was not set" ;;
+    *)     log "warning: could not parse $AGY_SETTINGS; agy's status line was not set" ;;
+  esac
+fi
 
 # The kill guard: a PreToolUse hook (added below) and pidjail, which runs a
 # command where no signal it sends reaches anything outside it.

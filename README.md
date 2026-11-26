@@ -262,6 +262,42 @@ using it, since anything that can write there can write anything; it opens
 only regular files, never a link, FIFO or device, and writes through a temp
 file created exclusively, so a planted link is never written through.
 
+### In agy
+
+agy, the Antigravity CLI, runs a custom status line the same way Claude Code
+does, from a `statusLine` command in `~/.gemini/antigravity-cli/settings.json`,
+so the same line draws there too. `agy/agy-statusline.sh` translates agy's
+JSON into the shape `statusline-command.sh` reads and hands it over. The agy
+scripts live in `agy/` in this repo but install into `~/.claude/`, beside the
+status line they draw with:
+
+- **Effort** comes from `model.effort`; a model name that ends in the same
+  effort, such as `(Medium)`, loses that ending.
+- **Quotas** come from agy's `quota` windows for the model's pool (`gemini-*`
+  for a Gemini model, `3p-*` for any other), as used percent:
+  `(1 - remaining_fraction) × 100`.
+- **Percentages print with two decimals** (`ctx: 12.35%`, `1w: 25.65%`), since
+  agy reports finer readings than Claude Code. The Claude line stays whole.
+- **Gemini quota is never written to `rate-limits.json`**, which holds
+  Claude's quota for tools that read it outside a session.
+- **The cache clock becomes a cache reading**, `cache: 96.40% (3m)`: the
+  share of the last model call's input that Gemini read from cache, and how
+  long ago that call finished. There is no countdown: Gemini's automatic
+  caching has no published lifetime. `agy/agy-cache.py` (needs `python3`)
+  reads it from agy's database for the conversation,
+  `~/.gemini/antigravity-cli/conversations/<id>.db`. That format is
+  undocumented and was worked out by decoding real conversations, so an agy
+  update can break it; the segment then disappears rather than show a wrong
+  number.
+- There is **no progress line**: agy's session has no Claude session id.
+
+`sync.sh` sets agy's `statusLine` when agy is installed (`~/.gemini/antigravity-cli`
+exists) and the file has no status line command yet, or one already running
+an installed copy, `…/.claude/agy-statusline.sh`. Any other command is left
+alone, the repo's own `agy/agy-statusline.sh` included, as is a file `jq`
+cannot parse. Other keys, `stack_with_default` included, are kept. Inside agy,
+`/statusline off` and `/statusline on` switch it.
+
 ## The agent panel
 
 Live subagents get a row each in the agent panel below the prompt, laid out in
@@ -604,6 +640,8 @@ eligible issue). Commit the written file in the target repo.
 | `claude/statusline-lib.sh` | `~/.claude/statusline-lib.sh` | Colors, clock, cache-TTL and progress helpers both scripts source |
 | `claude/statusline-progress.sh` | `~/.claude/statusline-progress.sh` | Writes what the status line's progress line shows: an estimate, or a long command's real progress |
 | `claude/statusline-progress-hook.sh` | `~/.claude/statusline-progress-hook.sh`, plus a PostToolUse entry in `settings.json` | Shows each background Bash command's progress, read from Claude Code's own output file |
+| `agy/agy-cache.py` | `~/.claude/agy-cache.py` | Reads the cache share and finish time of an agy conversation's last model call, for the agy status line |
+| `agy/agy-statusline.sh` | `~/.claude/agy-statusline.sh`, plus `statusLine` in agy's `settings.json` when agy is installed | The same status line in agy (the Antigravity CLI): translates agy's JSON and draws it with `statusline-command.sh`, percentages to two decimals |
 | `claude/kill-guard-hook.sh` | `~/.claude/kill-guard-hook.sh`, plus a PreToolUse entry in `settings.json` | Blocks a Bash command that would signal every process you own or end the login session (`kill -9 -1`, `pkill -u`, `loginctl terminate-user`, …). A tripwire on the command line only; see `pidjail` |
 | `claude/pidjail` | `~/.claude/bin/pidjail` | `pidjail <command>` runs a command in its own PID namespace and session, so no signal it sends (not even `kill -- -1` or `kill 0`) reaches anything outside it. Refuses, rather than run it unjailed, where namespaces are unavailable. For tests and scripts that signal process groups |
 | `claude/settings.shared.json` | merged into `~/.claude/settings.json` | `model`, `effortLevel`, `enabledPlugins` (the maintainer's personal preferences — see above), `statusLine`, `subagentStatusLine` |
@@ -620,7 +658,8 @@ backs up `settings.json` before merging:
    writer and the kill-guard hook to `~/.claude/`, and `pidjail` to
    `~/.claude/bin/`. The progress hook (PostToolUse) and the kill guard
    (PreToolUse) are each added once to `settings.json`, after any hooks
-   already there.
+   already there. When agy is installed, its `statusLine` is pointed at
+   `agy-statusline.sh` ([In agy](#in-agy)).
 2. Deep-merges the shared keys into `~/.claude/settings.json` (local-only keys
    preserved; the prior file is backed up to `settings.json.bak.<timestamp>`).
    The shared keys win on conflict, so a local `model` or `effortLevel` is
