@@ -122,8 +122,10 @@ for f in agy-statusline.sh agy-cache.py; do
 done
 
 # agy (the Antigravity CLI), when installed: point its custom status line at
-# agy-statusline.sh. Only a missing statusLine, or one already running that
-# script, is set; anyone else's is left alone. The file is rewritten through a
+# agy-statusline.sh. Only a missing statusLine, or one already running an
+# installed copy (…/.claude/agy-statusline.sh), is set; any other command is
+# left alone, the repo's own agy/agy-statusline.sh included. The file is
+# rewritten through a
 # temp copy that keeps its mode, and left as it was if jq cannot parse it
 # (agy refuses to load a broken settings.json).
 AGY_DIR="$HOME/.gemini/antigravity-cli"
