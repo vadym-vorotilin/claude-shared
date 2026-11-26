@@ -12,6 +12,10 @@
 #   - claude/statusline-progress-hook.sh
 #                                    -> ~/.claude/statusline-progress-hook.sh,
 #                                      and a PostToolUse entry in settings.json
+#   - claude/agy-cache.py           -> ~/.claude/agy-cache.py (read by the next)
+#   - claude/agy-statusline.sh      -> ~/.claude/agy-statusline.sh, and agy's
+#                                      statusLine in ~/.gemini/antigravity-cli/
+#                                      settings.json when agy is installed
 #   - claude/kill-guard-hook.sh      -> ~/.claude/kill-guard-hook.sh,
 #                                      and a PreToolUse entry in settings.json
 #   - claude/pidjail                 -> ~/.claude/bin/pidjail
@@ -102,11 +106,43 @@ mkdir -p "$CLAUDE_DIR/skills"
 
 # 1. Status line scripts -----------------------------------------------------
 # The session's line, the agent panel's rows, and the helpers both source.
-for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh statusline-progress.sh statusline-progress-hook.sh; do
+for f in statusline-lib.sh statusline-command.sh subagent-statusline-command.sh statusline-progress.sh statusline-progress-hook.sh agy-statusline.sh agy-cache.py; do
   log "deploy $f"
   cp "$REPO/claude/$f" "$CLAUDE_DIR/$f"
   chmod +x "$CLAUDE_DIR/$f"
 done
+
+# agy (the Antigravity CLI), when installed: point its custom status line at
+# agy-statusline.sh. Only a missing statusLine, or one already running that
+# script, is set; anyone else's is left alone. The file is rewritten through a
+# temp copy that keeps its mode, and left as it was if jq cannot parse it
+# (agy refuses to load a broken settings.json).
+AGY_DIR="$HOME/.gemini/antigravity-cli"
+AGY_SETTINGS="$AGY_DIR/settings.json"
+AGY_CMD="$CLAUDE_DIR/agy-statusline.sh"
+if [ -d "$AGY_DIR" ]; then
+  [ -e "$AGY_SETTINGS" ] || { (umask 077; printf '{}\n' > "$AGY_SETTINGS"); }
+  agy_tmp="$(mktemp "$AGY_SETTINGS.XXXXXX")"
+  cp -p "$AGY_SETTINGS" "$agy_tmp"
+  if agy_state="$(jq -r --arg cmd "$AGY_CMD" '
+        if (.statusLine | type) != "object" or (.statusLine.command // "") == "" then "set"
+        elif (.statusLine.command | endswith("agy-statusline.sh")) then
+          (if .statusLine.command == $cmd and .statusLine.type == "command" then "ok" else "set" end)
+        else "other" end' "$AGY_SETTINGS" 2>/dev/null)"; then
+    case "$agy_state" in
+      set)
+        log "point agy's status line at agy-statusline.sh"
+        jq --arg cmd "$AGY_CMD" '.statusLine = ((if (.statusLine | type) == "object" then .statusLine else {} end)
+                         + {type: "command", command: $cmd})' \
+          "$AGY_SETTINGS" > "$agy_tmp" && mv "$agy_tmp" "$AGY_SETTINGS" ;;
+      ok) log "agy's status line already runs agy-statusline.sh" ;;
+      *)  log "skip agy: its settings.json runs another status line command; left as it is" ;;
+    esac
+  else
+    log "warning: could not parse $AGY_SETTINGS; agy's status line was not set"
+  fi
+  rm -f "$agy_tmp"
+fi
 
 # The kill guard: a PreToolUse hook (added below) and pidjail, which runs a
 # command where no signal it sends reaches anything outside it.

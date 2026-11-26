@@ -547,3 +547,48 @@ make_pull_fixture() {
   # BUG: `rm -rf "$link"` blows away the user's real directory before symlinking.
   assert_file_exists "$HOME/.claude/skills/sync-claude-env/USER_FILE.md"
 }
+
+# agy (the Antigravity CLI): its status line is pointed at agy-statusline.sh.
+@test "agy: sets the status line, keeping agy's other settings and the file's mode" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"model":"X","trustedWorkspaces":["/w"]}' > "$d/settings.json"; chmod 600 "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_executable "$HOME/.claude/agy-statusline.sh"
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" "$HOME/.claude/agy-statusline.sh"
+  assert_equal "$(jq -r '.statusLine.type' "$d/settings.json")" command
+  assert_equal "$(jq -r '.model, .trustedWorkspaces[0]' "$d/settings.json" | tr '\n' ' ')" "X /w "
+  assert_equal "$(stat -c %a "$d/settings.json" 2>/dev/null || stat -f %Lp "$d/settings.json")" 600
+}
+
+@test "agy: keeps stack_with_default and is idempotent" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/old/agy-statusline.sh","stack_with_default":true}}' > "$d/settings.json"
+  run_sync; run_sync
+  assert_equal "$status" 0
+  assert_equal "$(jq -c '.statusLine' "$d/settings.json")" \
+    "{\"type\":\"command\",\"command\":\"$HOME/.claude/agy-statusline.sh\",\"stack_with_default\":true}"
+}
+
+@test "agy: leaves someone else's status line command alone" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/my/own.sh"}}' > "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" /my/own.sh
+}
+
+@test "agy: an unparsable settings.json is left byte-identical" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  printf '{ broken' > "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_equal "$(cat "$d/settings.json")" "{ broken"
+  [ -z "$(ls "$d" | grep -v '^settings.json$')" ] || fail "temp file left: $(ls "$d")"
+}
+
+@test "agy: not installed, nothing is created under ~/.gemini" {
+  run_sync
+  assert_equal "$status" 0
+  [ ! -e "$HOME/.gemini" ] || fail "~/.gemini was created"
+}
