@@ -17,12 +17,15 @@ can move them:
   metadata.9      usage of a model call (only model calls have it)
   metadata.9.2    input tokens not read from cache
   metadata.9.5    input tokens read from cache
+  metadata.7.1    when the call finished, epoch seconds (optional)
 
 The newest step that has field 9 is the last call. Its 9.2 must be present as
 a plain integer; 9.5 may be absent, which protobuf does for a zero, so a call
 with nothing cached reads 0%. A newer step that does not parse, or a call
 without 9.2, stops the search with nothing printed, rather than fall back to
-an older call's number.
+an older call's number. The finish time is printed after the percentage only
+when 7.1 is there and reads as an epoch in [1e9, 1e10); without it the
+percentage is printed alone.
 """
 import os
 import pathlib
@@ -84,7 +87,14 @@ def reading(blob):
     fresh, cached = u[2], u.get(5, 0)
     if fresh + cached <= 0:
         raise ValueError("usage with no input")
-    return 100.0 * cached / (fresh + cached)
+    at = None
+    for f, w, v in top:
+        if f == 7 and w == 2:
+            t = ints(v).get(1)
+            if isinstance(t, int) and 10**9 <= t < 10**10:
+                at = t
+            break
+    return 100.0 * cached / (fresh + cached), at
 
 
 def main():
@@ -109,7 +119,8 @@ def main():
             except (ValueError, IndexError):
                 return
             if r is not None:
-                print("%.4f" % r)
+                hit, at = r
+                print("%.4f" % hit if at is None else "%.4f %d" % (hit, at))
                 return
     finally:
         db.close()

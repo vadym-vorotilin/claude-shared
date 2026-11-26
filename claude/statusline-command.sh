@@ -277,10 +277,19 @@ if [ -n "$main_ttl_pct" ]; then
 fi
 # In place of the cache clock, a harness whose cache has no known lifetime may
 # send cache_reading (agy-statusline.sh does): the share of its last model
-# call's input read from cache.
+# call's input read from cache and, when known (last_call_at), how long ago
+# that call finished, as "(3m)".
 if [ -z "$main_ttl_pct" ]; then
   cache_hit=$(pct_of '.cache_reading.hit_percentage')
-  [ -n "$cache_hit" ] && printf "%s%scache: %s%%%s" "$SEP" "$WHITE" "$cache_hit" "$RESET"
+  cache_at=$(echo "$input" | jq -r '.cache_reading.last_call_at // empty | numbers | floor')
+  if [ -n "$cache_hit" ]; then
+    printf "%s%scache: %s%%" "$SEP" "$WHITE" "$cache_hit"
+    if [ -n "$cache_at" ]; then
+      cache_age=$(( now - cache_at )); [ "$cache_age" -ge 0 ] || cache_age=0
+      printf " %s(%s)" "$GRAY" "$(fmt_dur "$cache_age")"
+    fi
+    printf "%s" "$RESET"
+  fi
 fi
 
 # Line 3: quotas — only when the harness sent rate-limit data. The 5h window

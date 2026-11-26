@@ -100,9 +100,9 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\
 
 # ---- cache reading, from a fictional agy conversation database --------------
 
-# make_conv <id> <step>... where a step is "fresh:cached" (a model call; a zero
-# count is left out, as protobuf does, and "-" leaves fresh out), "other" (a
-# step with no usage) or "junk" (metadata that is not protobuf).
+# make_conv <id> <step>... where a step is "fresh:cached[:finished-epoch]" (a
+# model call; a zero count is left out, as protobuf does, and "-" leaves fresh
+# out), "other" (a step with no usage) or "junk" (metadata that is not protobuf).
 make_conv() {
   export AGY_CONVERSATIONS_DIR="${CONV_DIR:-$TEST_TMP/convs}"; mkdir -p "$AGY_CONVERSATIONS_DIR"
   python3 -I - "$AGY_CONVERSATIONS_DIR/$1.db" "${@:2}" <<'PY'
@@ -121,18 +121,33 @@ for i, s in enumerate(sys.argv[2:]):
     if s == "other":  md = sub(1, num(1, 1767225000)) + num(3, 2)
     elif s == "junk": md = b"\xff\xff\xff"
     else:
-        fresh, cached = s.split(":")
+        fresh, cached, *at = s.split(":")
         usage = num(1, 7) + (b"" if fresh == "-" else vi(2 << 3) + vi(int(fresh))) + num(3, 50) + num(5, int(cached))
-        md = sub(1, num(1, 1767225000)) + sub(9, usage)
+        md = sub(1, num(1, 1767225000)) + (sub(7, num(1, int(at[0]))) if at else b"") + sub(9, usage)
     db.execute("insert into steps values (?, 15, ?)", (i, md))
 db.commit()
 PY
 }
 
-@test "cache: shows the last model call's cache share with 2 decimals" {
-  make_conv conv-1 "1000:0" "2500:97500" other
+@test "cache: shows the last call's cache share with 2 decimals and how long ago it finished" {
+  make_conv conv-1 "1000:0:1767225000" "2500:97500:1767225420" other
   out="$(agy_line '.conversation_id = "conv-1"')"
-  assert_contains "$out" "ctx: 12.35% | cache: 97.50%"
+  assert_contains "$out" "ctx: 12.35% | cache: 97.50% (3m)"
+  refute_contains "$out" "ago"
+}
+
+@test "cache: a call with no finish time shows the share alone" {
+  make_conv conv-1b "2500:97500"
+  out="$(agy_line '.conversation_id = "conv-1b"')"
+  assert_contains "$out" "cache: 97.50%"
+  refute_contains "$out" "97.50% ("
+}
+
+@test "cache: a finish time that is not a plausible epoch is dropped, the share kept" {
+  make_conv conv-1c "2500:97500:12345"
+  out="$(agy_line '.conversation_id = "conv-1c"')"
+  assert_contains "$out" "cache: 97.50%"
+  refute_contains "$out" "97.50% ("
 }
 
 @test "cache: steps that are not model calls are skipped" {
@@ -183,9 +198,9 @@ PY
 }
 
 @test "cache: statusline-command.sh draws cache_reading when there is no cache clock" {
-  out="$(jq -n '{cwd:"/tmp", model:{display_name:"M"}, cache_reading:{hit_percentage:88.4}}' \
+  out="$(jq -n '{cwd:"/tmp", model:{display_name:"M"}, cache_reading:{hit_percentage:88.4, last_call_at:1767225540}}' \
          | bash "$REPO/claude/statusline-command.sh" | sed $'s/\033\\[[0-9;]*m//g')"
-  assert_contains "$out" "M | cache: 88%"
+  assert_contains "$out" "M | cache: 88% (1m)"
 }
 
 @test "cache: a last call with nothing read from cache shows 0.00%, not an older call" {

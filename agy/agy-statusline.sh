@@ -13,9 +13,10 @@
 #                              resets_at = reset_time as epoch seconds (or now
 #                              + reset_in_seconds). The pool is "gemini" for a
 #                              Gemini model, "3p" for any other.
-#   (added)                 -> cache_reading: {hit_percentage}, the share of
-#                              the last model call's input read from cache,
-#                              from agy's conversation database by
+#   (added)                 -> cache_reading: {hit_percentage, last_call_at},
+#                              the share of the last model call's input read
+#                              from cache and when that call finished (when
+#                              known), from agy's conversation database by
 #                              agy-cache.py. Drawn in
 #                              place of the cache clock: Gemini's caching has
 #                              no published lifetime to count down.
@@ -36,19 +37,23 @@ fi
 input=$(cat)
 now=${STATUSLINE_NOW:-$(date +%s)}
 
-# The conversation's cache hit percentage, or nothing when the id is missing
-# or odd, python3 is absent, or the database cannot be read.
+# The conversation's cache reading, "<hit%>" or "<hit%> <epoch>", or nothing
+# when the id is missing or odd, python3 is absent, or the database cannot be
+# read. A malformed hit drops the reading; a malformed time drops only the time.
 conv=$(printf '%s' "$input" | jq -r '[.conversation_id, .session_id] | map(strings | select(. != "")) | first // empty' 2>/dev/null)
-cache_hit=""
+cache_out=""
 case "$conv" in
   ''|*[!A-Za-z0-9-]*) ;;
   *) command -v python3 >/dev/null 2>&1 \
-       && cache_hit=$(python3 -I "$here/agy-cache.py" "$conv" 2>/dev/null) ;;
+       && cache_out=$(python3 -I "$here/agy-cache.py" "$conv" 2>/dev/null) ;;
 esac
+cache_hit=${cache_out%% *}
+cache_at=""; [ "$cache_hit" = "$cache_out" ] || cache_at=${cache_out#* }
 case "$cache_hit" in ''|*[!0-9.]*|*.*.*|.*) cache_hit="" ;; esac
+case "$cache_at" in *[!0-9]*) cache_at="" ;; esac
 
 translated=$(printf '%s' "$input" | jq -c --argjson now "$now" \
-  --arg hit "$cache_hit" '
+  --arg hit "$cache_hit" --arg at "$cache_at" '
   def epoch: if type == "string"
              then sub("\\.[0-9]+"; "") | try fromdateiso8601 catch null
              else null end;
@@ -76,7 +81,8 @@ translated=$(printf '%s' "$input" | jq -c --argjson now "$now" \
   + (if ($eff | type) == "string" and $eff != "" then {effort: {level: $eff}} else {} end)
   + (if $rl == {} then {} else {rate_limits: $rl} end)
   + (if $hit == "" then {} else
-       {cache_reading: {hit_percentage: ($hit | tonumber)}} end)
+       {cache_reading: ({hit_percentage: ($hit | tonumber)}
+                        + (if $at == "" then {} else {last_call_at: ($at | tonumber)} end))} end)
 ' 2>/dev/null) || translated=''
 [ -n "$translated" ] || translated='{}'
 
