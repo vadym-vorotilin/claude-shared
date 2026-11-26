@@ -122,17 +122,22 @@ AGY_CMD="$CLAUDE_DIR/agy-statusline.sh"
 if [ -d "$AGY_DIR" ]; then
   # A symlinked settings.json (say, into a dotfiles repo) is resolved first,
   # so the file it points to is rewritten and the link itself is kept.
+  # Capped at 40 hops, so a link cycle is reported instead of hanging the sync.
   AGY_SETTINGS="$AGY_DIR/settings.json"
-  while [ -h "$AGY_SETTINGS" ]; do
+  agy_hops=0
+  while [ -h "$AGY_SETTINGS" ] && [ "$agy_hops" -lt 40 ]; do
     d="$(cd -P "$(dirname "$AGY_SETTINGS")" >/dev/null 2>&1 && pwd)"
     AGY_SETTINGS="$(readlink "$AGY_SETTINGS")"
     case "$AGY_SETTINGS" in /*) ;; *) AGY_SETTINGS="$d/$AGY_SETTINGS" ;; esac
+    agy_hops=$(( agy_hops + 1 ))
   done
   # ours: this command, or the same script deployed under another ~/.claude.
   # agy keeps "/statusline off" as "enabled": false beside the command; every
   # key other than type and command is carried over untouched.
   agy_state=new
-  if [ -e "$AGY_SETTINGS" ]; then
+  if [ -h "$AGY_SETTINGS" ]; then
+    agy_state=loop
+  elif [ -e "$AGY_SETTINGS" ]; then
     agy_state="$(jq -r --arg cmd "$AGY_CMD" '
         if (.statusLine | type) != "object" or (.statusLine.command // "") == "" then "set"
         elif .statusLine.command == $cmd or (.statusLine.command | test("(^|/)\\.claude/agy-statusline\\.sh$"))
@@ -160,6 +165,7 @@ if [ -d "$AGY_DIR" ]; then
       ;;
     ok)    log "agy's status line already runs agy-statusline.sh" ;;
     other) log "skip agy: its settings.json runs another status line command; left as it is" ;;
+    loop)  log "warning: could not resolve $AGY_DIR/settings.json (a symlink loop); agy's status line was not set" ;;
     *)     log "warning: could not parse $AGY_SETTINGS; agy's status line was not set" ;;
   esac
 fi

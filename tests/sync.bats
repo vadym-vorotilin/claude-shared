@@ -637,3 +637,13 @@ make_pull_fixture() {
   assert_contains "$output" "could not parse"
   [ ! -s "$d/settings.json" ] || fail "the empty file was written"
 }
+
+@test "agy: a symlink loop is reported and the sync finishes" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  ln -s settings.json "$d/settings.json"
+  run timeout 60 bash "$REPO/sync.sh"
+  assert_equal "$status" 0
+  assert_contains "$output" "symlink loop"
+  assert_executable "$HOME/.claude/kill-guard-hook.sh"
+  [ -L "$d/settings.json" ] || fail "the link was replaced"
+}
