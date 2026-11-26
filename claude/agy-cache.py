@@ -18,10 +18,14 @@ can move them:
   metadata.9.2    input tokens not read from cache
   metadata.9.5    input tokens read from cache
 
-A call is believed only when both counts are plain integers and at least one
-is non-zero.
+The newest step that has field 9 is the last call. Its 9.2 must be present as
+a plain integer; 9.5 may be absent, which protobuf does for a zero, so a call
+with nothing cached reads 0%. A newer step that does not parse, or a call
+without 9.2, stops the search with nothing printed, rather than fall back to
+an older call's number.
 """
 import os
+import pathlib
 import re
 import sqlite3
 import sys
@@ -75,9 +79,11 @@ def reading(blob):
     if not usage:
         return None
     u = ints(usage[0])
-    fresh, cached = u.get(2, 0), u.get(5, 0)
+    if 2 not in u:
+        raise ValueError("usage without uncached input")
+    fresh, cached = u[2], u.get(5, 0)
     if fresh + cached <= 0:
-        return None
+        raise ValueError("usage with no input")
     return 100.0 * cached / (fresh + cached)
 
 
@@ -89,7 +95,10 @@ def main():
     path = os.path.join(base, sys.argv[1] + ".db")
     if not os.path.isfile(path):
         return
-    db = sqlite3.connect("file:%s?mode=ro" % path, uri=True, timeout=0.5)
+    # as_uri() percent-escapes the path, so a "?" or "#" in it can never end
+    # the path early and drop mode=ro (which would create an empty database).
+    uri = pathlib.Path(path).absolute().as_uri() + "?mode=ro"
+    db = sqlite3.connect(uri, uri=True, timeout=0.5)
     try:
         rows = db.execute(
             "select metadata from steps where metadata is not null"
@@ -98,7 +107,7 @@ def main():
             try:
                 r = reading(bytes(blob))
             except (ValueError, IndexError):
-                continue
+                return
             if r is not None:
                 print("%.4f" % r)
                 return

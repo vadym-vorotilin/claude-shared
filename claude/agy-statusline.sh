@@ -46,7 +46,7 @@ translated=$(printf '%s' "$input" | jq -c --argjson now "$now" \
              else null end;
   def win($q):
     if ($q | type) == "object" and ($q.remaining_fraction | type) == "number" then
-      {used_percentage: ((1 - $q.remaining_fraction) * 100)}
+      {used_percentage: ((1 - ([[$q.remaining_fraction, 0] | max, 1] | min)) * 100)}
       + (($q.reset_time | epoch) as $r
          | if ($r | type) == "number" and $r > 0 then {resets_at: $r}
            elif ($q.reset_in_seconds | type) == "number" and $q.reset_in_seconds > 0

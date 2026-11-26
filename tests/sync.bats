@@ -563,7 +563,7 @@ make_pull_fixture() {
 
 @test "agy: keeps stack_with_default and is idempotent" {
   d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
-  echo '{"statusLine":{"type":"command","command":"/old/agy-statusline.sh","stack_with_default":true}}' > "$d/settings.json"
+  echo '{"statusLine":{"type":"command","command":"/old/.claude/agy-statusline.sh","stack_with_default":true}}' > "$d/settings.json"
   run_sync; run_sync
   assert_equal "$status" 0
   assert_equal "$(jq -c '.statusLine' "$d/settings.json")" \
@@ -591,4 +591,49 @@ make_pull_fixture() {
   run_sync
   assert_equal "$status" 0
   [ ! -e "$HOME/.gemini" ] || fail "~/.gemini was created"
+}
+
+@test "agy: a symlinked settings.json stays a link and its target gets the status line" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d" "$HOME/dotfiles"
+  echo '{"model":"X"}' > "$HOME/dotfiles/agy.json"; ln -s ../../dotfiles/agy.json "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  [ -L "$d/settings.json" ] || fail "the link was replaced by a file"
+  assert_equal "$(jq -r '.statusLine.command, .model' "$HOME/dotfiles/agy.json" | tr '\n' ' ')" "$HOME/.claude/agy-statusline.sh X "
+}
+
+@test "agy: another script whose name merely ends the same is left alone" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/opt/x/my-agy-statusline.sh"}}' > "$d/settings.json"
+  run_sync
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" /opt/x/my-agy-statusline.sh
+}
+
+@test "agy: keeps a status line switched off with /statusline off" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{"statusLine":{"type":"command","command":"/old/.claude/agy-statusline.sh","enabled":false}}' > "$d/settings.json"
+  run_sync
+  assert_equal "$(jq -r '.statusLine.enabled' "$d/settings.json")" false
+  assert_equal "$(jq -r '.statusLine.command' "$d/settings.json")" "$HOME/.claude/agy-statusline.sh"
+}
+
+@test "agy: an unwritable agy folder warns and the rest of the sync still runs" {
+  [ "$(id -u)" != 0 ] || skip "root writes anywhere"
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  echo '{}' > "$d/settings.json"; chmod 555 "$d"
+  run_sync
+  chmod 755 "$d"
+  assert_equal "$status" 0
+  assert_contains "$output" "could not write"
+  assert_executable "$HOME/.claude/kill-guard-hook.sh"
+  assert_equal "$(cat "$d/settings.json")" "{}"
+}
+
+@test "agy: an empty settings.json is reported as unparsable and left alone" {
+  d="$HOME/.gemini/antigravity-cli"; mkdir -p "$d"
+  : > "$d/settings.json"
+  run_sync
+  assert_equal "$status" 0
+  assert_contains "$output" "could not parse"
+  [ ! -s "$d/settings.json" ] || fail "the empty file was written"
 }

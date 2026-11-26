@@ -121,13 +121,15 @@ fi
 # Context window. Round in jq, not bash printf: macOS /bin/bash is 3.2, whose
 # builtin printf has no %f float support and errors on any non-integer value.
 # Percentages print whole, or with STATUSLINE_PCT_DECIMALS (0-4) fixed
-# decimals for a harness that sends finer readings (agy-statusline.sh sets 2).
+# decimals for a harness that sends finer readings (agy-statusline.sh sets 2);
+# those are held to 0..1000000, so float noise below zero never prints "0.-0".
 case "${STATUSLINE_PCT_DECIMALS:-0}" in [0-4]) pct_dp=${STATUSLINE_PCT_DECIMALS:-0} ;; *) pct_dp=0 ;; esac
 pct_of() { # jq path -> the percentage at it, formatted, or nothing
   echo "$input" | jq -r --argjson d "$pct_dp" "
     ($1 // empty) | numbers
     | if \$d == 0 then round | tostring
-      else (. * pow(10; \$d) | round | tostring) as \$s
+      else (if . < 0 then 0 elif . > 1000000 then 1000000 else . end
+            | . * pow(10; \$d) | round | tostring) as \$s
         | ((\$d + 1 - (\$s | length)) as \$k | if \$k > 0 then \"0\" * \$k else \"\" end + \$s) as \$p
         | \$p[:-\$d] + \".\" + \$p[-\$d:]
       end"

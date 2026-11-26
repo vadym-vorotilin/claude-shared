@@ -100,10 +100,11 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/claude/agy-statusline.sh" | sed $'
 
 # ---- cache reading, from a fictional agy conversation database --------------
 
-# make_conv <id> <step>... where a step is "fresh:cached:epoch" (a model call),
-# "other" (a step with no usage) or "junk" (metadata that is not protobuf).
+# make_conv <id> <step>... where a step is "fresh:cached" (a model call; a zero
+# count is left out, as protobuf does, and "-" leaves fresh out), "other" (a
+# step with no usage) or "junk" (metadata that is not protobuf).
 make_conv() {
-  export AGY_CONVERSATIONS_DIR="$TEST_TMP/convs"; mkdir -p "$AGY_CONVERSATIONS_DIR"
+  export AGY_CONVERSATIONS_DIR="${CONV_DIR:-$TEST_TMP/convs}"; mkdir -p "$AGY_CONVERSATIONS_DIR"
   python3 -I - "$AGY_CONVERSATIONS_DIR/$1.db" "${@:2}" <<'PY'
 import sqlite3, sys
 def vi(n):
@@ -112,7 +113,7 @@ def vi(n):
         b = n & 0x7f; n >>= 7
         if n: out += bytes([b | 0x80])
         else: return out + bytes([b])
-def num(f, v): return vi(f << 3) + vi(v)
+def num(f, v): return vi(f << 3) + vi(v) if v else b""
 def sub(f, m): return vi(f << 3 | 2) + vi(len(m)) + m
 db = sqlite3.connect(sys.argv[1])
 db.execute("create table steps (idx integer primary key, step_type integer, metadata blob)")
@@ -120,27 +121,38 @@ for i, s in enumerate(sys.argv[2:]):
     if s == "other":  md = sub(1, num(1, 1767225000)) + num(3, 2)
     elif s == "junk": md = b"\xff\xff\xff"
     else:
-        fresh, cached, at = map(int, s.split(":"))
-        md = sub(1, num(1, at - 30)) + sub(7, num(1, at)) + sub(9, num(1, 7) + num(2, fresh) + num(3, 50) + num(5, cached))
+        fresh, cached = s.split(":")
+        usage = num(1, 7) + (b"" if fresh == "-" else vi(2 << 3) + vi(int(fresh))) + num(3, 50) + num(5, int(cached))
+        md = sub(1, num(1, 1767225000)) + sub(9, usage)
     db.execute("insert into steps values (?, 15, ?)", (i, md))
 db.commit()
 PY
 }
 
 @test "cache: shows the last model call's cache share with 2 decimals" {
-  make_conv conv-1 "1000:0:1767225000" "2500:97500:1767225420" other
+  make_conv conv-1 "1000:0" "2500:97500" other
   out="$(agy_line '.conversation_id = "conv-1"')"
   assert_contains "$out" "ctx: 12.35% | cache: 97.50%"
 }
 
-@test "cache: steps that are not model calls, or do not parse, are skipped" {
-  make_conv conv-2 "100:300:1767225540" junk other junk
+@test "cache: steps that are not model calls are skipped" {
+  make_conv conv-2 "100:300" other other
   assert_contains "$(agy_line '.conversation_id = "conv-2"')" "cache: 75.00%"
 }
 
+@test "cache: a newer step that does not parse shows nothing, not an older call" {
+  make_conv conv-2b "100:300" junk other
+  refute_contains "$(agy_line '.conversation_id = "conv-2b"')" "cache:"
+}
+
+@test "cache: a last call without its uncached count shows nothing, not 100%" {
+  make_conv conv-2c "100:300" "-:500"
+  refute_contains "$(agy_line '.conversation_id = "conv-2c"')" "cache:"
+}
+
 @test "cache: falls back to session_id when conversation_id is empty" {
-  make_conv conv-3 "0:10:1767225590"
-  assert_contains "$(agy_line '.session_id = "conv-3"')" "cache: 100.00%"
+  make_conv conv-3 "1:999"
+  assert_contains "$(agy_line '.session_id = "conv-3"')" "cache: 99.90%"
 }
 
 @test "cache: no database, no segment" {
@@ -159,9 +171,15 @@ PY
 }
 
 @test "cache: a conversation id with a path in it is never looked up" {
-  make_conv conv-5 "1:1:1767225500"
+  make_conv conv-5 "1:1"
   mkdir -p "$TEST_TMP/convs/sub"; cp "$TEST_TMP/convs/conv-5.db" "$TEST_TMP/convs/sub/x.db"
   refute_contains "$(agy_line '.conversation_id = "sub/x"')" "cache:"
+}
+
+@test "cache: a ? in the folder path is read, read-only, and creates nothing" {
+  CONV_DIR="$TEST_TMP/c?y" make_conv conv-7 "1:3"
+  assert_contains "$(agy_line '.conversation_id = "conv-7"')" "cache: 75.00%"
+  [ ! -e "$TEST_TMP/c" ] || fail "an empty database was created at the cut-off path"
 }
 
 @test "cache: statusline-command.sh draws cache_reading when there is no cache clock" {
@@ -171,6 +189,19 @@ PY
 }
 
 @test "cache: a last call with nothing read from cache shows 0.00%, not an older call" {
-  make_conv conv-6 "0:900:1767225000" "1200:0:1767225500"
+  make_conv conv-6 "0:900" "1200:0"
   assert_contains "$(agy_line '.conversation_id = "conv-6"')" "cache: 0.00%"
+}
+
+@test "quota: a remaining fraction just over 1 reads 0.00%, never negative" {
+  assert_contains "$(agy_line '.quota["gemini-5h"].remaining_fraction = 1.0000001')" "5h: 0.00%"
+}
+
+@test "STATUSLINE_PCT_DECIMALS holds readings to 0..1000000" {
+  for v in -0.001 -5 1e20; do
+    out="$(jq -n --argjson v "$v" '{cwd:"/tmp", model:{display_name:"M"}, context_window:{used_percentage:$v}}' \
+           | STATUSLINE_PCT_DECIMALS=2 bash "$REPO/claude/statusline-command.sh" | sed $'s/\033\\[[0-9;]*m//g')"
+    case "$v" in 1e20) want="ctx: 1000000.00%" ;; *) want="ctx: 0.00%" ;; esac
+    assert_contains "$out" "$want"
+  done
 }
