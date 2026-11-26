@@ -293,8 +293,9 @@ status line they draw with:
 
 `sync.sh` sets agy's `statusLine` when agy is installed (`~/.gemini/antigravity-cli`
 exists) and the file has no status line command yet, or one already running
-`agy-statusline.sh`. Another command is left alone, as is a file `jq` cannot
-parse. Other keys, `stack_with_default` included, are kept. Inside agy,
+an installed copy, `…/.claude/agy-statusline.sh`. Any other command is left
+alone, the repo's own `agy/agy-statusline.sh` included, as is a file `jq`
+cannot parse. Other keys, `stack_with_default` included, are kept. Inside agy,
 `/statusline off` and `/statusline on` switch it.
 
 ## The agent panel

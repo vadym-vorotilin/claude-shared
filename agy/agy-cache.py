@@ -90,7 +90,12 @@ def reading(blob):
     at = None
     for f, w, v in top:
         if f == 7 and w == 2:
-            t = ints(v).get(1)
+            # The time is optional: a field that does not parse drops only
+            # the time, never the share.
+            try:
+                t = ints(v).get(1)
+            except (ValueError, IndexError):
+                t = None
             if isinstance(t, int) and 10**9 <= t < 10**10:
                 at = t
             break

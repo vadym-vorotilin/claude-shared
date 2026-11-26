@@ -100,7 +100,7 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\
 
 # ---- cache reading, from a fictional agy conversation database --------------
 
-# make_conv <id> <step>... where a step is "fresh:cached[:finished-epoch]" (a
+# make_conv <id> <step>... where a step is "fresh:cached[:finished-epoch|bad]" (a
 # model call; a zero count is left out, as protobuf does, and "-" leaves fresh
 # out), "other" (a step with no usage) or "junk" (metadata that is not protobuf).
 make_conv() {
@@ -123,7 +123,8 @@ for i, s in enumerate(sys.argv[2:]):
     else:
         fresh, cached, *at = s.split(":")
         usage = num(1, 7) + (b"" if fresh == "-" else vi(2 << 3) + vi(int(fresh))) + num(3, 50) + num(5, int(cached))
-        md = sub(1, num(1, 1767225000)) + (sub(7, num(1, int(at[0]))) if at else b"") + sub(9, usage)
+        done = b"" if not at else sub(7, b"\xff") if at[0] == "bad" else sub(7, num(1, int(at[0])))
+        md = sub(1, num(1, 1767225000)) + done + sub(9, usage)
     db.execute("insert into steps values (?, 15, ?)", (i, md))
 db.commit()
 PY
@@ -139,6 +140,13 @@ PY
 @test "cache: a call with no finish time shows the share alone" {
   make_conv conv-1b "2500:97500"
   out="$(agy_line '.conversation_id = "conv-1b"')"
+  assert_contains "$out" "cache: 97.50%"
+  refute_contains "$out" "97.50% ("
+}
+
+@test "cache: a finish-time field that does not parse drops only the time" {
+  make_conv conv-1d "2500:97500:bad"
+  out="$(agy_line '.conversation_id = "conv-1d"')"
   assert_contains "$out" "cache: 97.50%"
   refute_contains "$out" "97.50% ("
 }
