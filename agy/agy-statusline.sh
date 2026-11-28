@@ -11,10 +11,11 @@
 #   quota["<pool>-5h"],     -> rate_limits.five_hour / .seven_day:
 #   quota["<pool>-weekly"]     used_percentage = (1 - remaining_fraction) * 100,
 #                              resets_at = reset_time as epoch seconds (or now
-#                              + reset_in_seconds). The pool is "3p" for a
-#                              model named after a third-party family (Claude,
-#                              GPT, ...), "gemini" for any other, Orchestrator
-#                              included: it plans with a Gemini model.
+#                              + reset_in_seconds). The pool is "gemini" for a
+#                              name with Gemini or Orchestrator in it (the
+#                              Orchestrator plans with a Gemini model), "3p"
+#                              for one naming a third-party family (Claude,
+#                              GPT, ...), and "gemini" for any other.
 #   (added)                 -> cache_reading: {hit_percentage, last_call_at},
 #                              the share of the last model call's input read
 #                              from cache and when that call finished (when
@@ -70,7 +71,8 @@ translated=$(printf '%s' "$input" | jq -c --argjson now "$now" \
     else null end;
   (.model.display_name // .model.id // "") as $name
   | (.model.effort // null) as $eff
-  | (if $name | test("\\b(claude|opus|sonnet|haiku|fable|gpt|llama|mistral|grok|deepseek|qwen)"; "i")
+  | (if $name | test("\\b(gemini|orchestrator)\\b"; "i") then "gemini"
+     elif $name | test("\\b(claude|opus|sonnet|haiku|fable|gpt|llama|mistral|grok|deepseek|qwen)\\b"; "i")
      then "3p" else "gemini" end) as $pool
   | ({five_hour: win(.quota[$pool + "-5h"]?), seven_day: win(.quota[$pool + "-weekly"]?)}
      | with_entries(select(.value != null))) as $rl

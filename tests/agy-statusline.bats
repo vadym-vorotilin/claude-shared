@@ -61,6 +61,18 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\
   assert_contains "$out" "1w: 31.25% (-3d 0h)"
 }
 
+@test "Orchestrator reads the Gemini pool even with a third-party family in its name" {
+  out="$(agy_line '.model = {display_name: "Orchestrator (Claude Demo)", effort: "medium"}')"
+  assert_contains "$out" "5h: 20.00%"
+  assert_contains "$out" "1w: 31.25%"
+}
+
+@test "a family word inside a longer word does not pick the third-party pool" {
+  out="$(agy_line '.model = {display_name: "Demo Opusculum", effort: "medium"}')"
+  assert_contains "$out" "5h: 20.00%"
+  assert_contains "$out" "1w: 31.25%"
+}
+
 @test "falls back to reset_in_seconds when reset_time does not parse" {
   out="$(agy_line '.quota["gemini-5h"].reset_time = "soon"')"
   assert_contains "$out" "5h: 20.00% (-2h 30m)"

@@ -273,9 +273,9 @@ status line they draw with:
 
 - **Effort** comes from `model.effort`; a model name that ends in the same
   effort, such as `(Medium)`, loses that ending.
-- **Quotas** come from agy's `quota` windows for the model's pool (`3p-*` for
-  a model named after a third-party family such as Claude or GPT, `gemini-*`
-  for any other, Orchestrator included), as used percent:
+- **Quotas** come from agy's `quota` windows for the model's pool (`gemini-*`
+  for a name with Gemini or Orchestrator in it, `3p-*` for one naming a
+  third-party family such as Claude or GPT, `gemini-*` for any other), as used percent:
   `(1 - remaining_fraction) × 100`.
 - **Percentages print with two decimals** (`ctx: 12.35%`, `1w: 31.25%`), since
   agy reports finer readings than Claude Code. The Claude line stays whole.
