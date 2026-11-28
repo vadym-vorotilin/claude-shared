@@ -277,7 +277,7 @@ status line they draw with:
   a model named after a third-party family such as Claude or GPT, `gemini-*`
   for any other, Orchestrator included), as used percent:
   `(1 - remaining_fraction) × 100`.
-- **Percentages print with two decimals** (`ctx: 12.35%`, `1w: 25.65%`), since
+- **Percentages print with two decimals** (`ctx: 12.35%`, `1w: 31.25%`), since
   agy reports finer readings than Claude Code. The Claude line stays whole.
 - **Gemini quota is never written to `rate-limits.json`**, which holds
   Claude's quota for tools that read it outside a session.
