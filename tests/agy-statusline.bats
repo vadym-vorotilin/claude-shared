@@ -48,11 +48,17 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\
   assert_contains "$(agy_line '.model.display_name = "Gemini 9 (Preview)"')" "Gemini 9 (Preview) | medium"
 }
 
-@test "a non-Gemini model reads the third-party quota pool" {
-  out="$(agy_line '.model = {display_name: "Other Model", effort: "high"}')"
+@test "a third-party model reads the third-party quota pool" {
+  out="$(agy_line '.model = {display_name: "Claude Demo 9 (Thinking)", effort: "high"}')"
   assert_contains "$out" "5h: 0.00%"
   assert_contains "$out" "1w: 50.00%"
   refute_contains "$out" "(-"
+}
+
+@test "Orchestrator, which plans with a Gemini model, reads the Gemini quota pool" {
+  out="$(agy_line '.model = {id: "Orchestrator (Demo)", display_name: "Orchestrator (Demo)", effort: "medium"}')"
+  assert_contains "$out" "5h: 20.00% (-2h 30m)"
+  assert_contains "$out" "1w: 25.65% (-3d 0h)"
 }
 
 @test "falls back to reset_in_seconds when reset_time does not parse" {
