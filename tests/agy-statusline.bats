@@ -23,7 +23,7 @@ agy_json() {
       "3p-5h":        {remaining_fraction: 1,         reset_time: "1970-01-01T00:00:00Z", reset_in_seconds: 0},
       "3p-weekly":    {remaining_fraction: 0.5,       reset_time: "1970-01-01T00:00:00Z", reset_in_seconds: 0},
       "gemini-5h":    {remaining_fraction: 0.8,       reset_time: "2026-01-01T02:30:00Z", reset_in_seconds: 9000},
-      "gemini-weekly":{remaining_fraction: 0.7434763, reset_time: "2026-01-04T00:00:00Z", reset_in_seconds: 259200}
+      "gemini-weekly":{remaining_fraction: 0.6875, reset_time: "2026-01-04T00:00:00Z", reset_in_seconds: 259200}
     }
   }' | jq -c "${1:-.}"
 }
@@ -33,7 +33,7 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\
 @test "shows the Gemini quota windows as used percent with 2 decimals and countdowns" {
   out="$(agy_line)"
   assert_contains "$out" "5h: 20.00% (-2h 30m)"
-  assert_contains "$out" "1w: 25.65% (-3d 0h)"
+  assert_contains "$out" "1w: 31.25% (-3d 0h)"
 }
 
 @test "shows the context window with 2 decimals" {
@@ -48,11 +48,29 @@ agy_line() { agy_json "${1:-.}" | bash "$REPO/agy/agy-statusline.sh" | sed $'s/\
   assert_contains "$(agy_line '.model.display_name = "Gemini 9 (Preview)"')" "Gemini 9 (Preview) | medium"
 }
 
-@test "a non-Gemini model reads the third-party quota pool" {
-  out="$(agy_line '.model = {display_name: "Other Model", effort: "high"}')"
+@test "a third-party model reads the third-party quota pool" {
+  out="$(agy_line '.model = {display_name: "Claude Demo 9 (Thinking)", effort: "high"}')"
   assert_contains "$out" "5h: 0.00%"
   assert_contains "$out" "1w: 50.00%"
   refute_contains "$out" "(-"
+}
+
+@test "Orchestrator, which plans with a Gemini model, reads the Gemini quota pool" {
+  out="$(agy_line '.model = {id: "Orchestrator (Demo)", display_name: "Orchestrator (Demo)", effort: "medium"}')"
+  assert_contains "$out" "5h: 20.00% (-2h 30m)"
+  assert_contains "$out" "1w: 31.25% (-3d 0h)"
+}
+
+@test "Orchestrator reads the Gemini pool even with a third-party family in its name" {
+  out="$(agy_line '.model = {display_name: "Orchestrator (Claude Demo)", effort: "medium"}')"
+  assert_contains "$out" "5h: 20.00%"
+  assert_contains "$out" "1w: 31.25%"
+}
+
+@test "a family word inside a longer word does not pick the third-party pool" {
+  out="$(agy_line '.model = {display_name: "Demo Opusculum", effort: "medium"}')"
+  assert_contains "$out" "5h: 20.00%"
+  assert_contains "$out" "1w: 31.25%"
 }
 
 @test "falls back to reset_in_seconds when reset_time does not parse" {

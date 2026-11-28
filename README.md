@@ -274,9 +274,10 @@ status line they draw with:
 - **Effort** comes from `model.effort`; a model name that ends in the same
   effort, such as `(Medium)`, loses that ending.
 - **Quotas** come from agy's `quota` windows for the model's pool (`gemini-*`
-  for a Gemini model, `3p-*` for any other), as used percent:
+  for a name with Gemini or Orchestrator in it, `3p-*` for one naming a
+  third-party family such as Claude or GPT, `gemini-*` for any other), as used percent:
   `(1 - remaining_fraction) × 100`.
-- **Percentages print with two decimals** (`ctx: 12.35%`, `1w: 25.65%`), since
+- **Percentages print with two decimals** (`ctx: 12.35%`, `1w: 31.25%`), since
   agy reports finer readings than Claude Code. The Claude line stays whole.
 - **Gemini quota is never written to `rate-limits.json`**, which holds
   Claude's quota for tools that read it outside a session.
